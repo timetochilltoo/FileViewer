@@ -70,6 +70,8 @@ struct PDFKitView: NSViewRepresentable {
             NotificationCenter.default.addObserver(self, selector: #selector(goToPage(_:)), name: .pdfGoToPage, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(zoomIn), name: .pdfZoomIn, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(zoomOut), name: .pdfZoomOut, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(fitWidth), name: .pdfFitWidth, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(fitPage), name: .pdfFitPage, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(pageChanged), name: Notification.Name.PDFViewPageChanged, object: pdfView)
         }
 
@@ -97,6 +99,23 @@ struct PDFKitView: NSViewRepresentable {
 
         @MainActor @objc private func zoomOut() {
             pdfView?.zoomOut(nil)
+            syncScale()
+        }
+
+        @MainActor @objc private func fitWidth() {
+            guard let view = pdfView,
+                  let page = view.currentPage else { return }
+            view.autoScales = false
+            let pageWidth = page.bounds(for: view.displayBox).width
+            let availableWidth = max(view.bounds.width - 36, 240)
+            view.scaleFactor = max(0.2, availableWidth / max(pageWidth, 1))
+            syncScale()
+        }
+
+        @MainActor @objc private func fitPage() {
+            guard let view = pdfView else { return }
+            view.autoScales = true
+            view.scaleFactor = view.scaleFactorForSizeToFit
             syncScale()
         }
 

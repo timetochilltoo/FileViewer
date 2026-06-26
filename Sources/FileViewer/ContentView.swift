@@ -34,6 +34,10 @@ struct ContentView: View {
             }
             return true
         }
+        .focusedSceneValue(\.fileViewerModel, model)
+        .onReceive(NotificationCenter.default.publisher(for: .toggleSidebar)) { _ in
+            sidebarVisible.toggle()
+        }
     }
 
     private var toolbar: some View {
@@ -179,6 +183,20 @@ struct PDFToolbar: View {
                 Image(systemName: "plus.magnifyingglass")
             }
             .help("Zoom In")
+
+            Button {
+                NotificationCenter.default.post(name: .pdfFitWidth, object: nil)
+            } label: {
+                Image(systemName: "arrow.left.and.right")
+            }
+            .help("Fit Width")
+
+            Button {
+                NotificationCenter.default.post(name: .pdfFitPage, object: nil)
+            } label: {
+                Image(systemName: "arrow.up.left.and.down.right.magnifyingglass")
+            }
+            .help("Fit Page")
         }
     }
 }
@@ -210,5 +228,8 @@ extension Notification.Name {
     static let pdfGoToPage = Notification.Name("FileViewer.pdfGoToPage")
     static let pdfZoomIn = Notification.Name("FileViewer.pdfZoomIn")
     static let pdfZoomOut = Notification.Name("FileViewer.pdfZoomOut")
+    static let pdfFitWidth = Notification.Name("FileViewer.pdfFitWidth")
+    static let pdfFitPage = Notification.Name("FileViewer.pdfFitPage")
     static let pdfSearch = Notification.Name("FileViewer.pdfSearch")
+    static let toggleSidebar = Notification.Name("FileViewer.toggleSidebar")
 }

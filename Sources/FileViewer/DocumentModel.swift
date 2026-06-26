@@ -123,6 +123,16 @@ final class AppModel: ObservableObject {
         return document.hasUnsavedChanges
     }
 
+    var isMarkdownDocument: Bool {
+        if case .markdown = document { return true }
+        return false
+    }
+
+    var isPDFDocument: Bool {
+        if case .pdf = document { return true }
+        return false
+    }
+
     func openWithPanel() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.pdf, .text, .plainText]

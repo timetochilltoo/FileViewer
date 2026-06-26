@@ -13,9 +13,3 @@ struct FileViewerApp: App {
         }
     }
 }
-
-struct FileViewerCommands: Commands {
-    var body: some Commands {
-        CommandGroup(replacing: .newItem) { }
-    }
-}
