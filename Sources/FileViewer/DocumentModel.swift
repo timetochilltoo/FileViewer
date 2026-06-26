@@ -21,6 +21,60 @@ enum MarkdownMode: String, Codable, CaseIterable {
     }
 }
 
+enum MarkdownFormatCommand: String, CaseIterable {
+    case bold
+    case italic
+    case underline
+    case heading
+    case bulletList
+    case numberedList
+    case quote
+    case link
+    case code
+
+    var title: String {
+        switch self {
+        case .bold: "Bold"
+        case .italic: "Italic"
+        case .underline: "Underline"
+        case .heading: "Heading"
+        case .bulletList: "Bullet List"
+        case .numberedList: "Numbered List"
+        case .quote: "Quote"
+        case .link: "Link"
+        case .code: "Code"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .bold: "bold"
+        case .italic: "italic"
+        case .underline: "underline"
+        case .heading: "textformat.size"
+        case .bulletList: "list.bullet"
+        case .numberedList: "list.number"
+        case .quote: "quote.opening"
+        case .link: "link"
+        case .code: "curlybraces"
+        }
+    }
+
+    var placeholderText: String {
+        switch self {
+        case .bold: "bold text"
+        case .italic: "italic text"
+        case .underline: "underlined text"
+        case .heading: "Heading"
+        case .bulletList: "list item"
+        case .numberedList: "list item"
+        case .quote: "quoted text"
+        case .link: "link text"
+        case .code: "code"
+        }
+    }
+}
+
 enum SidebarMode: String, CaseIterable {
     case recent
     case contents
@@ -335,6 +389,78 @@ final class AppModel: ObservableObject {
             searchRange = range.upperBound..<markdown.text.endIndex
         }
         return count
+    }
+
+    func applyMarkdownFormat(_ command: MarkdownFormatCommand) {
+        guard isMarkdownDocument else { return }
+        guard let textView = NSApp.keyWindow?.firstResponder as? NSTextView else {
+            insertMarkdownFallback(for: command)
+            return
+        }
+
+        let selectedRange = textView.selectedRange()
+        let selectedText = (textView.string as NSString).substring(with: selectedRange)
+        let replacement = Self.markdownReplacement(for: command, selectedText: selectedText)
+        textView.insertText(replacement.text, replacementRange: selectedRange)
+        if replacement.selectionOffset >= 0 {
+            textView.setSelectedRange(NSRange(
+                location: selectedRange.location + replacement.selectionOffset,
+                length: replacement.selectionLength
+            ))
+        }
+        updateMarkdown(textView.string)
+    }
+
+    private func insertMarkdownFallback(for command: MarkdownFormatCommand) {
+        guard case .markdown(var markdown) = document else { return }
+        let replacement = Self.markdownReplacement(for: command, selectedText: "")
+        markdown.text += markdown.text.hasSuffix("\n") || markdown.text.isEmpty
+            ? replacement.text
+            : "\n" + replacement.text
+        document = .markdown(markdown)
+    }
+
+    private static func markdownReplacement(
+        for command: MarkdownFormatCommand,
+        selectedText: String
+    ) -> (text: String, selectionOffset: Int, selectionLength: Int) {
+        let text = selectedText.isEmpty ? command.placeholderText : selectedText
+        switch command {
+        case .bold:
+            return ("**\(text)**", 2, text.count)
+        case .italic:
+            return ("*\(text)*", 1, text.count)
+        case .underline:
+            return ("<u>\(text)</u>", 3, text.count)
+        case .heading:
+            return ("## \(text)", 3, text.count)
+        case .bulletList:
+            return (prefixLines(text, prefix: "- "), 2, text.count)
+        case .numberedList:
+            return (numberLines(text), 3, text.count)
+        case .quote:
+            return (prefixLines(text, prefix: "> "), 2, text.count)
+        case .link:
+            return ("[\(text)](https://example.com)", 1, text.count)
+        case .code:
+            if text.contains("\n") {
+                return ("```\n\(text)\n```", 4, text.count)
+            }
+            return ("`\(text)`", 1, text.count)
+        }
+    }
+
+    private static func prefixLines(_ text: String, prefix: String) -> String {
+        text.split(separator: "\n", omittingEmptySubsequences: false)
+            .map { prefix + $0 }
+            .joined(separator: "\n")
+    }
+
+    private static func numberLines(_ text: String) -> String {
+        text.split(separator: "\n", omittingEmptySubsequences: false)
+            .enumerated()
+            .map { "\($0.offset + 1). \($0.element)" }
+            .joined(separator: "\n")
     }
 
     private func loadSettings() {

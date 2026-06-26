@@ -6,12 +6,18 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("Sidebar", selection: $model.sidebarMode) {
-                ForEach(SidebarMode.allCases, id: \.self) { mode in
-                    Text(mode.title).tag(mode)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Sidebar")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Picker("Sidebar", selection: $model.sidebarMode) {
+                    ForEach(SidebarMode.allCases, id: \.self) { mode in
+                        Text(mode.title).tag(mode)
+                    }
                 }
+                .labelsHidden()
+                .pickerStyle(.segmented)
             }
-            .pickerStyle(.segmented)
             .padding(10)
 
             Divider()

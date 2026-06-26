@@ -8,18 +8,45 @@ struct MarkdownWorkspace: View {
         Group {
             switch model.markdownMode {
             case .source:
-                editor
+                editorWithFormatting
             case .preview:
                 preview
             case .split:
                 HSplitView {
-                    editor
+                    editorWithFormatting
                         .frame(minWidth: 360)
                     preview
                         .frame(minWidth: 360)
                 }
             }
         }
+    }
+
+    private var editorWithFormatting: some View {
+        VStack(spacing: 0) {
+            formattingBar
+            Divider()
+            editor
+        }
+    }
+
+    private var formattingBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(MarkdownFormatCommand.allCases, id: \.self) { command in
+                    Button {
+                        model.applyMarkdownFormat(command)
+                    } label: {
+                        Label(command.title, systemImage: command.systemImage)
+                            .labelStyle(.iconOnly)
+                    }
+                    .help(command.title)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private var editor: some View {
@@ -29,6 +56,13 @@ struct MarkdownWorkspace: View {
         ))
         .font(.system(.body, design: .monospaced))
         .scrollContentBackground(.hidden)
+        .contextMenu {
+            ForEach(MarkdownFormatCommand.allCases, id: \.self) { command in
+                Button(command.title) {
+                    model.applyMarkdownFormat(command)
+                }
+            }
+        }
         .padding(12)
         .background(Color(nsColor: .textBackgroundColor))
     }

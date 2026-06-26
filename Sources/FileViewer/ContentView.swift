@@ -60,16 +60,22 @@ struct ContentView: View {
             .help("Toggle Sidebar")
 
             if case .markdown = model.document {
-                Picker("Markdown View", selection: Binding(
-                    get: { model.markdownMode },
-                    set: { model.setMarkdownMode($0) }
-                )) {
-                    ForEach(MarkdownMode.allCases, id: \.self) { mode in
-                        Text(mode.title).tag(mode)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Markdown View")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Picker("Markdown View", selection: Binding(
+                        get: { model.markdownMode },
+                        set: { model.setMarkdownMode($0) }
+                    )) {
+                        ForEach(MarkdownMode.allCases, id: \.self) { mode in
+                            Text(mode.title).tag(mode)
+                        }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 240)
+                .frame(width: 280)
 
                 Button {
                     model.saveMarkdown()

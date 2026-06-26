@@ -76,6 +76,7 @@ Expected behavior:
 - The user can search within the document.
 - Markdown search highlights matches in preview and reports a match count.
 - A Help menu Markdown syntax guide is available for common Markdown patterns.
+- Common Markdown formatting can be inserted from the editor toolbar, right-click menu, or Markdown app menu.
 - The user can adjust font size or zoom.
 - The user can switch between light and dark themes.
 - The user can open a table of contents generated from headings.
@@ -157,12 +158,13 @@ Required:
 - Generate a table of contents from headings.
 - Search within rendered content.
 - Help menu syntax guide for Markdown beginners.
+- Formatting assistance such as bold, italic, underline-like HTML, link, heading, list, quote, and code commands from toolbar buttons, menu items, keyboard shortcuts, or right-click/context actions.
 - Copy code block contents.
 - Preserve readable typography across different screen sizes.
 
 Recommended:
 
-- Formatting assistance such as bold, italic, underline-like HTML, link, heading, list, and quote commands from menu items, keyboard shortcuts, or right-click/context actions.
+- A richer text-editor bridge that can preserve cursor/selection state more predictably across SwiftUI refreshes.
 - Export Markdown to PDF.
 - Export Markdown to HTML.
 - Mermaid diagram rendering.

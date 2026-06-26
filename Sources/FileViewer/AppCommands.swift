@@ -103,6 +103,60 @@ struct FileViewerCommands: Commands {
             .disabled(model?.isPDFDocument != true)
         }
 
+        CommandMenu("Markdown") {
+            Button("Bold") {
+                model?.applyMarkdownFormat(.bold)
+            }
+            .keyboardShortcut("b", modifiers: .command)
+            .disabled(model?.isMarkdownDocument != true)
+
+            Button("Italic") {
+                model?.applyMarkdownFormat(.italic)
+            }
+            .keyboardShortcut("i", modifiers: .command)
+            .disabled(model?.isMarkdownDocument != true)
+
+            Button("Underline") {
+                model?.applyMarkdownFormat(.underline)
+            }
+            .keyboardShortcut("u", modifiers: .command)
+            .disabled(model?.isMarkdownDocument != true)
+
+            Divider()
+
+            Button("Heading") {
+                model?.applyMarkdownFormat(.heading)
+            }
+            .keyboardShortcut("h", modifiers: [.command, .option])
+            .disabled(model?.isMarkdownDocument != true)
+
+            Button("Bullet List") {
+                model?.applyMarkdownFormat(.bulletList)
+            }
+            .disabled(model?.isMarkdownDocument != true)
+
+            Button("Numbered List") {
+                model?.applyMarkdownFormat(.numberedList)
+            }
+            .disabled(model?.isMarkdownDocument != true)
+
+            Button("Quote") {
+                model?.applyMarkdownFormat(.quote)
+            }
+            .disabled(model?.isMarkdownDocument != true)
+
+            Button("Link") {
+                model?.applyMarkdownFormat(.link)
+            }
+            .keyboardShortcut("k", modifiers: .command)
+            .disabled(model?.isMarkdownDocument != true)
+
+            Button("Code") {
+                model?.applyMarkdownFormat(.code)
+            }
+            .disabled(model?.isMarkdownDocument != true)
+        }
+
         CommandGroup(replacing: .help) {
             Button("Markdown Syntax Guide") {
                 MarkdownSyntaxHelpPresenter.shared.show()
