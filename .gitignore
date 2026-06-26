@@ -1,0 +1,21 @@
+.DS_Store
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Packaged development builds
+build/
+
+# Node/Vite prototype artifacts
+node_modules/
+dist/
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+
+# Xcode user state
+*.xcuserstate
+xcuserdata/
+DerivedData/
+
