@@ -75,6 +75,28 @@ enum ViewerDocument: Equatable {
     }
 }
 
+struct DocumentTab: Identifiable, Equatable {
+    let id: UUID
+    var document: ViewerDocument
+    var searchText: String
+    var pdfPage: Int
+    var pdfPageCount: Int
+    var pdfScale: CGFloat
+
+    init(document: ViewerDocument) {
+        id = UUID()
+        self.document = document
+        searchText = ""
+        pdfPage = 1
+        if case .pdf(let pdf) = document {
+            pdfPageCount = pdf.document.pageCount
+        } else {
+            pdfPageCount = 0
+        }
+        pdfScale = 1.0
+    }
+}
+
 struct MarkdownDocument: Equatable {
     let url: URL
     var text: String
@@ -96,21 +118,77 @@ struct PDFViewerDocument: Equatable {
 
 @MainActor
 final class AppModel: ObservableObject {
-    @Published var document: ViewerDocument?
+    @Published var tabs: [DocumentTab] = []
+    @Published var selectedTabID: DocumentTab.ID?
     @Published var sidebarMode: SidebarMode = .recent
     @Published var markdownMode: MarkdownMode = .split
-    @Published var searchText = ""
     @Published var statusMessage = ""
     @Published var recents: [RecentDocument] = []
-    @Published var pdfPage = 1
-    @Published var pdfPageCount = 0
-    @Published var pdfScale: CGFloat = 1.0
 
     private let recentsKey = "FileViewer.recents"
     private let markdownModeKey = "FileViewer.markdownMode"
 
     init() {
         loadSettings()
+    }
+
+    var selectedTab: DocumentTab? {
+        guard let index = selectedTabIndex else { return nil }
+        return tabs[index]
+    }
+
+    var selectedTabIndex: Int? {
+        guard let selectedTabID else { return nil }
+        return tabs.firstIndex { $0.id == selectedTabID }
+    }
+
+    var document: ViewerDocument? {
+        get { selectedTab?.document }
+        set {
+            guard let index = selectedTabIndex else { return }
+            if let newValue {
+                tabs[index].document = newValue
+            } else {
+                tabs.remove(at: index)
+                selectedTabID = tabs.first?.id
+            }
+        }
+    }
+
+    var searchText: String {
+        get { selectedTab?.searchText ?? "" }
+        set {
+            guard let index = selectedTabIndex else { return }
+            objectWillChange.send()
+            tabs[index].searchText = newValue
+        }
+    }
+
+    var pdfPage: Int {
+        get { selectedTab?.pdfPage ?? 1 }
+        set {
+            guard let index = selectedTabIndex else { return }
+            objectWillChange.send()
+            tabs[index].pdfPage = newValue
+        }
+    }
+
+    var pdfPageCount: Int {
+        get { selectedTab?.pdfPageCount ?? 0 }
+        set {
+            guard let index = selectedTabIndex else { return }
+            objectWillChange.send()
+            tabs[index].pdfPageCount = newValue
+        }
+    }
+
+    var pdfScale: CGFloat {
+        get { selectedTab?.pdfScale ?? 1.0 }
+        set {
+            guard let index = selectedTabIndex else { return }
+            objectWillChange.send()
+            tabs[index].pdfScale = newValue
+        }
     }
 
     var markdownHeadings: [MarkdownHeading] {
@@ -136,32 +214,34 @@ final class AppModel: ObservableObject {
     func openWithPanel() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.pdf, .text, .plainText]
-        panel.allowsMultipleSelection = false
+        panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
 
-        if panel.runModal() == .OK, let url = panel.url {
-            open(url: url)
+        if panel.runModal() == .OK {
+            panel.urls.forEach { open(url: $0) }
         }
     }
 
     func open(url: URL) {
         statusMessage = ""
-        searchText = ""
+        if let existing = tabs.first(where: { $0.document.url == url }) {
+            selectedTabID = existing.id
+            updateSidebarForSelectedDocument()
+            return
+        }
 
         do {
             if Self.isMarkdown(url) {
                 let text = try String(contentsOf: url, encoding: .utf8)
-                document = .markdown(MarkdownDocument(url: url, text: text, savedText: text))
+                appendTab(.markdown(MarkdownDocument(url: url, text: text, savedText: text)))
                 sidebarMode = .contents
                 addRecent(name: url.lastPathComponent, kind: .markdown, url: url)
                 return
             }
 
             if url.pathExtension.lowercased() == "pdf", let pdf = PDFDocument(url: url) {
-                document = .pdf(PDFViewerDocument(url: url, document: pdf))
-                pdfPageCount = pdf.pageCount
-                pdfPage = 1
+                appendTab(.pdf(PDFViewerDocument(url: url, document: pdf)))
                 sidebarMode = .pages
                 addRecent(name: url.lastPathComponent, kind: .pdf, url: url)
                 return
@@ -170,6 +250,21 @@ final class AppModel: ObservableObject {
             statusMessage = "This file type is not supported yet."
         } catch {
             statusMessage = "Could not open this file."
+        }
+    }
+
+    func selectTab(_ id: DocumentTab.ID) {
+        selectedTabID = id
+        statusMessage = ""
+        updateSidebarForSelectedDocument()
+    }
+
+    func closeTab(_ id: DocumentTab.ID) {
+        guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
+        tabs.remove(at: index)
+        if selectedTabID == id {
+            selectedTabID = tabs.indices.contains(index) ? tabs[index].id : tabs.last?.id
+            updateSidebarForSelectedDocument()
         }
     }
 
@@ -229,6 +324,19 @@ final class AppModel: ObservableObject {
         open(url: recent.url)
     }
 
+    func markdownMatchCount() -> Int {
+        guard case .markdown(let markdown) = document else { return 0 }
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return 0 }
+        var count = 0
+        var searchRange = markdown.text.startIndex..<markdown.text.endIndex
+        while let range = markdown.text.range(of: query, options: [.caseInsensitive], range: searchRange) {
+            count += 1
+            searchRange = range.upperBound..<markdown.text.endIndex
+        }
+        return count
+    }
+
     private func loadSettings() {
         if let mode = UserDefaults.standard.string(forKey: markdownModeKey),
            let markdownMode = MarkdownMode(rawValue: mode) {
@@ -245,6 +353,23 @@ final class AppModel: ObservableObject {
     private func saveRecents() {
         guard let data = try? JSONEncoder().encode(recents) else { return }
         UserDefaults.standard.set(data, forKey: recentsKey)
+    }
+
+    private func appendTab(_ document: ViewerDocument) {
+        let tab = DocumentTab(document: document)
+        tabs.append(tab)
+        selectedTabID = tab.id
+    }
+
+    private func updateSidebarForSelectedDocument() {
+        switch document {
+        case .markdown:
+            sidebarMode = .contents
+        case .pdf:
+            sidebarMode = .pages
+        case nil:
+            sidebarMode = .recent
+        }
     }
 
     static func isMarkdown(_ url: URL) -> Bool {

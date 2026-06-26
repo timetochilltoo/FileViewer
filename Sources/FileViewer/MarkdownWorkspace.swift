@@ -36,7 +36,7 @@ struct MarkdownWorkspace: View {
     private var preview: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                if let attributed = try? AttributedString(markdown: document.text) {
+                if let attributed = renderedMarkdown {
                     Text(attributed)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -52,5 +52,19 @@ struct MarkdownWorkspace: View {
             .frame(maxWidth: 900, alignment: .leading)
         }
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var renderedMarkdown: AttributedString? {
+        guard var attributed = try? AttributedString(markdown: document.text) else { return nil }
+        let query = model.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return attributed }
+
+        var searchRange = attributed.startIndex..<attributed.endIndex
+        while let range = attributed[searchRange].range(of: query, options: [.caseInsensitive]) {
+            attributed[range].backgroundColor = .yellow.opacity(0.45)
+            attributed[range].foregroundColor = .primary
+            searchRange = range.upperBound..<attributed.endIndex
+        }
+        return attributed
     }
 }

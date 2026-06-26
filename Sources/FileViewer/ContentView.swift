@@ -16,6 +16,10 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 toolbar
                 Divider()
+                tabBar
+                if !model.tabs.isEmpty {
+                    Divider()
+                }
                 statusBar
                 Divider()
                 documentBody
@@ -94,7 +98,10 @@ struct ContentView: View {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("Search", text: $model.searchText)
+                TextField("Search", text: Binding(
+                    get: { model.searchText },
+                    set: { model.searchText = $0 }
+                ))
                     .textFieldStyle(.plain)
                     .frame(width: 220)
             }
@@ -104,6 +111,53 @@ struct ContentView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private var tabBar: some View {
+        if !model.tabs.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(model.tabs) { tab in
+                        Button {
+                            model.selectTab(tab.id)
+                        } label: {
+                            HStack(spacing: 7) {
+                                Image(systemName: tab.document.kind == .pdf ? "doc.richtext" : "doc.plaintext")
+                                Text(tab.document.name)
+                                    .lineLimit(1)
+                                if case .markdown(let markdown) = tab.document, markdown.hasUnsavedChanges {
+                                    Circle()
+                                        .fill(.orange)
+                                        .frame(width: 7, height: 7)
+                                }
+                                Button {
+                                    model.closeTab(tab.id)
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Close Tab")
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(
+                                tab.id == model.selectedTabID
+                                    ? Color.accentColor.opacity(0.16)
+                                    : Color(nsColor: .controlBackgroundColor),
+                                in: RoundedRectangle(cornerRadius: 8)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+            }
+            .background(Color(nsColor: .windowBackgroundColor))
+        }
     }
 
     private var statusBar: some View {
@@ -117,6 +171,13 @@ struct ContentView: View {
             if !model.statusMessage.isEmpty {
                 Text(model.statusMessage)
                     .foregroundStyle(.secondary)
+            }
+            if model.isMarkdownDocument {
+                let matches = model.markdownMatchCount()
+                if !model.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text("\(matches) Markdown match\(matches == 1 ? "" : "es")")
+                        .foregroundStyle(matches == 0 ? .orange : .secondary)
+                }
             }
             Spacer()
             if case .pdf = model.document {
@@ -156,7 +217,10 @@ struct PDFToolbar: View {
             }
             .help("Previous Page")
 
-            TextField("Page", value: $model.pdfPage, format: .number)
+            TextField("Page", value: Binding(
+                get: { model.pdfPage },
+                set: { model.pdfPage = $0 }
+            ), format: .number)
                 .frame(width: 48)
                 .multilineTextAlignment(.trailing)
                 .onSubmit {

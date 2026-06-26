@@ -9,9 +9,18 @@ struct PDFWorkspace: View {
         PDFKitView(
             document: viewerDocument.document,
             searchText: model.searchText,
-            page: $model.pdfPage,
-            pageCount: $model.pdfPageCount,
-            scale: $model.pdfScale
+            page: Binding(
+                get: { model.pdfPage },
+                set: { model.pdfPage = $0 }
+            ),
+            pageCount: Binding(
+                get: { model.pdfPageCount },
+                set: { model.pdfPageCount = $0 }
+            ),
+            scale: Binding(
+                get: { model.pdfScale },
+                set: { model.pdfScale = $0 }
+            )
         )
         .background(Color(nsColor: .underPageBackgroundColor))
     }

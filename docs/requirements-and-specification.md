@@ -55,7 +55,9 @@ Expected behavior:
 
 - The app detects file type automatically.
 - Unsupported file types show a clear message.
-- Previously opened documents can restore last page, zoom, and scroll position.
+- Opening multiple supported files keeps them available as tabs.
+- Each open tab keeps its own search text and PDF page/zoom state during the current session.
+- Previously opened documents can restore last page, zoom, and scroll position in a later persistence milestone.
 
 ### 5.2 Read and Edit a Markdown File
 
@@ -72,6 +74,8 @@ Expected behavior:
 - The user can save changes to the original file.
 - The user can save changes as a new Markdown file.
 - The user can search within the document.
+- Markdown search highlights matches in preview and reports a match count.
+- A Help menu Markdown syntax guide is available for common Markdown patterns.
 - The user can adjust font size or zoom.
 - The user can switch between light and dark themes.
 - The user can open a table of contents generated from headings.
@@ -126,10 +130,10 @@ Required:
 - Main document viewing area.
 - Status area showing file name, current page or section, and loading state.
 - Keyboard-friendly navigation.
+- Tab strip for multiple open documents.
 
 Recommended:
 
-- Tab support for multiple open documents.
 - Split view for comparing two documents.
 - Command palette for common actions.
 
@@ -152,11 +156,13 @@ Required:
 - Support local images referenced by the Markdown file.
 - Generate a table of contents from headings.
 - Search within rendered content.
+- Help menu syntax guide for Markdown beginners.
 - Copy code block contents.
 - Preserve readable typography across different screen sizes.
 
 Recommended:
 
+- Formatting assistance such as bold, italic, underline-like HTML, link, heading, list, and quote commands from menu items, keyboard shortcuts, or right-click/context actions.
 - Export Markdown to PDF.
 - Export Markdown to HTML.
 - Mermaid diagram rendering.

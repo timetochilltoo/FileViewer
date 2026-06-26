@@ -102,5 +102,12 @@ struct FileViewerCommands: Commands {
             .keyboardShortcut(.rightArrow, modifiers: .command)
             .disabled(model?.isPDFDocument != true)
         }
+
+        CommandGroup(replacing: .help) {
+            Button("Markdown Syntax Guide") {
+                MarkdownSyntaxHelpPresenter.shared.show()
+            }
+            .keyboardShortcut("/", modifiers: [.command, .shift])
+        }
     }
 }
