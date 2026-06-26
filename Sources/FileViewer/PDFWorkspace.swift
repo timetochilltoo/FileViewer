@@ -141,6 +141,9 @@ struct PDFKitView: NSViewRepresentable {
             guard let view = pdfView,
                   let currentPage = view.currentPage else { return }
             let index = parent.document.index(for: currentPage)
+            guard index != NSNotFound,
+                  index >= 0,
+                  index < parent.document.pageCount else { return }
             DispatchQueue.main.async {
                 self.parent.page = index + 1
                 self.parent.pageCount = self.parent.document.pageCount
@@ -208,7 +211,11 @@ struct PDFThumbnailSidebar: NSViewRepresentable {
             guard let pdfView,
                   let page = pdfView.currentPage,
                   let document = pdfView.document else { return }
-            selectPage(document.index(for: page) + 1)
+            let index = document.index(for: page)
+            guard index != NSNotFound,
+                  index >= 0,
+                  index < document.pageCount else { return }
+            selectPage(index + 1)
         }
     }
 }
