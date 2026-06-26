@@ -45,6 +45,12 @@ build/FileViewer.app
 
 It is built from the Swift release executable and signed locally with an ad-hoc development signature.
 
+To rebuild the app bundle:
+
+```bash
+scripts/package_app.sh
+```
+
 ## Documentation
 
 - Requirements and specification: `docs/requirements-and-specification.md`
