@@ -212,6 +212,8 @@ Formatting behavior:
 - Link: `[text](https://example.com)`
 - Code toggles inline backticks for one-line selections; multiline code still inserts a fenced triple-backtick block.
 
+Patrick confirmed on 2026-06-27 that bold, underline, and heading work in the source editor, then confirmed preview formatting works after the preview was switched to a selectable native text view. Treat the formatting button path as working unless a new specific bug report appears.
+
 Implementation note:
 
 - `AppModel.applyMarkdownFormat(_:)` now calls `markdownReplacement(for:in:selectedRange:)`, which returns the actual replacement range, replacement text, and post-format selection.
@@ -222,6 +224,7 @@ Implementation note:
   - For heading/list/quote-style commands, it tries to match the selected preview text against the comparable source line after removing Markdown line markers.
   - For inline commands such as bold and underline, it searches for the selected preview text in the source, then lets the normal toggle helper expand to surrounding Markdown markers.
   - Current limitation: if the exact same selected phrase appears multiple times, preview formatting may affect the first matching source occurrence. A future improvement could embed source-range metadata in the preview attributed string for perfect mapping.
+  - Link formatting inserts/toggles the app's default example-link form. Smarter toggling of arbitrary existing Markdown links is a possible future polish item.
 
 ### `ContentView.swift`
 
@@ -288,7 +291,10 @@ Formatting toolbar:
 - Horizontal scroll view of icon-only buttons.
 - One button per `MarkdownFormatCommand`.
 - Buttons call `model.applyMarkdownFormat(command)`.
-- Buttons are now toggles in the source editor for bold, italic, underline, heading, bullet list, numbered list, quote, and inline code.
+- Buttons are now working in both Source and Preview selection contexts.
+- Source editor buttons toggle bold, italic, underline, heading, bullet list, numbered list, quote, and inline code.
+- Preview buttons map selected preview text back to Markdown source and then run the same toggle logic.
+- Link insertion works from the toolbar/menu/context command; arbitrary link-toggle polish can be improved later.
 
 Context menu:
 
@@ -322,7 +328,8 @@ Known limitations:
 - Tables and task lists may not render as richly as a dedicated Markdown engine.
 - A local parser check showed native `AttributedString(markdown:)` parses bold, italic, heading, link, list, quote, inline code, fenced code, and strikethrough into plain attributed output, but tables flatten into text and task-list checkboxes appear as text.
 - Local image support is not fully implemented.
-- Formatting toolbar is new and should be manually verified after the native `NSTextView` replacement.
+- Preview-selection formatting is text-match based. If the same selected phrase appears multiple times, it can target the first matching source occurrence rather than the visually selected occurrence.
+- Link insertion works, but smart detection/removal of arbitrary existing links is not fully implemented.
 - The source editor is now more reliable for selection formatting, but this is still a custom bridge and may need polish for cursor positioning, undo grouping, and selection persistence.
 
 ### `PDFWorkspace.swift`
@@ -481,7 +488,14 @@ Recent commits on `main`:
 - `1b802ed` — `Use native Markdown source editor`
   - Replaced SwiftUI `TextEditor` with custom `NSTextView`.
   - Built and pushed.
-  - User has not yet verified after this change.
+  - Later confirmed as the correct direction after follow-up fixes.
+- `c2f7da5` — `Add source editor formatting toggles`
+  - Added toggle behavior for source editor formatting commands.
+  - User confirmed bold, underline, and heading worked.
+- `28ebdbb` — `Enable markdown formatting from preview selection`
+  - Replaced preview rendering with selectable read-only `NSTextView`.
+  - Added preview-selection formatting that maps selected preview text back to Markdown source.
+  - User confirmed preview formatting works.
 
 This handoff document itself should be committed after creation.
 
@@ -498,23 +512,18 @@ Expected after latest build:
 - Opening multiple files should create tabs.
 - Markdown tabs should show `Preview / Source / Split`.
 - In Source or Split mode, the source editor should appear on the left/source pane with a formatting toolbar above it.
-- Selecting text and pressing Bold should wrap selected text in `**`.
+- Selecting text and pressing Bold should wrap selected text in `**`; pressing Bold again on already-bold text should remove the markers.
 - If no text is selected and Bold is pressed, placeholder `**bold text**` should be inserted.
+- Selecting text in Preview and pressing Bold/Underline/Heading should update the Markdown source and refresh the preview.
 - Preview should update as text changes.
 - Search should highlight Markdown preview matches and show match count.
 - PDF search should highlight PDF matches and jump to the first.
 
-Not yet verified by Patrick:
-
-- Whether the latest native-editor replacement fixed the formatting buttons.
-
-If Patrick says "still not working", do not return to the old `TextEditor` approach. Debug the `NSTextView` wrapper directly.
+Patrick verified on 2026-06-27 that source formatting and preview formatting work. If a future formatting bug appears, do not return to the old `TextEditor` approach. Debug the native `NSTextView` wrappers directly.
 
 ## 6. Known issues / likely next bugs
 
-### 6.1 Formatting buttons may still need verification
-
-The most recent user report was that formatting buttons were not working. A stronger fix was applied by replacing SwiftUI `TextEditor` with `NSTextView`, but no user confirmation has happened yet.
+### 6.1 Formatting button regression checks
 
 Recommended manual test:
 
@@ -532,6 +541,10 @@ Recommended manual test:
 12. Try right-click menu.
 13. Try app menu `Markdown > Bold`.
 14. Try keyboard shortcut `Cmd+B`.
+15. Switch to Preview mode.
+16. Select rendered text and click Bold / Underline / Heading.
+17. Expected: the Markdown source changes and the preview refreshes.
+18. In Split mode, test both source-pane and preview-pane selections.
 
 If toolbar works but keyboard/menu does not:
 
@@ -677,16 +690,16 @@ Patrick is newer to Markdown and wants the app to teach/assist him. The Help gui
 
 Recommended order:
 
-1. Verify native Markdown formatting buttons with Patrick.
-2. If still broken, debug `MarkdownSourceEditor` / `NSTextView` directly, not SwiftUI `TextEditor`.
-3. Add unsaved-close confirmation for Markdown tabs.
-4. Add Markdown formatting polish:
+1. Add unsaved-close confirmation for Markdown tabs.
+2. Add Markdown formatting polish:
    - visual labels or tooltips that are clearer for beginners
    - maybe a small "Format" dropdown with text labels, not only icons
    - support "insert table" and "insert task list"
-5. Improve Markdown preview rendering if Patrick relies heavily on tables/checklists.
-6. Improve PDF search result navigation.
-7. Add restore-open-tabs / last PDF page persistence.
+   - smarter link editing/toggling for arbitrary existing Markdown links
+   - more precise preview-to-source mapping when repeated phrases exist
+3. Improve Markdown preview rendering if Patrick relies heavily on tables/checklists.
+4. Improve PDF search result navigation.
+5. Add restore-open-tabs / last PDF page persistence.
 
 ## 11. Quick mental model for future agents
 

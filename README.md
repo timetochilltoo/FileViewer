@@ -16,7 +16,16 @@ Current MVP build includes:
 - Markdown editing.
 - Markdown save and save-as.
 - Markdown search count and preview highlighting.
-- Toggle-style Markdown formatting buttons, right-click actions, and menu commands for common syntax.
+- Toggle-style Markdown formatting buttons, right-click actions, and menu commands for common syntax:
+  - bold
+  - italic
+  - underline
+  - heading
+  - bullet list
+  - numbered list
+  - quote
+  - link insertion
+  - inline code / code block
 - Help menu Markdown syntax guide.
 - PDF rendering.
 - PDF page navigation.
