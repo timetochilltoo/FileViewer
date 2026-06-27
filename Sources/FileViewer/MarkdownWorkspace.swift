@@ -11,7 +11,7 @@ struct MarkdownWorkspace: View {
             case .source:
                 editorWithFormatting
             case .preview:
-                preview
+                previewWithFormatting
             case .split:
                 HSplitView {
                     editorWithFormatting
@@ -28,6 +28,14 @@ struct MarkdownWorkspace: View {
             formattingBar
             Divider()
             editor
+        }
+    }
+
+    private var previewWithFormatting: some View {
+        VStack(spacing: 0) {
+            formattingBar
+            Divider()
+            preview
         }
     }
 
@@ -69,18 +77,11 @@ struct MarkdownWorkspace: View {
     }
 
     private var preview: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 10) {
-                ForEach(markdownBlocks) { block in
-                    blockView(block)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-            .font(.body)
-            .lineSpacing(4)
-            .padding(28)
-            .frame(maxWidth: 900, alignment: .leading)
+        MarkdownPreviewTextView(
+            markdown: document.text,
+            searchText: model.searchText
+        ) { textView in
+            model.rememberMarkdownPreviewTextView(textView)
         }
         .background(Color(nsColor: .windowBackgroundColor))
     }
@@ -276,6 +277,294 @@ private struct MarkdownPreviewBlock: Identifiable {
             return nil
         }
         return (number, line[line.index(after: dotIndex)...].trimmingCharacters(in: .whitespaces))
+    }
+}
+
+private struct MarkdownPreviewTextView: NSViewRepresentable {
+    let markdown: String
+    let searchText: String
+    let onTextViewReady: (NSTextView) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onTextViewReady: onTextViewReady)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.borderType = .noBorder
+        scrollView.drawsBackground = true
+        scrollView.backgroundColor = .windowBackgroundColor
+
+        let textView = NSTextView()
+        textView.delegate = context.coordinator
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.isRichText = true
+        textView.drawsBackground = false
+        textView.textContainerInset = NSSize(width: 28, height: 24)
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.containerSize = NSSize(
+            width: scrollView.contentSize.width,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        textView.minSize = NSSize(width: 0, height: 0)
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
+        textView.textStorage?.setAttributedString(Self.attributedPreview(markdown: markdown, searchText: searchText))
+
+        scrollView.documentView = textView
+        context.coordinator.textView = textView
+        onTextViewReady(textView)
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let textView = scrollView.documentView as? NSTextView else { return }
+        context.coordinator.onTextViewReady = onTextViewReady
+        let selectedRange = textView.selectedRange()
+        textView.textStorage?.setAttributedString(Self.attributedPreview(markdown: markdown, searchText: searchText))
+        let textLength = (textView.string as NSString).length
+        let safeLocation = min(selectedRange.location, textLength)
+        let safeLength = min(selectedRange.length, max(0, textLength - safeLocation))
+        textView.setSelectedRange(NSRange(location: safeLocation, length: safeLength))
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        var onTextViewReady: (NSTextView) -> Void
+        weak var textView: NSTextView?
+
+        init(onTextViewReady: @escaping (NSTextView) -> Void) {
+            self.onTextViewReady = onTextViewReady
+        }
+
+        func textDidBeginEditing(_ notification: Notification) {
+            if let textView = notification.object as? NSTextView {
+                onTextViewReady(textView)
+            }
+        }
+
+        func textViewDidChangeSelection(_ notification: Notification) {
+            if let textView = notification.object as? NSTextView {
+                onTextViewReady(textView)
+            }
+        }
+    }
+
+    private static func attributedPreview(markdown: String, searchText: String) -> NSAttributedString {
+        let output = NSMutableAttributedString()
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineSpacing = 4
+        paragraphStyle.paragraphSpacing = 8
+        paragraphStyle.lineBreakMode = .byWordWrapping
+
+        let bodyFont = NSFont.systemFont(ofSize: NSFont.systemFontSize + 2)
+        let secondaryColor = NSColor.secondaryLabelColor
+
+        for block in MarkdownPreviewBlock.parse(markdown) {
+            switch block.kind {
+            case .blank:
+                output.append(NSAttributedString(string: "\n"))
+            case .heading(let level, let text):
+                appendInline(
+                    text,
+                    to: output,
+                    baseFont: headingFont(level),
+                    color: .labelColor,
+                    paragraphStyle: paragraphStyle
+                )
+                output.append(NSAttributedString(string: "\n\n"))
+            case .paragraph(let text):
+                appendInline(
+                    text,
+                    to: output,
+                    baseFont: bodyFont,
+                    color: .labelColor,
+                    paragraphStyle: paragraphStyle
+                )
+                output.append(NSAttributedString(string: "\n\n"))
+            case .bullet(let text):
+                output.append(NSAttributedString(
+                    string: "• ",
+                    attributes: baseAttributes(font: bodyFont, color: secondaryColor, paragraphStyle: paragraphStyle)
+                ))
+                appendInline(
+                    text,
+                    to: output,
+                    baseFont: bodyFont,
+                    color: .labelColor,
+                    paragraphStyle: paragraphStyle
+                )
+                output.append(NSAttributedString(string: "\n"))
+            case .numbered(let number, let text):
+                output.append(NSAttributedString(
+                    string: "\(number). ",
+                    attributes: baseAttributes(font: bodyFont, color: secondaryColor, paragraphStyle: paragraphStyle)
+                ))
+                appendInline(
+                    text,
+                    to: output,
+                    baseFont: bodyFont,
+                    color: .labelColor,
+                    paragraphStyle: paragraphStyle
+                )
+                output.append(NSAttributedString(string: "\n"))
+            case .quote(let text):
+                output.append(NSAttributedString(
+                    string: "❝ ",
+                    attributes: baseAttributes(font: bodyFont, color: secondaryColor, paragraphStyle: paragraphStyle)
+                ))
+                appendInline(
+                    text,
+                    to: output,
+                    baseFont: bodyFont,
+                    color: secondaryColor,
+                    paragraphStyle: paragraphStyle
+                )
+                output.append(NSAttributedString(string: "\n\n"))
+            case .code(let text):
+                output.append(NSAttributedString(
+                    string: text + "\n\n",
+                    attributes: [
+                        .font: NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular),
+                        .foregroundColor: NSColor.labelColor,
+                        .backgroundColor: NSColor.textBackgroundColor,
+                        .paragraphStyle: paragraphStyle
+                    ]
+                ))
+            }
+        }
+
+        applySearchHighlight(searchText, to: output)
+        return output
+    }
+
+    private static func headingFont(_ level: Int) -> NSFont {
+        switch level {
+        case 1: .boldSystemFont(ofSize: 30)
+        case 2: .boldSystemFont(ofSize: 24)
+        case 3: .boldSystemFont(ofSize: 21)
+        case 4: .boldSystemFont(ofSize: 18)
+        default: .boldSystemFont(ofSize: NSFont.systemFontSize + 2)
+        }
+    }
+
+    private static func appendInline(
+        _ markdown: String,
+        to output: NSMutableAttributedString,
+        baseFont: NSFont,
+        color: NSColor,
+        paragraphStyle: NSParagraphStyle
+    ) {
+        var remaining = markdown[...]
+        while !remaining.isEmpty {
+            if remaining.hasPrefix("**"),
+               let closeRange = remaining.dropFirst(2).range(of: "**") {
+                let inner = String(remaining[remaining.index(remaining.startIndex, offsetBy: 2)..<closeRange.lowerBound])
+                appendPlain(
+                    inner,
+                    to: output,
+                    font: NSFont.boldSystemFont(ofSize: baseFont.pointSize),
+                    color: color,
+                    paragraphStyle: paragraphStyle
+                )
+                remaining = remaining[closeRange.upperBound...]
+            } else if remaining.hasPrefix("<u>"),
+                      let closeRange = remaining.dropFirst(3).range(of: "</u>") {
+                let inner = String(remaining[remaining.index(remaining.startIndex, offsetBy: 3)..<closeRange.lowerBound])
+                appendPlain(
+                    inner,
+                    to: output,
+                    font: baseFont,
+                    color: color,
+                    paragraphStyle: paragraphStyle,
+                    underline: true
+                )
+                remaining = remaining[closeRange.upperBound...]
+            } else if remaining.hasPrefix("*"),
+                      let closeRange = remaining.dropFirst().range(of: "*") {
+                let inner = String(remaining[remaining.index(after: remaining.startIndex)..<closeRange.lowerBound])
+                appendPlain(
+                    inner,
+                    to: output,
+                    font: NSFontManager.shared.convert(baseFont, toHaveTrait: .italicFontMask),
+                    color: color,
+                    paragraphStyle: paragraphStyle
+                )
+                remaining = remaining[closeRange.upperBound...]
+            } else if remaining.hasPrefix("`"),
+                      let closeRange = remaining.dropFirst().range(of: "`") {
+                let inner = String(remaining[remaining.index(after: remaining.startIndex)..<closeRange.lowerBound])
+                appendPlain(
+                    inner,
+                    to: output,
+                    font: .monospacedSystemFont(ofSize: baseFont.pointSize, weight: .regular),
+                    color: color,
+                    paragraphStyle: paragraphStyle
+                )
+                remaining = remaining[closeRange.upperBound...]
+            } else {
+                appendPlain(
+                    String(remaining.removeFirst()),
+                    to: output,
+                    font: baseFont,
+                    color: color,
+                    paragraphStyle: paragraphStyle
+                )
+            }
+        }
+    }
+
+    private static func appendPlain(
+        _ text: String,
+        to output: NSMutableAttributedString,
+        font: NSFont,
+        color: NSColor,
+        paragraphStyle: NSParagraphStyle,
+        underline: Bool = false
+    ) {
+        var attributes = baseAttributes(font: font, color: color, paragraphStyle: paragraphStyle)
+        if underline {
+            attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
+        }
+        output.append(NSAttributedString(string: text, attributes: attributes))
+    }
+
+    private static func baseAttributes(
+        font: NSFont,
+        color: NSColor,
+        paragraphStyle: NSParagraphStyle
+    ) -> [NSAttributedString.Key: Any] {
+        [
+            .font: font,
+            .foregroundColor: color,
+            .paragraphStyle: paragraphStyle
+        ]
+    }
+
+    private static func applySearchHighlight(_ searchText: String, to output: NSMutableAttributedString) {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return }
+
+        let backingString = output.string as NSString
+        var searchRange = NSRange(location: 0, length: backingString.length)
+        while true {
+            let foundRange = backingString.range(of: query, options: [.caseInsensitive], range: searchRange)
+            guard foundRange.location != NSNotFound else { break }
+            output.addAttributes(
+                [
+                    .backgroundColor: NSColor.systemYellow.withAlphaComponent(0.45),
+                    .foregroundColor: NSColor.labelColor
+                ],
+                range: foundRange
+            )
+            let nextLocation = foundRange.location + foundRange.length
+            searchRange = NSRange(location: nextLocation, length: backingString.length - nextLocation)
+        }
     }
 }
 

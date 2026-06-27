@@ -196,6 +196,13 @@ final class AppModel: ObservableObject {
     private let recentsKey = "FileViewer.recents"
     private let markdownModeKey = "FileViewer.markdownMode"
     private weak var lastActiveMarkdownTextView: NSTextView?
+    private weak var lastActiveMarkdownPreviewTextView: NSTextView?
+    private var lastActiveMarkdownSelectionKind: MarkdownSelectionKind = .source
+
+    private enum MarkdownSelectionKind {
+        case source
+        case preview
+    }
 
     init() {
         loadSettings()
@@ -463,7 +470,25 @@ final class AppModel: ObservableObject {
 
     func applyMarkdownFormat(_ command: MarkdownFormatCommand) {
         guard isMarkdownDocument else { return }
+        if let firstResponder = NSApp.keyWindow?.firstResponder as? NSTextView,
+           firstResponder.string == currentMarkdownText {
+            lastActiveMarkdownSelectionKind = .source
+        } else if let firstResponder = NSApp.keyWindow?.firstResponder as? NSTextView,
+                  firstResponder === lastActiveMarkdownPreviewTextView {
+            lastActiveMarkdownSelectionKind = .preview
+        }
+
+        if lastActiveMarkdownSelectionKind == .preview,
+           let previewTextView = markdownPreviewTextViewForFormatting(),
+           applyMarkdownFormatFromPreview(command, previewTextView: previewTextView) {
+            return
+        }
+
         guard let textView = markdownTextViewForFormatting() else {
+            if let previewTextView = markdownPreviewTextViewForFormatting(),
+               applyMarkdownFormatFromPreview(command, previewTextView: previewTextView) {
+                return
+            }
             insertMarkdownFallback(for: command)
             return
         }
@@ -486,6 +511,12 @@ final class AppModel: ObservableObject {
 
     func rememberMarkdownTextView(_ textView: NSTextView) {
         lastActiveMarkdownTextView = textView
+        lastActiveMarkdownSelectionKind = .source
+    }
+
+    func rememberMarkdownPreviewTextView(_ textView: NSTextView) {
+        lastActiveMarkdownPreviewTextView = textView
+        lastActiveMarkdownSelectionKind = .preview
     }
 
     private func markdownTextViewForFormatting() -> NSTextView? {
@@ -500,6 +531,18 @@ final class AppModel: ObservableObject {
         }
         guard let contentView = NSApp.keyWindow?.contentView else { return nil }
         return contentView.firstMarkdownTextView(matching: currentMarkdownText)
+    }
+
+    private func markdownPreviewTextViewForFormatting() -> NSTextView? {
+        if let textView = NSApp.keyWindow?.firstResponder as? NSTextView,
+           textView === lastActiveMarkdownPreviewTextView {
+            return textView
+        }
+        if let textView = lastActiveMarkdownPreviewTextView,
+           textView.window != nil {
+            return textView
+        }
+        return nil
     }
 
     private var currentMarkdownText: String {
@@ -518,6 +561,92 @@ final class AppModel: ObservableObject {
             ? replacement.text
             : "\n" + replacement.text
         document = .markdown(markdown)
+    }
+
+    private func applyMarkdownFormatFromPreview(
+        _ command: MarkdownFormatCommand,
+        previewTextView: NSTextView
+    ) -> Bool {
+        let selectedPreviewText = (previewTextView.string as NSString)
+            .substring(with: previewTextView.selectedRange())
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !selectedPreviewText.isEmpty else { return false }
+        guard case .markdown(var markdown) = document else { return false }
+        guard let sourceRange = Self.sourceRange(
+            forPreviewSelection: selectedPreviewText,
+            command: command,
+            in: markdown.text
+        ) else {
+            statusMessage = "Could not find that preview selection in the Markdown source."
+            return false
+        }
+
+        let replacement = Self.markdownReplacement(
+            for: command,
+            in: markdown.text,
+            selectedRange: sourceRange
+        )
+        markdown.text = (markdown.text as NSString).replacingCharacters(
+            in: replacement.range,
+            with: replacement.text
+        )
+        document = .markdown(markdown)
+        statusMessage = "Updated Markdown from preview selection."
+        return true
+    }
+
+    private static func sourceRange(
+        forPreviewSelection selectedText: String,
+        command: MarkdownFormatCommand,
+        in markdown: String
+    ) -> NSRange? {
+        if command.formatsWholeLines,
+           let lineRange = sourceLineRange(forPreviewSelection: selectedText, in: markdown) {
+            return lineRange
+        }
+
+        let backingString = markdown as NSString
+        let exactRange = backingString.range(
+            of: selectedText,
+            options: [.caseInsensitive, .diacriticInsensitive]
+        )
+        guard exactRange.location != NSNotFound else {
+            return nil
+        }
+        return command.formatsWholeLines
+            ? backingString.lineRange(for: exactRange)
+            : exactRange
+    }
+
+    private static func sourceLineRange(
+        forPreviewSelection selectedText: String,
+        in markdown: String
+    ) -> NSRange? {
+        let backingString = markdown as NSString
+        let fullRange = NSRange(location: 0, length: backingString.length)
+        var lineRanges: [NSRange] = []
+        backingString.enumerateSubstrings(
+            in: fullRange,
+            options: [.byLines, .substringNotRequired]
+        ) { _, _, enclosingRange, _ in
+            lineRanges.append(enclosingRange)
+        }
+
+        for lineRange in lineRanges {
+            let line = backingString.substring(with: lineRange)
+                .trimmingCharacters(in: .newlines)
+            let comparableLine = headingBody(line)
+                ?? line
+                    .replacingOccurrences(of: #"^\s*[-*+]\s+"#, with: "", options: .regularExpression)
+                    .replacingOccurrences(of: #"^\s*\d+\.\s+"#, with: "", options: .regularExpression)
+                    .replacingOccurrences(of: #"^\s*>\s?"#, with: "", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespaces)
+            if comparableLine.caseInsensitiveCompare(selectedText) == .orderedSame {
+                return lineRange
+            }
+        }
+
+        return nil
     }
 
     private struct MarkdownFormatReplacement {

@@ -198,6 +198,7 @@ Formatting behavior:
 
 - If text is selected, wrap/transform the selected text unless it is already formatted, in which case remove that formatting.
 - If the cursor selection is inside existing inline formatting, the formatter expands to include the surrounding markers and removes them. Example: selecting `word` inside `**word**` and pressing Bold changes it back to `word`.
+- Preview selections can also be formatted. The preview pane is now a read-only native `NSTextView`, so `AppModel` can read the selected preview text and map it back to Markdown source before applying the same source toggle logic.
 - If no text is selected, insert placeholder text.
 - Bold toggles `**text**`
 - Italic toggles `*text*`; it avoids mistaking bold `**text**` markers for italic markers.
@@ -217,6 +218,10 @@ Implementation note:
 - This was needed for true toggles because removing formatting sometimes replaces a larger range than the user selected, for example removing `**` immediately outside the selected text.
 - Whole-line commands still expand the original selection with `NSString.lineRange(for:)` before toggling.
 - Selection math uses `NSString` lengths so the cursor behaves better with non-ASCII text than pure Swift `String.count`.
+- Preview formatting uses `sourceRange(forPreviewSelection:command:in:)`.
+  - For heading/list/quote-style commands, it tries to match the selected preview text against the comparable source line after removing Markdown line markers.
+  - For inline commands such as bold and underline, it searches for the selected preview text in the source, then lets the normal toggle helper expand to surrounding Markdown markers.
+  - Current limitation: if the exact same selected phrase appears multiple times, preview formatting may affect the first matching source occurrence. A future improvement could embed source-range metadata in the preview attributed string for perfect mapping.
 
 ### `ContentView.swift`
 
@@ -291,8 +296,9 @@ Context menu:
 
 Markdown preview:
 
-- Uses a lightweight block parser (`MarkdownPreviewBlock`) instead of rendering the whole file as one `Text`.
+- Uses a lightweight block parser (`MarkdownPreviewBlock`) and a read-only selectable `NSTextView` (`MarkdownPreviewTextView`) instead of rendering the whole file as one SwiftUI `Text`.
 - This was changed after the user reported that the preview flattened headings/lists/paragraphs into one strange paragraph.
+- The later switch to `MarkdownPreviewTextView` was made so formatting commands can read preview selections and update the Markdown source.
 - Supported block types:
   - blank line
   - heading levels 1-6
