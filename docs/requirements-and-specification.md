@@ -80,6 +80,7 @@ Expected behavior:
 - Common Markdown formatting can be inserted from the editor toolbar, right-click menu, or Markdown app menu.
 - Generated headings must operate on whole lines so Markdown preview recognizes them.
 - Underline is represented as `<u>text</u>` in source and rendered by the app preview as a supported convenience even though underline is not standard Markdown.
+- Preview must preserve Markdown block structure instead of flattening the document into a single paragraph.
 - The user can adjust font size or zoom.
 - The user can switch between light and dark themes.
 - The user can open a table of contents generated from headings.

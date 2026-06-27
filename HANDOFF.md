@@ -280,8 +280,17 @@ Context menu:
 
 Markdown preview:
 
-- Uses `AttributedString(markdown: document.text)`.
-- If Markdown rendering fails, falls back to plain text.
+- Uses a lightweight block parser (`MarkdownPreviewBlock`) instead of rendering the whole file as one `Text`.
+- This was changed after the user reported that the preview flattened headings/lists/paragraphs into one strange paragraph.
+- Supported block types:
+  - blank line
+  - heading levels 1-6
+  - paragraph
+  - unordered bullet
+  - numbered list item
+  - quote
+  - fenced code block
+- Inline content still uses `AttributedString(markdown:)` for simple inline formatting such as bold, italic, link, code, and strikethrough.
 - Search highlight:
   - uses `model.searchText`
   - highlights matches in preview with yellow background
@@ -292,7 +301,7 @@ Markdown preview:
 
 Known limitations:
 
-- Preview rendering through `AttributedString(markdown:)` is native and simple, but not a full GitHub-Flavored-Markdown renderer.
+- Preview rendering is now structured but still not a full GitHub-Flavored-Markdown renderer.
 - Tables and task lists may not render as richly as a dedicated Markdown engine.
 - A local parser check showed native `AttributedString(markdown:)` parses bold, italic, heading, link, list, quote, inline code, fenced code, and strikethrough into plain attributed output, but tables flatten into text and task-list checkboxes appear as text.
 - Local image support is not fully implemented.

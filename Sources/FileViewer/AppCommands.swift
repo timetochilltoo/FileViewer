@@ -49,7 +49,7 @@ struct FileViewerCommands: Commands {
             .disabled(model?.canPrintDocument != true)
         }
 
-        CommandMenu("View") {
+        CommandMenu("Display") {
             Button("Toggle Sidebar") {
                 NotificationCenter.default.post(name: .toggleSidebar, object: nil)
             }

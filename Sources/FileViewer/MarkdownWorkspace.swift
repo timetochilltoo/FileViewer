@@ -70,13 +70,9 @@ struct MarkdownWorkspace: View {
 
     private var preview: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                if let attributed = renderedMarkdown {
-                    Text(attributed)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    Text(document.text)
+            LazyVStack(alignment: .leading, spacing: 10) {
+                ForEach(markdownBlocks) { block in
+                    blockView(block)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -89,19 +85,67 @@ struct MarkdownWorkspace: View {
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
-    private var renderedMarkdown: AttributedString? {
-        let underlineProcessed = markdownByExtractingUnderlineMarkup(document.text)
-        guard var attributed = try? AttributedString(markdown: underlineProcessed.markdown) else { return nil }
-        applyUnderlineRanges(underlineProcessed.underlinedTexts, to: &attributed)
-        let query = model.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return attributed }
+    private var markdownBlocks: [MarkdownPreviewBlock] {
+        MarkdownPreviewBlock.parse(document.text)
+    }
 
-        var searchRange = attributed.startIndex..<attributed.endIndex
-        while let range = attributed[searchRange].range(of: query, options: [.caseInsensitive]) {
-            attributed[range].backgroundColor = .yellow.opacity(0.45)
-            attributed[range].foregroundColor = .primary
-            searchRange = range.upperBound..<attributed.endIndex
+    @ViewBuilder
+    private func blockView(_ block: MarkdownPreviewBlock) -> some View {
+        switch block.kind {
+        case .blank:
+            Spacer()
+                .frame(height: 6)
+        case .heading(let level, let text):
+            Text(inlineAttributed(text))
+                .font(headingFont(level))
+                .padding(.top, level == 1 ? 10 : 6)
+        case .paragraph(let text):
+            Text(inlineAttributed(text))
+        case .bullet(let text):
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("•")
+                Text(inlineAttributed(text))
+            }
+        case .numbered(let number, let text):
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("\(number).")
+                    .foregroundStyle(.secondary)
+                Text(inlineAttributed(text))
+            }
+        case .quote(let text):
+            HStack(alignment: .top, spacing: 10) {
+                Rectangle()
+                    .fill(Color.secondary.opacity(0.35))
+                    .frame(width: 3)
+                Text(inlineAttributed(text))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 2)
+        case .code(let text):
+            Text(text)
+                .font(.system(.body, design: .monospaced))
+                .textSelection(.enabled)
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
         }
+    }
+
+    private func headingFont(_ level: Int) -> Font {
+        switch level {
+        case 1: .largeTitle.weight(.bold)
+        case 2: .title.weight(.bold)
+        case 3: .title2.weight(.semibold)
+        case 4: .title3.weight(.semibold)
+        default: .headline
+        }
+    }
+
+    private func inlineAttributed(_ markdown: String) -> AttributedString {
+        let underlineProcessed = markdownByExtractingUnderlineMarkup(markdown)
+        var attributed = (try? AttributedString(markdown: underlineProcessed.markdown)) ?? AttributedString(underlineProcessed.markdown)
+        applyUnderlineRanges(underlineProcessed.underlinedTexts, to: &attributed)
+        applySearchHighlight(to: &attributed)
         return attributed
     }
 
@@ -125,12 +169,113 @@ struct MarkdownWorkspace: View {
 
     private func applyUnderlineRanges(_ underlinedTexts: [String], to attributed: inout AttributedString) {
         for underlinedText in underlinedTexts where !underlinedText.isEmpty {
-            var searchRange = attributed.startIndex..<attributed.endIndex
-            if let range = attributed[searchRange].range(of: underlinedText) {
+            if let range = attributed.range(of: underlinedText) {
                 attributed[range].underlineStyle = .single
-                searchRange = range.upperBound..<attributed.endIndex
             }
         }
+    }
+
+    private func applySearchHighlight(to attributed: inout AttributedString) {
+        let query = model.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return }
+
+        var searchRange = attributed.startIndex..<attributed.endIndex
+        while let range = attributed[searchRange].range(of: query, options: [.caseInsensitive]) {
+            attributed[range].backgroundColor = .yellow.opacity(0.45)
+            attributed[range].foregroundColor = .primary
+            searchRange = range.upperBound..<attributed.endIndex
+        }
+    }
+}
+
+private struct MarkdownPreviewBlock: Identifiable {
+    enum Kind {
+        case blank
+        case heading(level: Int, text: String)
+        case paragraph(String)
+        case bullet(String)
+        case numbered(number: Int, text: String)
+        case quote(String)
+        case code(String)
+    }
+
+    let id = UUID()
+    let kind: Kind
+
+    static func parse(_ markdown: String) -> [MarkdownPreviewBlock] {
+        var blocks: [MarkdownPreviewBlock] = []
+        var inCodeBlock = false
+        var codeLines: [String] = []
+
+        for rawLine in markdown.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
+            let trimmed = rawLine.trimmingCharacters(in: .whitespaces)
+
+            if trimmed.hasPrefix("```") {
+                if inCodeBlock {
+                    blocks.append(.init(kind: .code(codeLines.joined(separator: "\n"))))
+                    codeLines = []
+                    inCodeBlock = false
+                } else {
+                    inCodeBlock = true
+                }
+                continue
+            }
+
+            if inCodeBlock {
+                codeLines.append(rawLine)
+                continue
+            }
+
+            if trimmed.isEmpty {
+                blocks.append(.init(kind: .blank))
+            } else if let heading = heading(from: trimmed) {
+                blocks.append(.init(kind: .heading(level: heading.level, text: heading.text)))
+            } else if let bullet = unorderedListText(from: trimmed) {
+                blocks.append(.init(kind: .bullet(bullet)))
+            } else if let numbered = orderedListText(from: trimmed) {
+                blocks.append(.init(kind: .numbered(number: numbered.number, text: numbered.text)))
+            } else if trimmed.hasPrefix(">") {
+                let text = trimmed.dropFirst().trimmingCharacters(in: .whitespaces)
+                blocks.append(.init(kind: .quote(text)))
+            } else {
+                blocks.append(.init(kind: .paragraph(rawLine)))
+            }
+        }
+
+        if inCodeBlock {
+            blocks.append(.init(kind: .code(codeLines.joined(separator: "\n"))))
+        }
+
+        return blocks.isEmpty ? [.init(kind: .blank)] : blocks
+    }
+
+    private static func heading(from line: String) -> (level: Int, text: String)? {
+        let level = line.prefix { $0 == "#" }.count
+        guard (1...6).contains(level),
+              line.dropFirst(level).first?.isWhitespace == true else {
+            return nil
+        }
+        let text = line.dropFirst(level).trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { return nil }
+        return (level, text)
+    }
+
+    private static func unorderedListText(from line: String) -> String? {
+        for marker in ["- ", "* ", "+ "] where line.hasPrefix(marker) {
+            return String(line.dropFirst(marker.count))
+        }
+        return nil
+    }
+
+    private static func orderedListText(from line: String) -> (number: Int, text: String)? {
+        guard let dotIndex = line.firstIndex(of: ".") else { return nil }
+        let numberPart = line[..<dotIndex]
+        guard let number = Int(numberPart),
+              line.index(after: dotIndex) < line.endIndex,
+              line[line.index(after: dotIndex)].isWhitespace else {
+            return nil
+        }
+        return (number, line[line.index(after: dotIndex)...].trimmingCharacters(in: .whitespaces))
     }
 }
 

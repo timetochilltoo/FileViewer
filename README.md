@@ -10,6 +10,7 @@ Current MVP build includes:
 - Drag-and-drop file opening.
 - Markdown source view.
 - Markdown rendered preview.
+- Structured Markdown preview for headings, lists, quotes, code blocks, and underline convenience.
 - Markdown split view.
 - Markdown editing.
 - Markdown save and save-as.
