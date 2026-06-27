@@ -409,6 +409,7 @@ final class AppModel: ObservableObject {
                 length: replacement.selectionLength
             ))
         }
+        textView.window?.makeFirstResponder(textView)
         updateMarkdown(textView.string)
     }
 
