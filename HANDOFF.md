@@ -179,7 +179,7 @@ History:
 3. A patch attempted to remember/find the hidden text view, but the user still reported the buttons not working.
 4. Latest implementation replaced `TextEditor` with a custom `NSViewRepresentable` wrapper around `NSTextView` (`MarkdownSourceEditor` in `MarkdownWorkspace.swift`).
 
-The latest native-editor fix has been built and pushed but, as of this handoff, Patrick has not yet confirmed it works. This is the first thing to verify in the next session if the user says the bug persists.
+Patrick confirmed the native-editor direction was the right one, then asked for source-editor toggles first. The source editor now uses toggle-style formatting for common commands: applying formatting to plain text and removing it when the selected text is already wrapped by that syntax.
 
 `AppModel` still keeps a weak `lastActiveMarkdownTextView`. `MarkdownSourceEditor` calls `model.rememberMarkdownTextView(textView)` through the `onTextViewReady` callback. `applyMarkdownFormat(_:)` chooses a target text view using:
 
@@ -196,17 +196,27 @@ updateMarkdown(textView.string)
 
 Formatting behavior:
 
-- If text is selected, wrap/transform the selected text.
+- If text is selected, wrap/transform the selected text unless it is already formatted, in which case remove that formatting.
+- If the cursor selection is inside existing inline formatting, the formatter expands to include the surrounding markers and removes them. Example: selecting `word` inside `**word**` and pressing Bold changes it back to `word`.
 - If no text is selected, insert placeholder text.
-- Bold: `**text**`
-- Italic: `*text*`
-- Underline: `<u>text</u>` because Markdown itself has no standard underline syntax.
-- Heading: `## text`; heading formatting is line-based because headings only render when they start a line.
-- Bullet list: prefixes each line with `- `
-- Numbered list: prefixes lines with `1.`, `2.`, etc.
-- Quote: prefixes each line with `> `
+- Bold toggles `**text**`
+- Italic toggles `*text*`; it avoids mistaking bold `**text**` markers for italic markers.
+- Underline toggles `<u>text</u>` because Markdown itself has no standard underline syntax.
+- Heading toggles selected/current lines:
+  - if every non-empty selected line is already a Markdown heading (`#` through `######`), remove the heading markers
+  - otherwise normalize each non-empty selected line to `## text`
+- Bullet list toggles `- ` line prefixes.
+- Numbered list toggles ordered-list prefixes such as `1. ` and `2. `.
+- Quote toggles `> ` line prefixes.
 - Link: `[text](https://example.com)`
-- Code: inline backticks for one line, fenced triple-backtick block for multiline text.
+- Code toggles inline backticks for one-line selections; multiline code still inserts a fenced triple-backtick block.
+
+Implementation note:
+
+- `AppModel.applyMarkdownFormat(_:)` now calls `markdownReplacement(for:in:selectedRange:)`, which returns the actual replacement range, replacement text, and post-format selection.
+- This was needed for true toggles because removing formatting sometimes replaces a larger range than the user selected, for example removing `**` immediately outside the selected text.
+- Whole-line commands still expand the original selection with `NSString.lineRange(for:)` before toggling.
+- Selection math uses `NSString` lengths so the cursor behaves better with non-ASCII text than pure Swift `String.count`.
 
 ### `ContentView.swift`
 
@@ -273,6 +283,7 @@ Formatting toolbar:
 - Horizontal scroll view of icon-only buttons.
 - One button per `MarkdownFormatCommand`.
 - Buttons call `model.applyMarkdownFormat(command)`.
+- Buttons are now toggles in the source editor for bold, italic, underline, heading, bullet list, numbered list, quote, and inline code.
 
 Context menu:
 

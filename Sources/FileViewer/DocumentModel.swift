@@ -473,15 +473,13 @@ final class AppModel: ObservableObject {
         let selectedRange = command.formatsWholeLines
             ? backingString.lineRange(for: originalRange)
             : originalRange
-        let selectedText = backingString.substring(with: selectedRange)
-        let replacement = Self.markdownReplacement(for: command, selectedText: selectedText)
-        textView.insertText(replacement.text, replacementRange: selectedRange)
-        if replacement.selectionOffset >= 0 {
-            textView.setSelectedRange(NSRange(
-                location: selectedRange.location + replacement.selectionOffset,
-                length: replacement.selectionLength
-            ))
-        }
+        let replacement = Self.markdownReplacement(
+            for: command,
+            in: textView.string,
+            selectedRange: selectedRange
+        )
+        textView.insertText(replacement.text, replacementRange: replacement.range)
+        textView.setSelectedRange(replacement.selection)
         textView.window?.makeFirstResponder(textView)
         updateMarkdown(textView.string)
     }
@@ -511,72 +509,305 @@ final class AppModel: ObservableObject {
 
     private func insertMarkdownFallback(for command: MarkdownFormatCommand) {
         guard case .markdown(var markdown) = document else { return }
-        let replacement = Self.markdownReplacement(for: command, selectedText: "")
+        let replacement = Self.markdownReplacement(
+            for: command,
+            in: "",
+            selectedRange: NSRange(location: 0, length: 0)
+        )
         markdown.text += markdown.text.hasSuffix("\n") || markdown.text.isEmpty
             ? replacement.text
             : "\n" + replacement.text
         document = .markdown(markdown)
     }
 
+    private struct MarkdownFormatReplacement {
+        let range: NSRange
+        let text: String
+        let selection: NSRange
+    }
+
     private static func markdownReplacement(
         for command: MarkdownFormatCommand,
-        selectedText: String
-    ) -> (text: String, selectionOffset: Int, selectionLength: Int) {
+        in fullText: String,
+        selectedRange: NSRange
+    ) -> MarkdownFormatReplacement {
+        let backingString = fullText as NSString
+        let selectedText = backingString.substring(with: selectedRange)
         let text = selectedText.isEmpty ? command.placeholderText : selectedText
+
         switch command {
         case .bold:
-            return ("**\(text)**", 2, text.count)
+            return inlineToggle(
+                backingString: backingString,
+                selectedRange: selectedRange,
+                selectedText: selectedText,
+                placeholder: text,
+                prefix: "**",
+                suffix: "**"
+            )
         case .italic:
-            return ("*\(text)*", 1, text.count)
+            return inlineToggle(
+                backingString: backingString,
+                selectedRange: selectedRange,
+                selectedText: selectedText,
+                placeholder: text,
+                prefix: "*",
+                suffix: "*",
+                avoidBoldMarkers: true
+            )
         case .underline:
-            return ("<u>\(text)</u>", 3, text.count)
+            return inlineToggle(
+                backingString: backingString,
+                selectedRange: selectedRange,
+                selectedText: selectedText,
+                placeholder: text,
+                prefix: "<u>",
+                suffix: "</u>"
+            )
         case .heading:
-            return (headingReplacement(text), 3, text.count)
+            return lineToggle(
+                selectedRange: selectedRange,
+                selectedText: text,
+                replacement: headingReplacement(text)
+            )
         case .bulletList:
-            return (prefixLines(text, prefix: "- "), 2, text.count)
+            return lineToggle(
+                selectedRange: selectedRange,
+                selectedText: text,
+                replacement: bulletReplacement(text)
+            )
         case .numberedList:
-            return (numberLines(text), 3, text.count)
+            return lineToggle(
+                selectedRange: selectedRange,
+                selectedText: text,
+                replacement: numberedReplacement(text)
+            )
         case .quote:
-            return (prefixLines(text, prefix: "> "), 2, text.count)
+            return lineToggle(
+                selectedRange: selectedRange,
+                selectedText: text,
+                replacement: quoteReplacement(text)
+            )
         case .link:
-            return ("[\(text)](https://example.com)", 1, text.count)
+            return inlineToggle(
+                backingString: backingString,
+                selectedRange: selectedRange,
+                selectedText: selectedText,
+                placeholder: text,
+                prefix: "[",
+                suffix: "](https://example.com)"
+            )
         case .code:
             if text.contains("\n") {
-                return ("```\n\(text)\n```", 4, text.count)
+                let replacement = "```\n\(text)\n```"
+                return MarkdownFormatReplacement(
+                    range: selectedRange,
+                    text: replacement,
+                    selection: NSRange(location: selectedRange.location + 4, length: (text as NSString).length)
+                )
             }
-            return ("`\(text)`", 1, text.count)
+            return inlineToggle(
+                backingString: backingString,
+                selectedRange: selectedRange,
+                selectedText: selectedText,
+                placeholder: text,
+                prefix: "`",
+                suffix: "`"
+            )
         }
     }
 
+    private static func inlineToggle(
+        backingString: NSString,
+        selectedRange: NSRange,
+        selectedText: String,
+        placeholder: String,
+        prefix: String,
+        suffix: String,
+        avoidBoldMarkers: Bool = false
+    ) -> MarkdownFormatReplacement {
+        let prefixLength = (prefix as NSString).length
+        let suffixLength = (suffix as NSString).length
+        let selectedLength = (selectedText as NSString).length
+
+        if selectedLength >= prefixLength + suffixLength,
+           selectedText.hasPrefix(prefix),
+           selectedText.hasSuffix(suffix) {
+            let innerRange = NSRange(
+                location: prefixLength,
+                length: selectedLength - prefixLength - suffixLength
+            )
+            let innerText = (selectedText as NSString).substring(with: innerRange)
+            return MarkdownFormatReplacement(
+                range: selectedRange,
+                text: innerText,
+                selection: NSRange(location: selectedRange.location, length: (innerText as NSString).length)
+            )
+        }
+
+        let canExpandLeft = selectedRange.location >= prefixLength
+        let canExpandRight = selectedRange.location + selectedRange.length + suffixLength <= backingString.length
+        if canExpandLeft, canExpandRight {
+            let leftRange = NSRange(location: selectedRange.location - prefixLength, length: prefixLength)
+            let rightRange = NSRange(location: selectedRange.location + selectedRange.length, length: suffixLength)
+            let hasMatchingSurroundingMarkers = backingString.substring(with: leftRange) == prefix
+                && backingString.substring(with: rightRange) == suffix
+            let isSafeSingleItalicToggle = !avoidBoldMarkers
+                || !isPartOfDoubleAsterisk(backingString, markerRange: leftRange, checkingLeftSide: true)
+                && !isPartOfDoubleAsterisk(backingString, markerRange: rightRange, checkingLeftSide: false)
+
+            if hasMatchingSurroundingMarkers, isSafeSingleItalicToggle {
+                let expandedRange = NSRange(
+                    location: selectedRange.location - prefixLength,
+                    length: selectedRange.length + prefixLength + suffixLength
+                )
+                return MarkdownFormatReplacement(
+                    range: expandedRange,
+                    text: selectedText,
+                    selection: NSRange(location: expandedRange.location, length: selectedLength)
+                )
+            }
+        }
+
+        let text = selectedText.isEmpty ? placeholder : selectedText
+        let replacement = "\(prefix)\(text)\(suffix)"
+        return MarkdownFormatReplacement(
+            range: selectedRange,
+            text: replacement,
+            selection: NSRange(location: selectedRange.location + prefixLength, length: (text as NSString).length)
+        )
+    }
+
+    private static func isPartOfDoubleAsterisk(
+        _ backingString: NSString,
+        markerRange: NSRange,
+        checkingLeftSide: Bool
+    ) -> Bool {
+        guard markerRange.length == 1,
+              backingString.substring(with: markerRange) == "*" else {
+            return false
+        }
+
+        let adjacentLocation = checkingLeftSide
+            ? markerRange.location - 1
+            : markerRange.location + 1
+        guard adjacentLocation >= 0, adjacentLocation < backingString.length else {
+            return false
+        }
+        return backingString.substring(with: NSRange(location: adjacentLocation, length: 1)) == "*"
+    }
+
+    private static func lineToggle(
+        selectedRange: NSRange,
+        selectedText: String,
+        replacement: String
+    ) -> MarkdownFormatReplacement {
+        MarkdownFormatReplacement(
+            range: selectedRange,
+            text: replacement,
+            selection: NSRange(location: selectedRange.location, length: (replacement as NSString).length)
+        )
+    }
+
     private static func headingReplacement(_ text: String) -> String {
-        text.split(separator: "\n", omittingEmptySubsequences: false)
-            .map { line in
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                guard !trimmed.isEmpty else { return "" }
-                let headingMarks = trimmed.prefix { $0 == "#" }.count
-                let withoutExistingHeading: String
-                if (1...6).contains(headingMarks),
-                   trimmed.dropFirst(headingMarks).first?.isWhitespace == true {
-                    withoutExistingHeading = String(trimmed.dropFirst(headingMarks))
-                        .trimmingCharacters(in: .whitespaces)
-                } else {
-                    withoutExistingHeading = trimmed
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        let allNonEmptyLinesAreHeadings = lines
+            .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            .allSatisfy { headingBody(String($0)) != nil }
+
+        return lines
+            .map { line -> String in
+                let lineText = String(line)
+                let trimmed = lineText.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.isEmpty else { return lineText }
+                if allNonEmptyLinesAreHeadings, let body = headingBody(lineText) {
+                    return body
                 }
-                return "## \(withoutExistingHeading)"
+                return "## \(headingBody(lineText) ?? trimmed)"
             }
             .joined(separator: "\n")
     }
 
-    private static func prefixLines(_ text: String, prefix: String) -> String {
-        text.split(separator: "\n", omittingEmptySubsequences: false)
-            .map { prefix + $0 }
+    private static func headingBody(_ line: String) -> String? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        let headingMarks = trimmed.prefix { $0 == "#" }.count
+        guard (1...6).contains(headingMarks),
+              trimmed.dropFirst(headingMarks).first?.isWhitespace == true else {
+            return nil
+        }
+        return String(trimmed.dropFirst(headingMarks)).trimmingCharacters(in: .whitespaces)
+    }
+
+    private static func bulletReplacement(_ text: String) -> String {
+        prefixToggle(
+            text,
+            prefix: "- ",
+            removalPattern: #"^\s*[-*]\s+"#
+        )
+    }
+
+    private static func quoteReplacement(_ text: String) -> String {
+        prefixToggle(
+            text,
+            prefix: "> ",
+            removalPattern: #"^\s*>\s?"#
+        )
+    }
+
+    private static func numberedReplacement(_ text: String) -> String {
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        let allNonEmptyLinesAreNumbered = lines
+            .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            .allSatisfy { line in
+                line.range(of: #"^\s*\d+\.\s+"#, options: .regularExpression) != nil
+            }
+
+        if allNonEmptyLinesAreNumbered {
+            return lines
+                .map { line -> String in
+                    String(line).replacingOccurrences(
+                        of: #"^\s*\d+\.\s+"#,
+                        with: "",
+                        options: .regularExpression
+                    )
+                }
+                .joined(separator: "\n")
+        }
+
+        return lines.enumerated()
+            .map { index, line in
+                let lineText = String(line)
+                guard !lineText.trimmingCharacters(in: .whitespaces).isEmpty else { return lineText }
+                return "\(index + 1). \(lineText)"
+            }
             .joined(separator: "\n")
     }
 
-    private static func numberLines(_ text: String) -> String {
-        text.split(separator: "\n", omittingEmptySubsequences: false)
-            .enumerated()
-            .map { "\($0.offset + 1). \($0.element)" }
+    private static func prefixToggle(
+        _ text: String,
+        prefix: String,
+        removalPattern: String
+    ) -> String {
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        let allNonEmptyLinesHavePrefix = lines
+            .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            .allSatisfy { line in
+                line.range(of: removalPattern, options: .regularExpression) != nil
+            }
+
+        return lines
+            .map { line -> String in
+                let lineText = String(line)
+                guard !lineText.trimmingCharacters(in: .whitespaces).isEmpty else { return lineText }
+                if allNonEmptyLinesHavePrefix {
+                    return lineText.replacingOccurrences(
+                        of: removalPattern,
+                        with: "",
+                        options: .regularExpression
+                    )
+                }
+                return prefix + lineText
+            }
             .joined(separator: "\n")
     }
 
