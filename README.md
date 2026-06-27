@@ -5,6 +5,7 @@ FileViewer is a local-first native macOS Markdown and PDF viewer/editor built wi
 Current MVP build includes:
 
 - Open Markdown and PDF files.
+- New unsaved Markdown documents.
 - Open multiple Markdown/PDF documents in tabs.
 - Drag-and-drop file opening.
 - Markdown source view.
@@ -20,6 +21,7 @@ Current MVP build includes:
 - PDF zoom controls.
 - PDF thumbnails.
 - Basic PDF search by matching pages.
+- Print support for PDFs and Markdown source text.
 - Recent files.
 - Light and dark theme.
 

@@ -71,12 +71,15 @@ Expected behavior:
 - The user can edit the Markdown source.
 - The preview updates while editing.
 - The app shows whether the file has unsaved changes.
+- The user can create a new unsaved Markdown document.
 - The user can save changes to the original file.
 - The user can save changes as a new Markdown file.
 - The user can search within the document.
 - Markdown search highlights matches in preview and reports a match count.
 - A Help menu Markdown syntax guide is available for common Markdown patterns.
 - Common Markdown formatting can be inserted from the editor toolbar, right-click menu, or Markdown app menu.
+- Generated headings must operate on whole lines so Markdown preview recognizes them.
+- Underline is represented as `<u>text</u>` in source and rendered by the app preview as a supported convenience even though underline is not standard Markdown.
 - The user can adjust font size or zoom.
 - The user can switch between light and dark themes.
 - The user can open a table of contents generated from headings.
@@ -160,11 +163,13 @@ Required:
 - Help menu syntax guide for Markdown beginners.
 - Formatting assistance such as bold, italic, underline-like HTML, link, heading, list, quote, and code commands from toolbar buttons, menu items, keyboard shortcuts, or right-click/context actions.
 - Copy code block contents.
+- Print Markdown source text.
 - Preserve readable typography across different screen sizes.
 
 Recommended:
 
 - A richer text-editor bridge that can preserve cursor/selection state more predictably across SwiftUI refreshes.
+- A richer Markdown renderer for tables, task lists, local images, and more GitHub-Flavored-Markdown-compatible output. Native `AttributedString(markdown:)` parses many constructs but currently flattens tables/task lists in preview.
 - Export Markdown to PDF.
 - Export Markdown to HTML.
 - Mermaid diagram rendering.

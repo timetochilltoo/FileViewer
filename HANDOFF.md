@@ -4,7 +4,7 @@ Last updated: 2026-06-27
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `main`  
-Latest known commit before this handoff document: `1b802ed` (`Use native Markdown source editor`)
+Latest known committed handoff baseline before the New/Print/Markdown syntax fixes: `7bab439` (`Add detailed FileViewer handoff`)
 
 ## 1. Project purpose
 
@@ -16,6 +16,8 @@ The app is intended to be a lightweight daily document workspace for:
 - PDFs (`.pdf`)
 - multiple open documents through tabs
 - simple Markdown editing, preview, search, and formatting assistance
+- creating new unsaved Markdown documents
+- printing PDFs and Markdown source text
 - PDF reading, page navigation, zoom, thumbnails, and search
 
 The repo still contains an older React/Vite prototype (`src/`, `dist/`, `package.json`, `vite.config.*`, etc.), but the official implementation direction is now the native SwiftUI app under `Sources/FileViewer`. Do not spend time extending the React/Vite prototype unless Patrick explicitly asks.
@@ -152,9 +154,15 @@ Important methods:
   - Adds recents.
 - `selectTab(_:)`
 - `closeTab(_:)`
+- `newMarkdownDocument()`
+  - creates an untitled Markdown tab without writing a temporary file
+  - Save on an untitled document routes to Save As
 - `updateMarkdown(_:)`
 - `saveMarkdown()`
 - `saveMarkdownAs()`
+- `printDocument()`
+  - PDFs print through PDFKit
+  - Markdown currently prints source text through an `NSTextView`
 - `setMarkdownMode(_:)`
 - `reopenRecent(_:)`
 - `markdownMatchCount()`
@@ -193,7 +201,7 @@ Formatting behavior:
 - Bold: `**text**`
 - Italic: `*text*`
 - Underline: `<u>text</u>` because Markdown itself has no standard underline syntax.
-- Heading: `## text`
+- Heading: `## text`; heading formatting is line-based because headings only render when they start a line.
 - Bullet list: prefixes each line with `- `
 - Numbered list: prefixes lines with `1.`, `2.`, etc.
 - Quote: prefixes each line with `> `
@@ -210,12 +218,14 @@ Main pieces:
   - sidebar: `SidebarView`
   - detail: toolbar, tab bar, status bar, document body
 - toolbar:
-  - Open button
-  - sidebar toggle button
+- Open button
+- New button
+- sidebar toggle button
   - Markdown mode control when Markdown tab is selected
   - Save / Save As buttons when Markdown tab is selected
-  - PDF toolbar when PDF tab is selected
-  - search field
+- PDF toolbar when PDF tab is selected
+- Print button when any document is selected
+- search field
 - tab bar:
   - horizontal list of open tabs
   - selected tab has accent background
@@ -276,11 +286,15 @@ Markdown preview:
   - uses `model.searchText`
   - highlights matches in preview with yellow background
   - status bar shows match count
+- Underline convenience:
+  - source uses `<u>text</u>`
+  - preview preprocesses this simple tag and applies underline styling manually because native Markdown parsing leaves it as literal HTML
 
 Known limitations:
 
 - Preview rendering through `AttributedString(markdown:)` is native and simple, but not a full GitHub-Flavored-Markdown renderer.
 - Tables and task lists may not render as richly as a dedicated Markdown engine.
+- A local parser check showed native `AttributedString(markdown:)` parses bold, italic, heading, link, list, quote, inline code, fenced code, and strikethrough into plain attributed output, but tables flatten into text and task-list checkboxes appear as text.
 - Local image support is not fully implemented.
 - Formatting toolbar is new and should be manually verified after the native `NSTextView` replacement.
 - The source editor is now more reliable for selection formatting, but this is still a custom bridge and may need polish for cursor positioning, undo grouping, and selection persistence.
@@ -365,10 +379,13 @@ Focused model:
 Menus:
 
 - File/New replacement:
+  - New Markdown Document
   - Open...
 - Save group:
   - Save
   - Save As...
+- Print replacement:
+  - Print...
 - View menu:
   - Toggle Sidebar
   - Markdown Preview / Source / Split
@@ -680,4 +697,3 @@ Most bugs will be caused by one of three state boundaries:
 3. PDFKit callbacks referencing stale page/document objects
 
 When debugging, first identify which boundary is involved.
-

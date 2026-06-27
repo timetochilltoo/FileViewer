@@ -16,6 +16,11 @@ struct FileViewerCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
+            Button("New Markdown Document") {
+                model?.newMarkdownDocument()
+            }
+            .keyboardShortcut("n", modifiers: .command)
+
             Button("Open...") {
                 model?.openWithPanel()
             }
@@ -34,6 +39,14 @@ struct FileViewerCommands: Commands {
             }
             .keyboardShortcut("s", modifiers: [.command, .shift])
             .disabled(model?.isMarkdownDocument != true)
+        }
+
+        CommandGroup(replacing: .printItem) {
+            Button("Print...") {
+                model?.printDocument()
+            }
+            .keyboardShortcut("p", modifiers: .command)
+            .disabled(model?.canPrintDocument != true)
         }
 
         CommandMenu("View") {

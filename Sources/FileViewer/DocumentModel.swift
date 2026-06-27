@@ -73,6 +73,15 @@ enum MarkdownFormatCommand: String, CaseIterable {
         case .code: "code"
         }
     }
+
+    var formatsWholeLines: Bool {
+        switch self {
+        case .heading, .bulletList, .numberedList, .quote:
+            true
+        case .bold, .italic, .underline, .link, .code:
+            false
+        }
+    }
 }
 
 enum SidebarMode: String, CaseIterable {
@@ -109,12 +118,12 @@ enum ViewerDocument: Equatable {
 
     var name: String {
         switch self {
-        case .markdown(let document): document.url.lastPathComponent
+        case .markdown(let document): document.name
         case .pdf(let document): document.url.lastPathComponent
         }
     }
 
-    var url: URL {
+    var url: URL? {
         switch self {
         case .markdown(let document): document.url
         case .pdf(let document): document.url
@@ -152,12 +161,17 @@ struct DocumentTab: Identifiable, Equatable {
 }
 
 struct MarkdownDocument: Equatable {
-    let url: URL
+    var url: URL?
+    var untitledName: String
     var text: String
     var savedText: String
 
     var hasUnsavedChanges: Bool {
         text != savedText
+    }
+
+    var name: String {
+        url?.lastPathComponent ?? untitledName
     }
 }
 
@@ -253,7 +267,7 @@ final class AppModel: ObservableObject {
 
     var canSaveMarkdown: Bool {
         guard case .markdown(let document) = document else { return false }
-        return document.hasUnsavedChanges
+        return document.url == nil || document.hasUnsavedChanges
     }
 
     var isMarkdownDocument: Bool {
@@ -264,6 +278,24 @@ final class AppModel: ObservableObject {
     var isPDFDocument: Bool {
         if case .pdf = document { return true }
         return false
+    }
+
+    var canPrintDocument: Bool {
+        document != nil
+    }
+
+    func newMarkdownDocument() {
+        let untitledCount = tabs.reduce(0) { count, tab in
+            if case .markdown(let markdown) = tab.document,
+               markdown.url == nil {
+                return count + 1
+            }
+            return count
+        }
+        let name = untitledCount == 0 ? "Untitled.md" : "Untitled \(untitledCount + 1).md"
+        appendTab(.markdown(MarkdownDocument(url: nil, untitledName: name, text: "", savedText: "")))
+        sidebarMode = .contents
+        statusMessage = "New Markdown document."
     }
 
     func openWithPanel() {
@@ -289,7 +321,12 @@ final class AppModel: ObservableObject {
         do {
             if Self.isMarkdown(url) {
                 let text = try String(contentsOf: url, encoding: .utf8)
-                appendTab(.markdown(MarkdownDocument(url: url, text: text, savedText: text)))
+                appendTab(.markdown(MarkdownDocument(
+                    url: url,
+                    untitledName: url.lastPathComponent,
+                    text: text,
+                    savedText: text
+                )))
                 sidebarMode = .contents
                 addRecent(name: url.lastPathComponent, kind: .markdown, url: url)
                 return
@@ -331,9 +368,13 @@ final class AppModel: ObservableObject {
 
     func saveMarkdown() {
         guard case .markdown(var markdown) = document else { return }
+        guard let url = markdown.url else {
+            saveMarkdownAs()
+            return
+        }
 
         do {
-            try markdown.text.write(to: markdown.url, atomically: true, encoding: .utf8)
+            try markdown.text.write(to: url, atomically: true, encoding: .utf8)
             markdown.savedText = markdown.text
             document = .markdown(markdown)
             statusMessage = "Saved."
@@ -346,19 +387,47 @@ final class AppModel: ObservableObject {
         guard case .markdown(var markdown) = document else { return }
 
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = markdown.url.lastPathComponent
+        panel.nameFieldStringValue = markdown.name
         panel.allowedContentTypes = [.text, .plainText]
 
         if panel.runModal() == .OK, let url = panel.url {
             do {
                 try markdown.text.write(to: url, atomically: true, encoding: .utf8)
-                markdown = MarkdownDocument(url: url, text: markdown.text, savedText: markdown.text)
+                markdown = MarkdownDocument(
+                    url: url,
+                    untitledName: url.lastPathComponent,
+                    text: markdown.text,
+                    savedText: markdown.text
+                )
                 document = .markdown(markdown)
                 addRecent(name: url.lastPathComponent, kind: .markdown, url: url)
                 statusMessage = "Saved as new Markdown file."
             } catch {
                 statusMessage = "Could not save the new Markdown file."
             }
+        }
+    }
+
+    func printDocument() {
+        switch document {
+        case .pdf(let pdf):
+            let printInfo = NSPrintInfo.shared
+            let operation = pdf.document.printOperation(
+                for: printInfo,
+                scalingMode: .pageScaleDownToFit,
+                autoRotate: true
+            )
+            operation?.run()
+        case .markdown(let markdown):
+            let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: 612, height: 792))
+            textView.string = markdown.text
+            textView.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+            textView.isEditable = false
+            let operation = NSPrintOperation(view: textView)
+            operation.jobTitle = markdown.name
+            operation.run()
+        case nil:
+            statusMessage = "Open a document before printing."
         }
     }
 
@@ -399,8 +468,12 @@ final class AppModel: ObservableObject {
             return
         }
 
-        let selectedRange = textView.selectedRange()
-        let selectedText = (textView.string as NSString).substring(with: selectedRange)
+        let originalRange = textView.selectedRange()
+        let backingString = textView.string as NSString
+        let selectedRange = command.formatsWholeLines
+            ? backingString.lineRange(for: originalRange)
+            : originalRange
+        let selectedText = backingString.substring(with: selectedRange)
         let replacement = Self.markdownReplacement(for: command, selectedText: selectedText)
         textView.insertText(replacement.text, replacementRange: selectedRange)
         if replacement.selectionOffset >= 0 {
@@ -458,7 +531,7 @@ final class AppModel: ObservableObject {
         case .underline:
             return ("<u>\(text)</u>", 3, text.count)
         case .heading:
-            return ("## \(text)", 3, text.count)
+            return (headingReplacement(text), 3, text.count)
         case .bulletList:
             return (prefixLines(text, prefix: "- "), 2, text.count)
         case .numberedList:
@@ -473,6 +546,25 @@ final class AppModel: ObservableObject {
             }
             return ("`\(text)`", 1, text.count)
         }
+    }
+
+    private static func headingReplacement(_ text: String) -> String {
+        text.split(separator: "\n", omittingEmptySubsequences: false)
+            .map { line in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.isEmpty else { return "" }
+                let headingMarks = trimmed.prefix { $0 == "#" }.count
+                let withoutExistingHeading: String
+                if (1...6).contains(headingMarks),
+                   trimmed.dropFirst(headingMarks).first?.isWhitespace == true {
+                    withoutExistingHeading = String(trimmed.dropFirst(headingMarks))
+                        .trimmingCharacters(in: .whitespaces)
+                } else {
+                    withoutExistingHeading = trimmed
+                }
+                return "## \(withoutExistingHeading)"
+            }
+            .joined(separator: "\n")
     }
 
     private static func prefixLines(_ text: String, prefix: String) -> String {

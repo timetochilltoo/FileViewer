@@ -90,7 +90,9 @@ struct MarkdownWorkspace: View {
     }
 
     private var renderedMarkdown: AttributedString? {
-        guard var attributed = try? AttributedString(markdown: document.text) else { return nil }
+        let underlineProcessed = markdownByExtractingUnderlineMarkup(document.text)
+        guard var attributed = try? AttributedString(markdown: underlineProcessed.markdown) else { return nil }
+        applyUnderlineRanges(underlineProcessed.underlinedTexts, to: &attributed)
         let query = model.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return attributed }
 
@@ -101,6 +103,34 @@ struct MarkdownWorkspace: View {
             searchRange = range.upperBound..<attributed.endIndex
         }
         return attributed
+    }
+
+    private func markdownByExtractingUnderlineMarkup(_ markdown: String) -> (markdown: String, underlinedTexts: [String]) {
+        var remaining = markdown[...]
+        var output = ""
+        var underlinedTexts: [String] = []
+
+        while let openRange = remaining.range(of: "<u>"),
+              let closeRange = remaining[openRange.upperBound...].range(of: "</u>") {
+            output += remaining[..<openRange.lowerBound]
+            let underlined = String(remaining[openRange.upperBound..<closeRange.lowerBound])
+            output += underlined
+            underlinedTexts.append(underlined)
+            remaining = remaining[closeRange.upperBound...]
+        }
+
+        output += remaining
+        return (output, underlinedTexts)
+    }
+
+    private func applyUnderlineRanges(_ underlinedTexts: [String], to attributed: inout AttributedString) {
+        for underlinedText in underlinedTexts where !underlinedText.isEmpty {
+            var searchRange = attributed.startIndex..<attributed.endIndex
+            if let range = attributed[searchRange].range(of: underlinedText) {
+                attributed[range].underlineStyle = .single
+                searchRange = range.upperBound..<attributed.endIndex
+            }
+        }
     }
 }
 

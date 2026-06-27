@@ -47,6 +47,13 @@ struct ContentView: View {
     private var toolbar: some View {
         HStack(spacing: 8) {
             Button {
+                model.newMarkdownDocument()
+            } label: {
+                Label("New", systemImage: "plus")
+            }
+            .help("New Markdown Document")
+
+            Button {
                 model.openWithPanel()
             } label: {
                 Label("Open", systemImage: "folder")
@@ -98,6 +105,14 @@ struct ContentView: View {
             if case .pdf = model.document {
                 PDFToolbar(model: model)
             }
+
+            Button {
+                model.printDocument()
+            } label: {
+                Image(systemName: "printer")
+            }
+            .disabled(!model.canPrintDocument)
+            .help("Print")
 
             Spacer()
 
