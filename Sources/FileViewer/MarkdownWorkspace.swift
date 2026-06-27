@@ -56,6 +56,9 @@ struct MarkdownWorkspace: View {
         ))
         .font(.system(.body, design: .monospaced))
         .scrollContentBackground(.hidden)
+        .background(MarkdownTextViewObserver { textView in
+            model.rememberMarkdownTextView(textView)
+        })
         .contextMenu {
             ForEach(MarkdownFormatCommand.allCases, id: \.self) { command in
                 Button(command.title) {
@@ -100,5 +103,44 @@ struct MarkdownWorkspace: View {
             searchRange = range.upperBound..<attributed.endIndex
         }
         return attributed
+    }
+}
+
+private struct MarkdownTextViewObserver: NSViewRepresentable {
+    let onResolve: (NSTextView) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            resolveTextView(from: view)
+        }
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        DispatchQueue.main.async {
+            resolveTextView(from: view)
+        }
+    }
+
+    private func resolveTextView(from view: NSView) {
+        guard let textView = view.enclosingScrollView?.documentView as? NSTextView
+            ?? view.superview?.firstDescendantTextView()
+            ?? view.window?.firstResponder as? NSTextView else {
+            return
+        }
+        onResolve(textView)
+    }
+}
+
+private extension NSView {
+    func firstDescendantTextView() -> NSTextView? {
+        if let textView = self as? NSTextView { return textView }
+        for subview in subviews {
+            if let textView = subview.firstDescendantTextView() {
+                return textView
+            }
+        }
+        return nil
     }
 }

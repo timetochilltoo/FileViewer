@@ -181,6 +181,7 @@ final class AppModel: ObservableObject {
 
     private let recentsKey = "FileViewer.recents"
     private let markdownModeKey = "FileViewer.markdownMode"
+    private weak var lastActiveMarkdownTextView: NSTextView?
 
     init() {
         loadSettings()
@@ -393,7 +394,7 @@ final class AppModel: ObservableObject {
 
     func applyMarkdownFormat(_ command: MarkdownFormatCommand) {
         guard isMarkdownDocument else { return }
-        guard let textView = NSApp.keyWindow?.firstResponder as? NSTextView else {
+        guard let textView = markdownTextViewForFormatting() else {
             insertMarkdownFallback(for: command)
             return
         }
@@ -409,6 +410,29 @@ final class AppModel: ObservableObject {
             ))
         }
         updateMarkdown(textView.string)
+    }
+
+    func rememberMarkdownTextView(_ textView: NSTextView) {
+        lastActiveMarkdownTextView = textView
+    }
+
+    private func markdownTextViewForFormatting() -> NSTextView? {
+        if let textView = NSApp.keyWindow?.firstResponder as? NSTextView,
+           textView.string == currentMarkdownText {
+            return textView
+        }
+        if let textView = lastActiveMarkdownTextView,
+           textView.window != nil,
+           textView.string == currentMarkdownText {
+            return textView
+        }
+        guard let contentView = NSApp.keyWindow?.contentView else { return nil }
+        return contentView.firstMarkdownTextView(matching: currentMarkdownText)
+    }
+
+    private var currentMarkdownText: String {
+        guard case .markdown(let markdown) = document else { return "" }
+        return markdown.text
     }
 
     private func insertMarkdownFallback(for command: MarkdownFormatCommand) {
@@ -524,5 +548,20 @@ extension String {
             .filter { $0.isLetter || $0.isNumber || $0.isWhitespace || $0 == "-" }
             .split(separator: " ")
             .joined(separator: "-")
+    }
+}
+
+private extension NSView {
+    func firstMarkdownTextView(matching text: String) -> NSTextView? {
+        if let textView = self as? NSTextView,
+           textView.string == text {
+            return textView
+        }
+        for subview in subviews {
+            if let textView = subview.firstMarkdownTextView(matching: text) {
+                return textView
+            }
+        }
+        return nil
     }
 }
