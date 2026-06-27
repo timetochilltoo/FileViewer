@@ -79,11 +79,14 @@ Sources/FileViewer/
 
 Defines the app entry point:
 
+- Uses `@NSApplicationDelegateAdaptor(FileViewerAppDelegate.self)` for macOS file-open events.
 - Creates a `WindowGroup`.
 - Installs `ContentView`.
 - Sets minimum frame size to `1080 x 720`.
 - Uses `.windowStyle(.titleBar)`.
 - Registers `FileViewerCommands`.
+
+`FileViewerAppDelegate.application(_:open:)` posts `.openFileURLs`; `ContentView` receives this notification and opens each URL as a new tab. This supports Finder / Open With style file opening.
 
 ### `DocumentModel.swift`
 
@@ -148,7 +151,8 @@ Important methods:
   - Allows multiple selection.
   - Supports PDF and text-ish files; actual Markdown detection is extension-based.
 - `open(url:)`
-  - Reuses an existing tab if the same URL is already open.
+  - Always appends a new tab, even if the same URL is already open.
+  - This is intentional: Patrick asked to allow multiple copies of the same PDF/Markdown file at the same time.
   - Opens Markdown by reading UTF-8 text.
   - Opens PDF using `PDFDocument(url:)`.
   - Adds recents.
@@ -496,6 +500,12 @@ Recent commits on `main`:
   - Replaced preview rendering with selectable read-only `NSTextView`.
   - Added preview-selection formatting that maps selected preview text back to Markdown source.
   - User confirmed preview formatting works.
+- Latest work after `b1956ae`
+  - Removed the duplicate-URL guard in `open(url:)`.
+  - Opening the same PDF/Markdown more than once now creates multiple tabs/copies.
+  - Drag-and-drop now opens every dropped file instead of only the first provider.
+  - Added `FileViewerAppDelegate` and `.openFileURLs` notification handling for macOS Open With/external file-open events.
+  - Package script now registers document types for PDF, Markdown, and text files in `Info.plist`.
 
 This handoff document itself should be committed after creation.
 
@@ -510,6 +520,9 @@ Expected after latest build:
 ```
 
 - Opening multiple files should create tabs.
+- Opening the same PDF/Markdown file more than once should create multiple tabs/copies, not jump to an existing tab.
+- Dragging multiple files onto the app should open each supported file as a tab.
+- Finder / Open With file-open events should be routed to the app and opened as new tabs.
 - Markdown tabs should show `Preview / Source / Split`.
 - In Source or Split mode, the source editor should appear on the left/source pane with a formatting toolbar above it.
 - Selecting text and pressing Bold should wrap selected text in `**`; pressing Bold again on already-bold text should remove the markers.

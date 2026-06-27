@@ -319,12 +319,6 @@ final class AppModel: ObservableObject {
 
     func open(url: URL) {
         statusMessage = ""
-        if let existing = tabs.first(where: { $0.document.url == url }) {
-            selectedTabID = existing.id
-            updateSidebarForSelectedDocument()
-            return
-        }
-
         do {
             if Self.isMarkdown(url) {
                 let text = try String(contentsOf: url, encoding: .utf8)

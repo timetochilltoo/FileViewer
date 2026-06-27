@@ -6,8 +6,9 @@ Current MVP build includes:
 
 - Open Markdown and PDF files.
 - New unsaved Markdown documents.
-- Open multiple Markdown/PDF documents in tabs.
-- Drag-and-drop file opening.
+- Open multiple Markdown/PDF documents in tabs, including multiple copies of the same file.
+- Drag-and-drop file opening, including multiple dropped files.
+- macOS Open With / external file-open handling for PDF, Markdown, and text files.
 - Markdown source view.
 - Markdown rendered preview.
 - Select text in Markdown preview and use formatting buttons to update the Markdown source.

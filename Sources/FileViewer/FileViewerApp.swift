@@ -2,6 +2,8 @@ import SwiftUI
 
 @main
 struct FileViewerApp: App {
+    @NSApplicationDelegateAdaptor(FileViewerAppDelegate.self) private var appDelegate
+
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -11,5 +13,11 @@ struct FileViewerApp: App {
         .commands {
             FileViewerCommands()
         }
+    }
+}
+
+final class FileViewerAppDelegate: NSObject, NSApplicationDelegate {
+    func application(_ application: NSApplication, open urls: [URL]) {
+        NotificationCenter.default.post(name: .openFileURLs, object: urls)
     }
 }

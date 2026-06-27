@@ -26,19 +26,26 @@ struct ContentView: View {
             }
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
-            guard let provider = providers.first else { return false }
-            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-                guard let data = item as? Data,
-                      let url = URL(dataRepresentation: data, relativeTo: nil) else {
-                    return
-                }
-                Task { @MainActor in
-                    model.open(url: url)
+            for provider in providers {
+                provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                    guard let data = item as? Data,
+                          let url = URL(dataRepresentation: data, relativeTo: nil) else {
+                        return
+                    }
+                    Task { @MainActor in
+                        model.open(url: url)
+                    }
                 }
             }
             return true
         }
         .focusedSceneValue(\.fileViewerModel, model)
+        .onReceive(NotificationCenter.default.publisher(for: .openFileURLs)) { notification in
+            guard let urls = notification.object as? [URL] else { return }
+            for url in urls {
+                model.open(url: url)
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .toggleSidebar)) { _ in
             sidebarVisible.toggle()
         }
@@ -317,4 +324,5 @@ extension Notification.Name {
     static let pdfFitPage = Notification.Name("FileViewer.pdfFitPage")
     static let pdfSearch = Notification.Name("FileViewer.pdfSearch")
     static let toggleSidebar = Notification.Name("FileViewer.toggleSidebar")
+    static let openFileURLs = Notification.Name("FileViewer.openFileURLs")
 }
