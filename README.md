@@ -13,13 +13,13 @@ Current MVP build includes:
 - Markdown source view.
 - Markdown rendered preview.
 - Select text in Markdown preview and use formatting buttons to update the Markdown source.
-- Structured Markdown preview for headings, lists, quotes, code blocks, and underline convenience.
+- Structured Markdown preview for headings, lists, quotes, code blocks, basic tables, task lists, and underline convenience.
 - Markdown split view.
 - Markdown editing.
 - Markdown save and save-as.
 - Unsaved Markdown close confirmation for tabs and windows.
 - Markdown search count and preview highlighting.
-- Toggle-style Markdown formatting buttons, right-click actions, and menu commands for common syntax:
+- Toggle-style Markdown formatting buttons, source-editor right-click actions, and menu commands for common syntax:
   - bold
   - italic
   - underline

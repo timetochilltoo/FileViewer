@@ -85,8 +85,8 @@ Acceptance criteria:
 
 - Render Markdown preview using native AppKit/SwiftUI components.
 - Preserve Markdown block structure instead of flattening content into one paragraph.
-- Support headings, paragraphs, basic lists, links, blockquotes, code blocks, bold, italic, inline code, and underline convenience.
-- Treat tables, images, task lists, richer code styling, and copy-code buttons as future preview-fidelity improvements.
+- Support headings, paragraphs, basic lists, links, blockquotes, code blocks, basic tables, task lists, bold, italic, inline code, and underline convenience.
+- Treat richer table styling, local images, richer code styling, and copy-code buttons as future preview-fidelity improvements.
 - Generate a heading list from Markdown headings.
 - Add preview-only view mode.
 - Allow selected preview text to be formatted back into the Markdown source.
@@ -323,13 +323,15 @@ Acceptance criteria:
 - Markdown windows can shrink for side-by-side comparison.
 - Markdown formatting buttons work from Source and Preview selections.
 - Insert Table and Task List formatting helpers have been implemented.
+- Basic Markdown table and task-list preview rendering has been implemented.
+- Source-editor right-click formatting uses a custom Markdown command menu.
 - Unsaved Markdown tab/window close confirmation has been implemented.
 - A packaged `.app` bundle with icon and document type registration has been implemented.
 - The app builds successfully with Swift 6.3.2 / Xcode 26.5.
 
 Next implementation work:
 
-- Improve Markdown preview fidelity for GitHub-flavored tables and task lists.
+- Improve Markdown preview fidelity for richer GitHub-flavored tables, local images, and task-list polish.
 - Add richer Markdown/PDF search result navigation.
 - Add PDF outline support when PDFs provide a table of contents.
 - Add persistent restore of open tabs/windows and PDF page/zoom state.

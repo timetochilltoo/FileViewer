@@ -68,8 +68,8 @@ The user opens a Markdown file and can view either the rendered preview, the ori
 
 Expected behavior:
 
-- Headings, basic lists, links, code blocks, blockquotes, and underline convenience render in the native preview.
-- Tables, task lists, and local images are known preview-fidelity improvement areas, not fully complete MVP behavior yet.
+- Headings, basic lists, links, code blocks, blockquotes, basic tables, task lists, and underline convenience render in the native preview.
+- Tables and task lists render in a basic readable form. Richer table styling, more polished checkbox visuals, and local images are known preview-fidelity improvement areas, not fully complete MVP behavior yet.
 - The user can switch between preview only, source only, and split view.
 - The source view shows the original Markdown text.
 - The user can edit the Markdown source.
@@ -81,7 +81,7 @@ Expected behavior:
 - The user can search within the document.
 - Markdown search highlights matches in preview and reports a match count.
 - A Help menu Markdown syntax guide is available for common Markdown patterns.
-- Common Markdown formatting can be inserted from the editor toolbar, right-click menu, or Markdown app menu.
+- Common Markdown formatting can be inserted from the editor toolbar, source-editor right-click menu, or Markdown app menu.
 - Common formatting can also be applied by selecting text in Preview; the app maps the selected preview text back to Markdown source and applies the same formatting command.
 - Generated headings must operate on whole lines so Markdown preview recognizes them.
 - Underline is represented as `<u>text</u>` in source and rendered by the app preview as a supported convenience even though underline is not standard Markdown.
@@ -161,7 +161,7 @@ Required:
 - Switch between preview, source, and split view.
 - Update preview while editing.
 - Show saved and unsaved state.
-- Support common Markdown basics: headings, paragraphs, unordered lists, ordered lists, quotes, code blocks, bold, italic, underline convenience, and inline code.
+- Support common Markdown basics: headings, paragraphs, unordered lists, ordered lists, quotes, code blocks, basic tables, task lists, bold, italic, underline convenience, and inline code.
 - Generate a heading list from Markdown headings in the sidebar.
 - Search within rendered content.
 - Help menu syntax guide for Markdown beginners.
@@ -173,7 +173,7 @@ Required:
 Recommended:
 
 - A richer text-editor bridge that can preserve cursor/selection state more predictably across SwiftUI refreshes.
-- A richer Markdown renderer for tables, task lists, local images, and more GitHub-Flavored-Markdown-compatible output. Native `AttributedString(markdown:)` parses many constructs but currently flattens tables/task lists in preview.
+- A richer Markdown renderer for polished tables, local images, and more GitHub-Flavored-Markdown-compatible output. Native `AttributedString(markdown:)` parses many constructs but flattens tables/task lists, so the app currently uses its own lightweight parser for basic table and task-list preview support.
 - Copy code block contents.
 - Export Markdown to PDF.
 - Export Markdown to HTML.

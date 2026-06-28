@@ -62,15 +62,10 @@ struct MarkdownWorkspace: View {
         MarkdownSourceEditor(text: Binding(
             get: { document.text },
             set: { model.updateMarkdown($0) }
-        )) { textView in
+        ), onFormatCommand: { command in
+            model.applyMarkdownFormat(command)
+        }) { textView in
             model.rememberMarkdownTextView(textView)
-        }
-        .contextMenu {
-            ForEach(MarkdownFormatCommand.allCases, id: \.self) { command in
-                Button(command.title) {
-                    model.applyMarkdownFormat(command)
-                }
-            }
         }
         .padding(12)
         .background(Color(nsColor: .textBackgroundColor))
@@ -113,6 +108,12 @@ struct MarkdownWorkspace: View {
                     .foregroundStyle(.secondary)
                 Text(inlineAttributed(text))
             }
+        case .task(let checked, let text):
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(checked ? "☑" : "☐")
+                    .foregroundStyle(.secondary)
+                Text(inlineAttributed(text))
+            }
         case .quote(let text):
             HStack(alignment: .top, spacing: 10) {
                 Rectangle()
@@ -129,6 +130,20 @@ struct MarkdownWorkspace: View {
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+        case .table(let rows):
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { rowIndex, row in
+                    HStack(spacing: 12) {
+                        ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
+                            Text(inlineAttributed(cell))
+                                .font(rowIndex == 0 ? .body.weight(.semibold) : .body)
+                        }
+                    }
+                    if rowIndex == 0 {
+                        Divider()
+                    }
+                }
+            }
         }
     }
 
@@ -196,8 +211,10 @@ private struct MarkdownPreviewBlock: Identifiable {
         case paragraph(String)
         case bullet(String)
         case numbered(number: Int, text: String)
+        case task(checked: Bool, text: String)
         case quote(String)
         case code(String)
+        case table(rows: [[String]])
     }
 
     let id = UUID()
@@ -208,7 +225,11 @@ private struct MarkdownPreviewBlock: Identifiable {
         var inCodeBlock = false
         var codeLines: [String] = []
 
-        for rawLine in markdown.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
+        let lines = markdown.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        var lineIndex = 0
+
+        while lineIndex < lines.count {
+            let rawLine = lines[lineIndex]
             let trimmed = rawLine.trimmingCharacters(in: .whitespaces)
 
             if trimmed.hasPrefix("```") {
@@ -219,27 +240,41 @@ private struct MarkdownPreviewBlock: Identifiable {
                 } else {
                     inCodeBlock = true
                 }
+                lineIndex += 1
                 continue
             }
 
             if inCodeBlock {
                 codeLines.append(rawLine)
+                lineIndex += 1
                 continue
             }
 
-            if trimmed.isEmpty {
+            if let table = tableRows(startingAt: lineIndex, in: lines) {
+                blocks.append(.init(kind: .table(rows: table.rows)))
+                lineIndex = table.nextIndex
+            } else if trimmed.isEmpty {
                 blocks.append(.init(kind: .blank))
+                lineIndex += 1
             } else if let heading = heading(from: trimmed) {
                 blocks.append(.init(kind: .heading(level: heading.level, text: heading.text)))
+                lineIndex += 1
+            } else if let task = taskListText(from: trimmed) {
+                blocks.append(.init(kind: .task(checked: task.checked, text: task.text)))
+                lineIndex += 1
             } else if let bullet = unorderedListText(from: trimmed) {
                 blocks.append(.init(kind: .bullet(bullet)))
+                lineIndex += 1
             } else if let numbered = orderedListText(from: trimmed) {
                 blocks.append(.init(kind: .numbered(number: numbered.number, text: numbered.text)))
+                lineIndex += 1
             } else if trimmed.hasPrefix(">") {
                 let text = trimmed.dropFirst().trimmingCharacters(in: .whitespaces)
                 blocks.append(.init(kind: .quote(text)))
+                lineIndex += 1
             } else {
                 blocks.append(.init(kind: .paragraph(rawLine)))
+                lineIndex += 1
             }
         }
 
@@ -268,6 +303,16 @@ private struct MarkdownPreviewBlock: Identifiable {
         return nil
     }
 
+    private static func taskListText(from line: String) -> (checked: Bool, text: String)? {
+        for marker in ["- [ ] ", "* [ ] ", "+ [ ] "] where line.hasPrefix(marker) {
+            return (false, String(line.dropFirst(marker.count)))
+        }
+        for marker in ["- [x] ", "- [X] ", "* [x] ", "* [X] ", "+ [x] ", "+ [X] "] where line.hasPrefix(marker) {
+            return (true, String(line.dropFirst(marker.count)))
+        }
+        return nil
+    }
+
     private static func orderedListText(from line: String) -> (number: Int, text: String)? {
         guard let dotIndex = line.firstIndex(of: ".") else { return nil }
         let numberPart = line[..<dotIndex]
@@ -277,6 +322,37 @@ private struct MarkdownPreviewBlock: Identifiable {
             return nil
         }
         return (number, line[line.index(after: dotIndex)...].trimmingCharacters(in: .whitespaces))
+    }
+
+    private static func tableRows(startingAt index: Int, in lines: [String]) -> (rows: [[String]], nextIndex: Int)? {
+        guard index + 1 < lines.count else { return nil }
+        let header = tableCells(from: lines[index])
+        let separator = tableCells(from: lines[index + 1])
+        guard header.count >= 2,
+              separator.count == header.count,
+              separator.allSatisfy({ $0.replacingOccurrences(of: ":", with: "").allSatisfy { $0 == "-" } }) else {
+            return nil
+        }
+
+        var rows = [header]
+        var nextIndex = index + 2
+        while nextIndex < lines.count {
+            let cells = tableCells(from: lines[nextIndex])
+            guard cells.count >= 2 else { break }
+            rows.append(cells)
+            nextIndex += 1
+        }
+        return (rows, nextIndex)
+    }
+
+    private static func tableCells(from line: String) -> [String] {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.contains("|") else { return [] }
+        let withoutOuterPipes = trimmed
+            .trimmingCharacters(in: CharacterSet(charactersIn: "|"))
+        return withoutOuterPipes
+            .split(separator: "|", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
     }
 }
 
@@ -413,6 +489,19 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
                     paragraphStyle: paragraphStyle
                 )
                 output.append(NSAttributedString(string: "\n"))
+            case .task(let checked, let text):
+                output.append(NSAttributedString(
+                    string: checked ? "☑ " : "☐ ",
+                    attributes: baseAttributes(font: bodyFont, color: secondaryColor, paragraphStyle: paragraphStyle)
+                ))
+                appendInline(
+                    text,
+                    to: output,
+                    baseFont: bodyFont,
+                    color: .labelColor,
+                    paragraphStyle: paragraphStyle
+                )
+                output.append(NSAttributedString(string: "\n"))
             case .quote(let text):
                 output.append(NSAttributedString(
                     string: "❝ ",
@@ -436,11 +525,68 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
                         .paragraphStyle: paragraphStyle
                     ]
                 ))
+            case .table(let rows):
+                appendTable(
+                    rows,
+                    to: output,
+                    bodyFont: bodyFont,
+                    paragraphStyle: paragraphStyle
+                )
             }
         }
 
         applySearchHighlight(searchText, to: output)
         return output
+    }
+
+    private static func appendTable(
+        _ rows: [[String]],
+        to output: NSMutableAttributedString,
+        bodyFont: NSFont,
+        paragraphStyle: NSParagraphStyle
+    ) {
+        guard !rows.isEmpty else { return }
+        let columnCount = rows.map(\.count).max() ?? 0
+        let paddedRows = rows.map { row in
+            row + Array(repeating: "", count: max(0, columnCount - row.count))
+        }
+        let widths = (0..<columnCount).map { column in
+            paddedRows.map { $0[column].count }.max() ?? 0
+        }
+        let tableFont = NSFont.monospacedSystemFont(ofSize: bodyFont.pointSize, weight: .regular)
+        let headerFont = NSFont.monospacedSystemFont(ofSize: bodyFont.pointSize, weight: .semibold)
+
+        for (rowIndex, row) in paddedRows.enumerated() {
+            let line = row.enumerated()
+                .map { column, cell in
+                    cell.padding(toLength: widths[column], withPad: " ", startingAt: 0)
+                }
+                .joined(separator: "   ")
+            output.append(NSAttributedString(
+                string: line + "\n",
+                attributes: baseAttributes(
+                    font: rowIndex == 0 ? headerFont : tableFont,
+                    color: .labelColor,
+                    paragraphStyle: paragraphStyle
+                )
+            ))
+
+            if rowIndex == 0 {
+                let divider = widths
+                    .map { String(repeating: "─", count: max($0, 3)) }
+                    .joined(separator: "   ")
+                output.append(NSAttributedString(
+                    string: divider + "\n",
+                    attributes: baseAttributes(
+                        font: tableFont,
+                        color: .secondaryLabelColor,
+                        paragraphStyle: paragraphStyle
+                    )
+                ))
+            }
+        }
+
+        output.append(NSAttributedString(string: "\n"))
     }
 
     private static func headingFont(_ level: Int) -> NSFont {
@@ -570,10 +716,15 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
 
 private struct MarkdownSourceEditor: NSViewRepresentable {
     @Binding var text: String
+    let onFormatCommand: (MarkdownFormatCommand) -> Void
     let onTextViewReady: (NSTextView) -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, onTextViewReady: onTextViewReady)
+        Coordinator(
+            text: $text,
+            onFormatCommand: onFormatCommand,
+            onTextViewReady: onTextViewReady
+        )
     }
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -604,6 +755,7 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
         textView.autoresizingMask = [.width]
         textView.textContainer?.containerSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         textView.textContainer?.widthTracksTextView = false
+        textView.menu = context.coordinator.contextMenu()
 
         scrollView.documentView = textView
         context.coordinator.textView = textView
@@ -614,7 +766,9 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? NSTextView else { return }
         context.coordinator.text = $text
+        context.coordinator.onFormatCommand = onFormatCommand
         context.coordinator.onTextViewReady = onTextViewReady
+        textView.menu = context.coordinator.contextMenu()
         if textView.string != text {
             let selectedRange = textView.selectedRange()
             textView.string = text
@@ -628,12 +782,49 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         var text: Binding<String>
+        var onFormatCommand: (MarkdownFormatCommand) -> Void
         var onTextViewReady: (NSTextView) -> Void
         weak var textView: NSTextView?
 
-        init(text: Binding<String>, onTextViewReady: @escaping (NSTextView) -> Void) {
+        init(
+            text: Binding<String>,
+            onFormatCommand: @escaping (MarkdownFormatCommand) -> Void,
+            onTextViewReady: @escaping (NSTextView) -> Void
+        ) {
             self.text = text
+            self.onFormatCommand = onFormatCommand
             self.onTextViewReady = onTextViewReady
+        }
+
+        func contextMenu() -> NSMenu {
+            let menu = NSMenu()
+            for command in MarkdownFormatCommand.allCases {
+                let item = NSMenuItem(
+                    title: command.title,
+                    action: #selector(applyMarkdownFormatFromMenu(_:)),
+                    keyEquivalent: ""
+                )
+                item.target = self
+                item.representedObject = command.rawValue
+                menu.addItem(item)
+            }
+
+            menu.addItem(.separator())
+            menu.addItem(NSMenuItem(title: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: ""))
+            menu.addItem(NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: ""))
+            menu.addItem(NSMenuItem(title: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: ""))
+            return menu
+        }
+
+        @objc private func applyMarkdownFormatFromMenu(_ sender: NSMenuItem) {
+            guard let rawValue = sender.representedObject as? String,
+                  let command = MarkdownFormatCommand(rawValue: rawValue) else {
+                return
+            }
+            if let textView {
+                onTextViewReady(textView)
+            }
+            onFormatCommand(command)
         }
 
         func textDidBeginEditing(_ notification: Notification) {

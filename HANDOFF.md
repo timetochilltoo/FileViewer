@@ -332,6 +332,8 @@ Formatting toolbar:
 Context menu:
 
 - Same formatting commands are available through right-click context menu on the editor.
+- Important implementation note: the source editor is an AppKit `NSTextView`. A SwiftUI `.contextMenu` did not reliably replace the native text-view right-click menu; the working implementation assigns a custom `NSMenu` directly to `textView.menu` inside `MarkdownSourceEditor.Coordinator.contextMenu()`. Keep this AppKit menu path if improving right-click behavior.
+- The custom right-click menu lists Markdown formatting commands first, then Cut / Copy / Paste.
 
 Markdown preview:
 
@@ -344,9 +346,13 @@ Markdown preview:
   - paragraph
   - unordered bullet
   - numbered list item
+  - task list item
   - quote
   - fenced code block
+  - basic Markdown table
 - Inline content still uses `AttributedString(markdown:)` for simple inline formatting such as bold, italic, link, code, and strikethrough.
+- Basic tables are parsed by detecting a header line plus a Markdown separator line. Preview currently renders them as aligned monospaced rows with a divider under the header. This is intentionally readable but not a rich spreadsheet-like grid.
+- Task lists are parsed from `- [ ] item` / `- [x] item` style lines and render as `☐` / `☑` in preview.
 - Search highlight:
   - uses `model.searchText`
   - highlights matches in preview with yellow background
@@ -358,12 +364,12 @@ Markdown preview:
 Known limitations:
 
 - Preview rendering is now structured but still not a full GitHub-Flavored-Markdown renderer.
-- Tables and task lists may not render as richly as a dedicated Markdown engine.
+- Tables and task lists now render in a basic readable form, but not as richly as a dedicated Markdown engine.
 - A local parser check showed native `AttributedString(markdown:)` parses bold, italic, heading, link, list, quote, inline code, fenced code, and strikethrough into plain attributed output, but tables flatten into text and task-list checkboxes appear as text.
 - Local image support is not fully implemented.
 - Preview-selection formatting is text-match based. If the same selected phrase appears multiple times, it can target the first matching source occurrence rather than the visually selected occurrence.
 - Link insertion works, but smart detection/removal of arbitrary existing links is not fully implemented.
-- Table/task-list insertion is implemented, but rich preview rendering for tables and checkbox-style task lists is still a future Markdown preview improvement.
+- Table/task-list insertion is implemented. Richer table styling, better checkbox visuals, and more complete GitHub-Flavored-Markdown compatibility remain future Markdown preview improvements.
 - The source editor is now more reliable for selection formatting, but this is still a custom bridge and may need polish for cursor positioning, undo grouping, and selection persistence.
 
 ### `PDFWorkspace.swift`
@@ -557,6 +563,11 @@ Recent commits on `main`:
   - The commands appear in the toolbar, right-click menu, and Markdown app menu.
   - Table inserts a template or converts comma-separated selected lines.
   - Task List inserts a template or converts selected lines to unchecked task items.
+- 2026-06-28 — Markdown table preview and custom source right-click menu
+  - Added lightweight table parsing/rendering in Markdown preview. It detects a normal Markdown header/separator table and displays aligned monospaced columns with a header divider.
+  - Added lightweight task-list preview rendering for `- [ ]` and `- [x]` items.
+  - Replaced the SwiftUI `.contextMenu` on the source editor with a custom AppKit `NSMenu` assigned directly to the underlying `NSTextView`, because Patrick saw the default macOS Font/Spelling menu instead of Markdown commands.
+  - The new source-editor right-click menu shows Markdown commands first, then Cut / Copy / Paste.
 
 This handoff document itself should be committed after creation.
 
@@ -663,8 +674,8 @@ Recents persist, but open tabs do not restore after app restart. PDF page/zoom s
 
 `AttributedString(markdown:)` is convenient but not a complete rich Markdown renderer. Known future improvements:
 
-- Better tables
-- Task-list checkbox rendering
+- Richer table styling beyond the current aligned monospaced preview
+- More polished task-list checkbox rendering beyond the current `☐` / `☑` preview
 - Local image rendering
 - Code block styling / copy button
 - Mermaid diagrams
@@ -765,7 +776,7 @@ Patrick is newer to Markdown and wants the app to teach/assist him. The Help gui
 
 Recommended order:
 
-1. Improve Markdown preview rendering if Patrick relies heavily on tables/checklists.
+1. Improve Markdown preview rendering if Patrick relies heavily on richer tables/checklists.
 2. Add remaining Markdown formatting polish:
    - visual labels or tooltips that are clearer for beginners
    - maybe a small "Format" dropdown with text labels, not only icons
