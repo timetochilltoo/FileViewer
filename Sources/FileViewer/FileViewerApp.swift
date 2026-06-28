@@ -18,6 +18,8 @@ struct FileViewerApp: App {
 
 final class FileViewerAppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
-        NotificationCenter.default.post(name: .openFileURLs, object: urls)
+        Task { @MainActor in
+            FileViewerWindowRegistry.shared.openExternal(urls)
+        }
     }
 }

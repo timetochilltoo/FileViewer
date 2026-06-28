@@ -86,7 +86,28 @@ Defines the app entry point:
 - Uses `.windowStyle(.titleBar)`.
 - Registers `FileViewerCommands`.
 
-`FileViewerAppDelegate.application(_:open:)` posts `.openFileURLs`; `ContentView` receives this notification and opens each URL as a new tab. This supports Finder / Open With style file opening.
+`FileViewerAppDelegate.application(_:open:)` routes Finder / Open With file-open events through `FileViewerWindowRegistry`. This replaced an earlier global notification approach after Patrick reported that opening document B from Finder caused every existing FileViewer window to switch to B.
+
+Current behavior is window-based:
+
+- `FileViewerAppDelegate.application(_:open:)` calls `FileViewerWindowRegistry.shared.openExternal(urls)` on the main actor.
+- `ContentView.onAppear` registers its per-window `AppModel` with the registry.
+- The registry reuses an empty startup window for the first external file if one exists.
+- If existing windows already contain documents, each later Finder/Open With URL opens in a fresh `NSWindow` with its own `ContentView(initialURLs:)` and own `AppModel`.
+- If macOS delivers a file-open event before the startup window registers, the registry briefly stores the URL in `pendingExternalURLs`; the first registering empty window consumes it. If no window registers on the next main-loop pass, the registry creates a new window itself.
+- Do not reintroduce a global `.openFileURLs` notification unless it is targeted to a specific window/model; otherwise every open window will respond and show the same newest document.
+
+### `FileViewerWindowRegistry.swift`
+
+Coordinates macOS external file-open events with per-window state.
+
+- Holds weak references to registered `AppModel` instances so closed windows do not keep models alive.
+- Retains manually-created `NSWindow` instances while they are visible.
+- `openExternal(_:)` opens each external URL independently:
+  - first tries to reuse an empty registered window/model
+  - otherwise creates a new window
+- `pendingExternalURLs` prevents a document-launched app from creating both an empty startup window and a separate document window when timing is unlucky.
+- This file exists specifically because Patrick wants Finder-opened documents to appear in separate windows, not merely separate tabs, and because broadcasting file-open events to every `ContentView` caused all windows to show the same document.
 
 ### `DocumentModel.swift`
 
@@ -144,6 +165,8 @@ Important `AppModel` published state:
 
 `AppModel.document`, `searchText`, `pdfPage`, `pdfPageCount`, and `pdfScale` are computed wrappers over the selected tab. This is important: do not add new global document state unless it truly should apply across every tab. Most document-specific state should live inside `DocumentTab`.
 
+Each window owns its own `AppModel` via `ContentView`'s `@StateObject`. Do not make `AppModel` a singleton. A singleton model would recreate the bug where every window shows the same selected document.
+
 Important methods:
 
 - `openWithPanel()`
@@ -153,6 +176,7 @@ Important methods:
 - `open(url:)`
   - Always appends a new tab, even if the same URL is already open.
   - This is intentional: Patrick asked to allow multiple copies of the same PDF/Markdown file at the same time.
+  - For Finder/Open With, this is called on the target window's model only. It must not be broadcast to all models/windows.
   - Opens Markdown by reading UTF-8 text.
   - Opens PDF using `PDFDocument(url:)`.
   - Adds recents.
@@ -504,8 +528,14 @@ Recent commits on `main`:
   - Removed the duplicate-URL guard in `open(url:)`.
   - Opening the same PDF/Markdown more than once now creates multiple tabs/copies.
   - Drag-and-drop now opens every dropped file instead of only the first provider.
-  - Added `FileViewerAppDelegate` and `.openFileURLs` notification handling for macOS Open With/external file-open events.
+  - Added `FileViewerAppDelegate` for macOS Open With/external file-open events.
   - Package script now registers document types for PDF, Markdown, and text files in `Info.plist`.
+- Latest work after `9c479b3`
+  - Replaced the global external-open notification with `FileViewerWindowRegistry`.
+  - Finder/Open With external opens now create/reuse one target window only.
+  - This fixes the bug where opening document B from Finder made every open FileViewer window show document B.
+  - `ContentView` now accepts `initialURLs` and constructs its own `AppModel(opening:)`.
+  - `AppModel` now has `canAcceptExternalOpenInCurrentWindow` so the registry can reuse an empty startup window.
 
 This handoff document itself should be committed after creation.
 
@@ -519,10 +549,11 @@ Expected after latest build:
 /Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer.app
 ```
 
-- Opening multiple files should create tabs.
-- Opening the same PDF/Markdown file more than once should create multiple tabs/copies, not jump to an existing tab.
+- Opening multiple files from inside a window can create tabs in that window.
+- Opening the same PDF/Markdown file more than once should create another copy, not jump to an existing tab.
 - Dragging multiple files onto the app should open each supported file as a tab.
-- Finder / Open With file-open events should be routed to the app and opened as new tabs.
+- Finder / Open With file-open events should open in a separate window when existing windows already contain documents.
+- Opening document A from Finder, then document B from Finder, should leave the A window showing A and create/show a B window showing B.
 - Markdown tabs should show `Preview / Source / Split`.
 - In Source or Split mode, the source editor should appear on the left/source pane with a formatting toolbar above it.
 - Selecting text and pressing Bold should wrap selected text in `**`; pressing Bold again on already-bold text should remove the markers.

@@ -3,8 +3,12 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ContentView: View {
-    @StateObject private var model = AppModel()
+    @StateObject private var model: AppModel
     @State private var sidebarVisible = true
+
+    init(initialURLs: [URL] = []) {
+        _model = StateObject(wrappedValue: AppModel(opening: initialURLs))
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -40,11 +44,8 @@ struct ContentView: View {
             return true
         }
         .focusedSceneValue(\.fileViewerModel, model)
-        .onReceive(NotificationCenter.default.publisher(for: .openFileURLs)) { notification in
-            guard let urls = notification.object as? [URL] else { return }
-            for url in urls {
-                model.open(url: url)
-            }
+        .onAppear {
+            FileViewerWindowRegistry.shared.register(model)
         }
         .onReceive(NotificationCenter.default.publisher(for: .toggleSidebar)) { _ in
             sidebarVisible.toggle()
@@ -324,5 +325,4 @@ extension Notification.Name {
     static let pdfFitPage = Notification.Name("FileViewer.pdfFitPage")
     static let pdfSearch = Notification.Name("FileViewer.pdfSearch")
     static let toggleSidebar = Notification.Name("FileViewer.toggleSidebar")
-    static let openFileURLs = Notification.Name("FileViewer.openFileURLs")
 }

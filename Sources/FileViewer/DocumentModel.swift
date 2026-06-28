@@ -204,13 +204,18 @@ final class AppModel: ObservableObject {
         case preview
     }
 
-    init() {
+    init(opening urls: [URL] = []) {
         loadSettings()
+        urls.forEach { open(url: $0) }
     }
 
     var selectedTab: DocumentTab? {
         guard let index = selectedTabIndex else { return nil }
         return tabs[index]
+    }
+
+    var canAcceptExternalOpenInCurrentWindow: Bool {
+        tabs.isEmpty
     }
 
     var selectedTabIndex: Int? {
