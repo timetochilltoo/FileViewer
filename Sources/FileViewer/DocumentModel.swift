@@ -31,6 +31,8 @@ enum MarkdownFormatCommand: String, CaseIterable {
     case quote
     case link
     case code
+    case table
+    case taskList
 
     var title: String {
         switch self {
@@ -43,6 +45,8 @@ enum MarkdownFormatCommand: String, CaseIterable {
         case .quote: "Quote"
         case .link: "Link"
         case .code: "Code"
+        case .table: "Insert Table"
+        case .taskList: "Task List"
         }
     }
 
@@ -57,6 +61,8 @@ enum MarkdownFormatCommand: String, CaseIterable {
         case .quote: "quote.opening"
         case .link: "link"
         case .code: "curlybraces"
+        case .table: "tablecells"
+        case .taskList: "checklist"
         }
     }
 
@@ -71,12 +77,14 @@ enum MarkdownFormatCommand: String, CaseIterable {
         case .quote: "quoted text"
         case .link: "link text"
         case .code: "code"
+        case .table: "table"
+        case .taskList: "task"
         }
     }
 
     var formatsWholeLines: Bool {
         switch self {
-        case .heading, .bulletList, .numberedList, .quote:
+        case .heading, .bulletList, .numberedList, .quote, .table, .taskList:
             true
         case .bold, .italic, .underline, .link, .code:
             false
@@ -839,6 +847,18 @@ final class AppModel: ObservableObject {
                 selectedText: text,
                 replacement: quoteReplacement(text)
             )
+        case .table:
+            return lineToggle(
+                selectedRange: selectedRange,
+                selectedText: text,
+                replacement: tableReplacement(selectedText)
+            )
+        case .taskList:
+            return lineToggle(
+                selectedRange: selectedRange,
+                selectedText: text,
+                replacement: taskListReplacement(selectedText)
+            )
         case .link:
             return inlineToggle(
                 backingString: backingString,
@@ -1030,6 +1050,57 @@ final class AppModel: ObservableObject {
                 let lineText = String(line)
                 guard !lineText.trimmingCharacters(in: .whitespaces).isEmpty else { return lineText }
                 return "\(index + 1). \(lineText)"
+            }
+            .joined(separator: "\n")
+    }
+
+    private static func tableReplacement(_ selectedText: String) -> String {
+        let trimmed = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return """
+            | Column 1 | Column 2 | Column 3 |
+            |---|---|---|
+            | Value 1 | Value 2 | Value 3 |
+            | Value 4 | Value 5 | Value 6 |
+            """
+        }
+
+        let rows = trimmed
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { line in
+                let cells = String(line)
+                    .split(separator: ",", omittingEmptySubsequences: false)
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                return "| " + cells.joined(separator: " | ") + " |"
+            }
+
+        guard let firstRow = rows.first else { return tableReplacement("") }
+        let columnCount = max(firstRow.filter { $0 == "|" }.count - 1, 1)
+        let separator = "| " + Array(repeating: "---", count: columnCount).joined(separator: " | ") + " |"
+        return ([firstRow, separator] + rows.dropFirst()).joined(separator: "\n")
+    }
+
+    private static func taskListReplacement(_ selectedText: String) -> String {
+        let trimmed = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return """
+            - [ ] Task 1
+            - [ ] Task 2
+            - [ ] Task 3
+            """
+        }
+
+        return selectedText
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { line -> String in
+                let lineText = String(line)
+                guard !lineText.trimmingCharacters(in: .whitespaces).isEmpty else { return lineText }
+                let withoutExistingMarker = lineText.replacingOccurrences(
+                    of: #"^\s*[-*+]\s+(\[[ xX]\]\s+)?"#,
+                    with: "",
+                    options: .regularExpression
+                )
+                return "- [ ] \(withoutExistingMarker)"
             }
             .joined(separator: "\n")
     }

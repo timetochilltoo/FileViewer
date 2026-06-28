@@ -29,6 +29,8 @@ Current MVP build includes:
   - quote
   - link insertion
   - inline code / code block
+  - table insertion
+  - task list insertion/conversion
 - Help menu Markdown syntax guide.
 - PDF rendering.
 - PDF page navigation.

@@ -242,6 +242,8 @@ Formatting behavior:
 - Quote toggles `> ` line prefixes.
 - Link: `[text](https://example.com)`
 - Code toggles inline backticks for one-line selections; multiline code still inserts a fenced triple-backtick block.
+- Insert Table inserts a three-column Markdown table template. If text is selected, it converts comma-separated selected lines into a Markdown table.
+- Task List inserts an unchecked task-list template. If lines are selected, it converts each selected line into an unchecked task item.
 
 Patrick confirmed on 2026-06-27 that bold, underline, and heading work in the source editor, then confirmed preview formatting works after the preview was switched to a selectable native text view. Treat the formatting button path as working unless a new specific bug report appears.
 
@@ -361,6 +363,7 @@ Known limitations:
 - Local image support is not fully implemented.
 - Preview-selection formatting is text-match based. If the same selected phrase appears multiple times, it can target the first matching source occurrence rather than the visually selected occurrence.
 - Link insertion works, but smart detection/removal of arbitrary existing links is not fully implemented.
+- Table/task-list insertion is implemented, but rich preview rendering for tables and checkbox-style task lists is still a future Markdown preview improvement.
 - The source editor is now more reliable for selection formatting, but this is still a custom bridge and may need polish for cursor positioning, undo grouping, and selection persistence.
 
 ### `PDFWorkspace.swift`
@@ -549,6 +552,11 @@ Recent commits on `main`:
   - Added window-close protection through `WindowCloseDelegate`.
   - Added tab-specific save helpers so closing a non-selected unsaved tab saves the correct Markdown document.
   - Untitled unsaved documents route through Save As; cancelling Save As cancels the close.
+- `b3f35cb` — `Add markdown table and task list helpers`
+  - Added Insert Table and Task List Markdown format commands.
+  - The commands appear in the toolbar, right-click menu, and Markdown app menu.
+  - Table inserts a template or converts comma-separated selected lines.
+  - Task List inserts a template or converts selected lines to unchecked task items.
 
 This handoff document itself should be committed after creation.
 
@@ -757,13 +765,12 @@ Patrick is newer to Markdown and wants the app to teach/assist him. The Help gui
 
 Recommended order:
 
-1. Add Markdown formatting polish:
+1. Improve Markdown preview rendering if Patrick relies heavily on tables/checklists.
+2. Add remaining Markdown formatting polish:
    - visual labels or tooltips that are clearer for beginners
    - maybe a small "Format" dropdown with text labels, not only icons
-   - support "insert table" and "insert task list"
    - smarter link editing/toggling for arbitrary existing Markdown links
    - more precise preview-to-source mapping when repeated phrases exist
-2. Improve Markdown preview rendering if Patrick relies heavily on tables/checklists.
 3. Improve PDF search result navigation.
 4. Add restore-open-tabs / last PDF page persistence.
 

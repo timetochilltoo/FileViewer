@@ -168,6 +168,18 @@ struct FileViewerCommands: Commands {
                 model?.applyMarkdownFormat(.code)
             }
             .disabled(model?.isMarkdownDocument != true)
+
+            Divider()
+
+            Button("Insert Table") {
+                model?.applyMarkdownFormat(.table)
+            }
+            .disabled(model?.isMarkdownDocument != true)
+
+            Button("Task List") {
+                model?.applyMarkdownFormat(.taskList)
+            }
+            .disabled(model?.isMarkdownDocument != true)
         }
 
         CommandGroup(replacing: .help) {
