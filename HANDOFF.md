@@ -544,7 +544,7 @@ Recent commits on `main`:
   - Made Finder-created document windows default to `760 x 720` with minimum size `520 x 620`.
   - Reduced Markdown split-pane minimum widths.
   - Made the top toolbar more compact so Markdown windows can shrink more like Preview/PDF windows.
-- `3dedfa0` — `Confirm before closing unsaved markdown`
+- `aee0801` — `Confirm before closing unsaved markdown`
   - Added Save / Don’t Save / Cancel prompts for unsaved Markdown tab close.
   - Added window-close protection through `WindowCloseDelegate`.
   - Added tab-specific save helpers so closing a non-selected unsaved tab saves the correct Markdown document.
