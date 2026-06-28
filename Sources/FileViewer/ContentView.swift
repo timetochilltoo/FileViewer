@@ -58,6 +58,7 @@ struct ContentView: View {
                 model.newMarkdownDocument()
             } label: {
                 Label("New", systemImage: "plus")
+                    .labelStyle(.iconOnly)
             }
             .help("New Markdown Document")
 
@@ -65,7 +66,9 @@ struct ContentView: View {
                 model.openWithPanel()
             } label: {
                 Label("Open", systemImage: "folder")
+                    .labelStyle(.iconOnly)
             }
+            .help("Open")
 
             Button {
                 sidebarVisible.toggle()
@@ -90,7 +93,7 @@ struct ContentView: View {
                     .labelsHidden()
                     .pickerStyle(.segmented)
                 }
-                .frame(width: 280)
+                .frame(minWidth: 170, idealWidth: 220, maxWidth: 260)
 
                 Button {
                     model.saveMarkdown()
@@ -123,6 +126,7 @@ struct ContentView: View {
             .help("Print")
 
             Spacer()
+                .frame(minWidth: 0)
 
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
@@ -132,11 +136,12 @@ struct ContentView: View {
                     set: { model.searchText = $0 }
                 ))
                     .textFieldStyle(.plain)
-                    .frame(width: 220)
+                    .frame(minWidth: 80, idealWidth: 180, maxWidth: 220)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 7))
+            .frame(minWidth: 120, idealWidth: 220, maxWidth: 240)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

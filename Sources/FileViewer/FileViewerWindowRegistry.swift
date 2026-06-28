@@ -73,11 +73,12 @@ final class FileViewerWindowRegistry {
 
     private func openNewWindow(initialURLs: [URL]) {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1080, height: 720),
+            contentRect: NSRect(x: 0, y: 0, width: 760, height: 720),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
+        window.minSize = NSSize(width: 520, height: 620)
         window.title = initialURLs.first?.lastPathComponent ?? "FileViewer"
         window.contentView = NSHostingView(rootView: ContentView(initialURLs: initialURLs))
         window.center()

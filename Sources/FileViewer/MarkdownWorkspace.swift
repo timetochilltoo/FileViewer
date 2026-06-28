@@ -15,9 +15,9 @@ struct MarkdownWorkspace: View {
             case .split:
                 HSplitView {
                     editorWithFormatting
-                        .frame(minWidth: 360)
+                        .frame(minWidth: 240)
                     preview
-                        .frame(minWidth: 360)
+                        .frame(minWidth: 240)
                 }
             }
         }

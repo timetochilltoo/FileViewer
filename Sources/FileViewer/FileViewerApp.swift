@@ -7,7 +7,7 @@ struct FileViewerApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .frame(minWidth: 1080, minHeight: 720)
+                .frame(minWidth: 520, minHeight: 620)
         }
         .windowStyle(.titleBar)
         .commands {

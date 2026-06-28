@@ -82,7 +82,8 @@ Defines the app entry point:
 - Uses `@NSApplicationDelegateAdaptor(FileViewerAppDelegate.self)` for macOS file-open events.
 - Creates a `WindowGroup`.
 - Installs `ContentView`.
-- Sets minimum frame size to `1080 x 720`.
+- Sets minimum frame size to `520 x 620`.
+- This smaller minimum is intentional. Patrick compares documents side-by-side and reported that Markdown windows could not be dragged narrow enough, unlike PDF Preview windows.
 - Uses `.windowStyle(.titleBar)`.
 - Registers `FileViewerCommands`.
 
@@ -107,6 +108,7 @@ Coordinates macOS external file-open events with per-window state.
   - first tries to reuse an empty registered window/model
   - otherwise creates a new window
 - `pendingExternalURLs` prevents a document-launched app from creating both an empty startup window and a separate document window when timing is unlucky.
+- Manually-created windows default to `760 x 720` with `minSize = 520 x 620`, so two Markdown windows can fit side-by-side more easily.
 - This file exists specifically because Patrick wants Finder-opened documents to appear in separate windows, not merely separate tabs, and because broadcasting file-open events to every `ContentView` caused all windows to show the same document.
 
 ### `DocumentModel.swift`
