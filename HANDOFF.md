@@ -552,7 +552,7 @@ Recent commits on `main`:
   - Added window-close protection through `WindowCloseDelegate`.
   - Added tab-specific save helpers so closing a non-selected unsaved tab saves the correct Markdown document.
   - Untitled unsaved documents route through Save As; cancelling Save As cancels the close.
-- `b3f35cb` — `Add markdown table and task list helpers`
+- `8ad7966` — `Add markdown table and task list helpers`
   - Added Insert Table and Task List Markdown format commands.
   - The commands appear in the toolbar, right-click menu, and Markdown app menu.
   - Table inserts a template or converts comma-separated selected lines.
