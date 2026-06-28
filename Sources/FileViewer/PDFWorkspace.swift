@@ -20,6 +20,14 @@ struct PDFWorkspace: View {
             scale: Binding(
                 get: { model.pdfScale },
                 set: { model.pdfScale = $0 }
+            ),
+            searchMatchIndex: Binding(
+                get: { model.searchMatchIndex },
+                set: { model.searchMatchIndex = $0 }
+            ),
+            searchMatchCount: Binding(
+                get: { model.searchMatchCount },
+                set: { model.searchMatchCount = $0 }
             )
         )
         .background(Color(nsColor: .underPageBackgroundColor))
@@ -32,6 +40,8 @@ struct PDFKitView: NSViewRepresentable {
     @Binding var page: Int
     @Binding var pageCount: Int
     @Binding var scale: CGFloat
+    @Binding var searchMatchIndex: Int
+    @Binding var searchMatchCount: Int
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -61,12 +71,14 @@ struct PDFKitView: NSViewRepresentable {
 
         context.coordinator.parent = self
         context.coordinator.applySearch(searchText)
+        context.coordinator.goToSearchMatch(searchMatchIndex)
     }
 
     final class Coordinator: NSObject {
         var parent: PDFKitView
         weak var pdfView: PDFView?
         private var lastSearchText = ""
+        private var lastSearchIndex = 0
         private var searchSelections: [PDFSelection] = []
 
         init(_ parent: PDFKitView) {
@@ -135,15 +147,30 @@ struct PDFKitView: NSViewRepresentable {
         @MainActor func applySearch(_ text: String) {
             guard text != lastSearchText else { return }
             lastSearchText = text
+            lastSearchIndex = 0
             pdfView?.highlightedSelections = []
             searchSelections = []
+            parent.searchMatchCount = 0
 
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             searchSelections = parent.document.findString(text, withOptions: [.caseInsensitive])
             pdfView?.highlightedSelections = searchSelections
+            parent.searchMatchCount = searchSelections.count
+            parent.searchMatchIndex = 0
             if let first = searchSelections.first {
+                pdfView?.setCurrentSelection(first, animate: false)
                 pdfView?.go(to: first)
             }
+        }
+
+        @MainActor func goToSearchMatch(_ index: Int) {
+            guard !searchSelections.isEmpty else { return }
+            let safeIndex = min(max(0, index), searchSelections.count - 1)
+            guard safeIndex != lastSearchIndex || pdfView?.currentSelection == nil else { return }
+            lastSearchIndex = safeIndex
+            let selection = searchSelections[safeIndex]
+            pdfView?.setCurrentSelection(selection, animate: false)
+            pdfView?.go(to: selection)
         }
 
         @MainActor private func syncPage() {

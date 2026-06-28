@@ -186,7 +186,8 @@ Acceptance criteria:
 
 - User can search text in a PDF.
 - Matches are highlighted.
-- User can move between matches after richer result navigation is implemented.
+- User can see the current match and total match count.
+- User can move to previous/next matches.
 
 ## 13. PDF Sidebar
 
@@ -213,6 +214,8 @@ Acceptance criteria:
 
 - Search behavior feels consistent across file types.
 - Keyboard shortcut opens search.
+- Search field shows current match and total matches.
+- Previous/next search controls move between matches.
 
 ## 15. Persistent Document State
 
@@ -316,12 +319,13 @@ Acceptance criteria:
 - Native app shell has been created.
 - Markdown source, preview, split view, edit, save, and save-as have been implemented.
 - PDFKit PDF viewing has been implemented.
-- PDF page navigation, zoom, thumbnails, and search highlighting have been implemented.
+- PDF page navigation, zoom, thumbnails, search highlighting, search result count, and previous/next search navigation have been implemented.
 - Recent files have been implemented.
 - Multiple tabs per window have been implemented.
 - Finder/Open With opens documents in separate windows without changing existing document windows.
 - Markdown windows can shrink for side-by-side comparison.
 - Markdown formatting buttons work from Source and Preview selections.
+- Markdown search shows current/total matches and supports previous/next result navigation.
 - A visible Format dropdown gives text-labeled Markdown commands for beginners.
 - Insert Table and Task List formatting helpers have been implemented.
 - Basic Markdown table and task-list preview rendering has been implemented.
@@ -333,7 +337,6 @@ Acceptance criteria:
 Next implementation work:
 
 - Improve Markdown preview fidelity for richer GitHub-flavored tables, local images, and task-list polish.
-- Add richer Markdown/PDF search result navigation.
 - Add PDF outline support when PDFs provide a table of contents.
 - Add persistent restore of open tabs/windows and PDF page/zoom state.
 - Add tests or sample files for repeatable verification.

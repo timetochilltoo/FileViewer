@@ -107,7 +107,8 @@ struct MarkdownWorkspace: View {
     private var preview: some View {
         MarkdownPreviewTextView(
             markdown: document.text,
-            searchText: model.searchText
+            searchText: model.searchText,
+            searchMatchIndex: model.searchMatchIndex
         ) { textView in
             model.rememberMarkdownPreviewTextView(textView)
         }
@@ -392,6 +393,7 @@ private struct MarkdownPreviewBlock: Identifiable {
 private struct MarkdownPreviewTextView: NSViewRepresentable {
     let markdown: String
     let searchText: String
+    let searchMatchIndex: Int
     let onTextViewReady: (NSTextView) -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -424,11 +426,18 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
         textView.autoresizingMask = [.width]
-        textView.textStorage?.setAttributedString(Self.attributedPreview(markdown: markdown, searchText: searchText))
+        textView.textStorage?.setAttributedString(Self.attributedPreview(
+            markdown: markdown,
+            searchText: searchText,
+            searchMatchIndex: searchMatchIndex
+        ))
 
         scrollView.documentView = textView
         context.coordinator.textView = textView
         onTextViewReady(textView)
+        DispatchQueue.main.async {
+            Self.scrollToSearchMatch(in: textView, searchText: searchText, searchMatchIndex: searchMatchIndex)
+        }
         return scrollView
     }
 
@@ -436,11 +445,18 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
         guard let textView = scrollView.documentView as? NSTextView else { return }
         context.coordinator.onTextViewReady = onTextViewReady
         let selectedRange = textView.selectedRange()
-        textView.textStorage?.setAttributedString(Self.attributedPreview(markdown: markdown, searchText: searchText))
+        textView.textStorage?.setAttributedString(Self.attributedPreview(
+            markdown: markdown,
+            searchText: searchText,
+            searchMatchIndex: searchMatchIndex
+        ))
         let textLength = (textView.string as NSString).length
         let safeLocation = min(selectedRange.location, textLength)
         let safeLength = min(selectedRange.length, max(0, textLength - safeLocation))
         textView.setSelectedRange(NSRange(location: safeLocation, length: safeLength))
+        DispatchQueue.main.async {
+            Self.scrollToSearchMatch(in: textView, searchText: searchText, searchMatchIndex: searchMatchIndex)
+        }
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
@@ -464,7 +480,11 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
         }
     }
 
-    private static func attributedPreview(markdown: String, searchText: String) -> NSAttributedString {
+    private static func attributedPreview(
+        markdown: String,
+        searchText: String,
+        searchMatchIndex: Int
+    ) -> NSAttributedString {
         let output = NSMutableAttributedString()
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.lineSpacing = 4
@@ -568,7 +588,7 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
             }
         }
 
-        applySearchHighlight(searchText, to: output)
+        applySearchHighlight(searchText, currentIndex: searchMatchIndex, to: output)
         return output
     }
 
@@ -725,25 +745,50 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
         ]
     }
 
-    private static func applySearchHighlight(_ searchText: String, to output: NSMutableAttributedString) {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return }
+    private static func applySearchHighlight(
+        _ searchText: String,
+        currentIndex: Int,
+        to output: NSMutableAttributedString
+    ) {
+        let ranges = searchRanges(in: output.string, searchText: searchText)
+        guard !ranges.isEmpty else { return }
 
-        let backingString = output.string as NSString
-        var searchRange = NSRange(location: 0, length: backingString.length)
-        while true {
-            let foundRange = backingString.range(of: query, options: [.caseInsensitive], range: searchRange)
-            guard foundRange.location != NSNotFound else { break }
+        let selectedIndex = min(max(0, currentIndex), ranges.count - 1)
+        for (index, foundRange) in ranges.enumerated() {
             output.addAttributes(
                 [
-                    .backgroundColor: NSColor.systemYellow.withAlphaComponent(0.45),
+                    .backgroundColor: index == selectedIndex
+                        ? NSColor.systemOrange.withAlphaComponent(0.75)
+                        : NSColor.systemYellow.withAlphaComponent(0.45),
                     .foregroundColor: NSColor.labelColor
                 ],
                 range: foundRange
             )
+        }
+    }
+
+    private static func searchRanges(in text: String, searchText: String) -> [NSRange] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return [] }
+
+        let backingString = text as NSString
+        var ranges: [NSRange] = []
+        var searchRange = NSRange(location: 0, length: backingString.length)
+        while true {
+            let foundRange = backingString.range(of: query, options: [.caseInsensitive], range: searchRange)
+            guard foundRange.location != NSNotFound else { break }
+            ranges.append(foundRange)
             let nextLocation = foundRange.location + foundRange.length
             searchRange = NSRange(location: nextLocation, length: backingString.length - nextLocation)
         }
+        return ranges
+    }
+
+    private static func scrollToSearchMatch(in textView: NSTextView, searchText: String, searchMatchIndex: Int) {
+        let ranges = searchRanges(in: textView.string, searchText: searchText)
+        guard !ranges.isEmpty else { return }
+        let selectedIndex = min(max(0, searchMatchIndex), ranges.count - 1)
+        textView.scrollRangeToVisible(ranges[selectedIndex])
     }
 }
 

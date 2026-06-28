@@ -147,6 +147,7 @@ Important types:
 - `DocumentTab`
   - wraps a `ViewerDocument`
   - stores per-tab `searchText`
+  - stores per-tab `searchMatchIndex` and `searchMatchCount`
   - stores per-tab `pdfPage`, `pdfPageCount`, and `pdfScale`
 - `MarkdownDocument`
   - `url`
@@ -166,7 +167,7 @@ Important `AppModel` published state:
 - `statusMessage`
 - `recents`
 
-`AppModel.document`, `searchText`, `pdfPage`, `pdfPageCount`, and `pdfScale` are computed wrappers over the selected tab. This is important: do not add new global document state unless it truly should apply across every tab. Most document-specific state should live inside `DocumentTab`.
+`AppModel.document`, `searchText`, `searchMatchIndex`, `searchMatchCount`, `pdfPage`, `pdfPageCount`, and `pdfScale` are computed wrappers over the selected tab. This is important: do not add new global document state unless it truly should apply across every tab. Most document-specific state should live inside `DocumentTab`.
 
 Each window owns its own `AppModel` via `ContentView`'s `@StateObject`. Do not make `AppModel` a singleton. A singleton model would recreate the bug where every window shows the same selected document.
 
@@ -277,6 +278,9 @@ Main pieces:
 - PDF toolbar when PDF tab is selected
 - Print button when any document is selected
 - search field
+  - shows current match / total matches while searching
+  - up/down buttons move to previous/next match
+  - Return in the search field moves to next match
 - tab bar:
   - horizontal list of open tabs
   - selected tab has accent background
@@ -286,7 +290,7 @@ Main pieces:
   - current file name
   - unsaved changes indicator
   - status message
-  - Markdown search match count
+  - Markdown search current/total match status
   - PDF page count
 - document body:
   - `MarkdownWorkspace`
@@ -358,7 +362,9 @@ Markdown preview:
 - Search highlight:
   - uses `model.searchText`
   - highlights matches in preview with yellow background
-  - status bar shows match count
+  - highlights the current match with stronger orange background
+  - search field/status bar shows current match and total match count
+  - previous/next search buttons update `model.searchMatchIndex` and scroll the selected match into view
 - Underline convenience:
   - source uses `<u>text</u>`
   - preview preprocesses this simple tag and applies underline styling manually because native Markdown parsing leaves it as literal HTML
@@ -424,7 +430,8 @@ PDF search:
 - `applySearch(_:)` uses `parent.document.findString(text, withOptions: [.caseInsensitive])`.
 - Highlights results through `pdfView?.highlightedSelections`.
 - Jumps to the first result.
-- Search is simple; no next/previous search result navigation yet.
+- `PDFKitView` binds `searchMatchIndex` and `searchMatchCount` back to `AppModel`.
+- Previous/next search buttons update `searchMatchIndex`; `PDFKitView.Coordinator.goToSearchMatch(_:)` selects and scrolls to the requested `PDFSelection`.
 
 ### `SidebarView.swift`
 
@@ -698,11 +705,11 @@ PDF search:
 
 - highlights all matches
 - jumps to first match
+- shows current result and total results in the shared search field
+- supports previous/next result navigation
 
 Missing:
 
-- result count
-- next/previous match navigation
 - clearing search highlights more predictably
 - search result sidebar/list
 
@@ -782,8 +789,8 @@ Recommended order:
 2. Add remaining Markdown formatting polish:
    - smarter link editing/toggling for arbitrary existing Markdown links
    - more precise preview-to-source mapping when repeated phrases exist
-3. Improve PDF/Markdown search result navigation.
-4. Add restore-open-tabs / last PDF page persistence.
+3. Add restore-open-tabs / last PDF page persistence.
+4. Add PDF outline support when PDFs provide a table of contents.
 
 ## 11. Quick mental model for future agents
 

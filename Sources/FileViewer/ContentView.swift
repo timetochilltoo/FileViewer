@@ -138,11 +138,37 @@ struct ContentView: View {
                 ))
                     .textFieldStyle(.plain)
                     .frame(minWidth: 80, idealWidth: 180, maxWidth: 220)
+                    .onSubmit {
+                        model.nextSearchMatch()
+                    }
+                if !model.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(model.searchStatusText)
+                        .font(.caption)
+                        .foregroundStyle(model.searchMatchCount == 0 ? .orange : .secondary)
+                        .lineLimit(1)
+                        .monospacedDigit()
+                    Button {
+                        model.previousSearchMatch()
+                    } label: {
+                        Image(systemName: "chevron.up")
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!model.canNavigateSearch)
+                    .help("Previous Search Match")
+                    Button {
+                        model.nextSearchMatch()
+                    } label: {
+                        Image(systemName: "chevron.down")
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!model.canNavigateSearch)
+                    .help("Next Search Match")
+                }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 7))
-            .frame(minWidth: 120, idealWidth: 220, maxWidth: 240)
+            .frame(minWidth: 120, idealWidth: 300, maxWidth: 360)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -208,10 +234,9 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
             }
             if model.isMarkdownDocument {
-                let matches = model.markdownMatchCount()
                 if !model.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text("\(matches) Markdown match\(matches == 1 ? "" : "es")")
-                        .foregroundStyle(matches == 0 ? .orange : .secondary)
+                    Text("Search: \(model.searchStatusText)")
+                        .foregroundStyle(model.searchMatchCount == 0 ? .orange : .secondary)
                 }
             }
             Spacer()

@@ -59,7 +59,7 @@ Expected behavior:
 - Opening files from Finder / Open With uses separate windows when existing windows already contain documents, so comparing two Markdown/PDF files side-by-side is practical.
 - Opening document A from Finder, then document B from Finder, should leave the A window showing A and open/show B in a different window.
 - Opening the same supported file more than once is allowed. The app should create another tab/window copy rather than jump to an existing one.
-- Each open tab keeps its own search text and PDF page/zoom state during the current session.
+- Each open tab keeps its own search text, current search match, PDF page, and zoom state during the current session.
 - Previously opened documents can restore last page, zoom, and scroll position in a later persistence milestone.
 
 ### 5.2 Read and Edit a Markdown File
@@ -79,7 +79,7 @@ Expected behavior:
 - The user can save changes to the original file.
 - The user can save changes as a new Markdown file.
 - The user can search within the document.
-- Markdown search highlights matches in preview and reports a match count.
+- Markdown search highlights matches in preview, reports current/total match count, and supports previous/next result navigation.
 - A Help menu Markdown syntax guide is available for common Markdown patterns.
 - Common Markdown formatting can be inserted from the editor toolbar, visible Format dropdown, source-editor right-click menu, or Markdown app menu.
 - Common formatting can also be applied by selecting text in Preview; the app maps the selected preview text back to Markdown source and applies the same formatting command.
@@ -100,6 +100,7 @@ Expected behavior:
 - The user can go to next page, previous page, first page, last page, or a specific page number.
 - The user can zoom in, zoom out, fit page, and fit width.
 - The user can search text within the PDF.
+- PDF search reports current/total match count and supports previous/next result navigation.
 - The user can use thumbnails to jump between pages.
 - If the PDF has an outline/table of contents, the app displays it.
 

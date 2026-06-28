@@ -18,7 +18,7 @@ Current MVP build includes:
 - Markdown editing.
 - Markdown save and save-as.
 - Unsaved Markdown close confirmation for tabs and windows.
-- Markdown search count and preview highlighting.
+- Markdown search current/total count, previous/next navigation, and preview highlighting.
 - Beginner-friendly Markdown formatting controls through a visible Format dropdown, icon buttons, source-editor right-click actions, and menu commands for common syntax:
   - bold
   - italic
@@ -36,7 +36,7 @@ Current MVP build includes:
 - PDF page navigation.
 - PDF zoom controls.
 - PDF thumbnails.
-- Basic PDF search by matching pages.
+- PDF search highlighting with current/total count and previous/next navigation.
 - Print support for PDFs and Markdown source text.
 - Recent files.
 - Light and dark theme.

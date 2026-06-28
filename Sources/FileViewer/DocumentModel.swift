@@ -166,6 +166,8 @@ struct DocumentTab: Identifiable, Equatable {
     let id: UUID
     var document: ViewerDocument
     var searchText: String
+    var searchMatchIndex: Int
+    var searchMatchCount: Int
     var pdfPage: Int
     var pdfPageCount: Int
     var pdfScale: CGFloat
@@ -174,6 +176,8 @@ struct DocumentTab: Identifiable, Equatable {
         id = UUID()
         self.document = document
         searchText = ""
+        searchMatchIndex = 0
+        searchMatchCount = 0
         pdfPage = 1
         if case .pdf(let pdf) = document {
             pdfPageCount = pdf.document.pageCount
@@ -266,7 +270,59 @@ final class AppModel: ObservableObject {
             guard let index = selectedTabIndex else { return }
             objectWillChange.send()
             tabs[index].searchText = newValue
+            tabs[index].searchMatchIndex = 0
+            tabs[index].searchMatchCount = 0
         }
+    }
+
+    var searchMatchIndex: Int {
+        get { selectedTab?.searchMatchIndex ?? 0 }
+        set {
+            guard let index = selectedTabIndex else { return }
+            objectWillChange.send()
+            tabs[index].searchMatchIndex = max(0, newValue)
+        }
+    }
+
+    var searchMatchCount: Int {
+        get {
+            if isMarkdownDocument {
+                return markdownMatchCount()
+            }
+            return selectedTab?.searchMatchCount ?? 0
+        }
+        set {
+            guard let index = selectedTabIndex else { return }
+            objectWillChange.send()
+            tabs[index].searchMatchCount = max(0, newValue)
+            if tabs[index].searchMatchIndex >= tabs[index].searchMatchCount {
+                tabs[index].searchMatchIndex = max(0, tabs[index].searchMatchCount - 1)
+            }
+        }
+    }
+
+    var searchStatusText: String {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return "" }
+        let count = searchMatchCount
+        guard count > 0 else { return "0 matches" }
+        return "\(min(searchMatchIndex, count - 1) + 1) of \(count)"
+    }
+
+    var canNavigateSearch: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && searchMatchCount > 0
+    }
+
+    func previousSearchMatch() {
+        let count = searchMatchCount
+        guard count > 0 else { return }
+        searchMatchIndex = (searchMatchIndex - 1 + count) % count
+    }
+
+    func nextSearchMatch() {
+        let count = searchMatchCount
+        guard count > 0 else { return }
+        searchMatchIndex = (searchMatchIndex + 1) % count
     }
 
     var pdfPage: Int {
