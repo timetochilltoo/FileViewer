@@ -109,6 +109,7 @@ Coordinates macOS external file-open events with per-window state.
   - otherwise creates a new window
 - `pendingExternalURLs` prevents a document-launched app from creating both an empty startup window and a separate document window when timing is unlucky.
 - Manually-created windows default to `760 x 720` with `minSize = 520 x 620`, so two Markdown windows can fit side-by-side more easily.
+- The registry also installs a retained `WindowCloseDelegate` for each registered `NSWindow`. This delegate calls `AppModel.canCloseAllDocuments()` so closing a whole window checks unsaved Markdown tabs before the window disappears.
 - This file exists specifically because Patrick wants Finder-opened documents to appear in separate windows, not merely separate tabs, and because broadcasting file-open events to every `ContentView` caused all windows to show the same document.
 
 ### `DocumentModel.swift`
@@ -543,6 +544,11 @@ Recent commits on `main`:
   - Made Finder-created document windows default to `760 x 720` with minimum size `520 x 620`.
   - Reduced Markdown split-pane minimum widths.
   - Made the top toolbar more compact so Markdown windows can shrink more like Preview/PDF windows.
+- `3dedfa0` — `Confirm before closing unsaved markdown`
+  - Added Save / Don’t Save / Cancel prompts for unsaved Markdown tab close.
+  - Added window-close protection through `WindowCloseDelegate`.
+  - Added tab-specific save helpers so closing a non-selected unsaved tab saves the correct Markdown document.
+  - Untitled unsaved documents route through Save As; cancelling Save As cancels the close.
 
 This handoff document itself should be committed after creation.
 
@@ -615,21 +621,31 @@ If insertion happens but UI does not update:
 - Check `updateMarkdown(_:)` updates selected tab.
 - Check `document.text` passed to `MarkdownWorkspace` refreshes.
 
-### 6.2 Unsaved tab close warning is missing
+### 6.2 Unsaved close confirmation is implemented
 
-Closing a tab with unsaved Markdown changes currently closes immediately. This can lose in-memory edits. Implement a confirmation alert before closing unsaved Markdown tabs.
+Closing a tab or window with unsaved Markdown changes now prompts before data can be lost.
 
-Suggested behavior:
+Implemented behavior:
 
-- On close tab:
-  - if Markdown has unsaved changes, prompt:
+- Tab close:
+  - `ContentView` calls `model.requestCloseTab(tab.id)`.
+  - If the tab is a Markdown document with unsaved changes, `AppModel` shows an `NSAlert`:
     - Save
-    - Discard
+    - Don’t Save
     - Cancel
-  - Save should call save logic for that tab.
-  - Cancel should not close.
+  - Save writes the specific tab, not merely the currently selected tab.
+  - Untitled documents route through `NSSavePanel`; cancelling Save As cancels the close.
+  - Save failures keep the tab open and show an error alert.
+- Window close:
+  - `FileViewerWindowRegistry` installs `WindowCloseDelegate` on registered windows.
+  - `windowShouldClose(_:)` calls `model.canCloseAllDocuments()`.
+  - Each unsaved Markdown tab in that window is checked.
+  - Cancel on any prompt cancels the whole window close.
 
-Be careful because current `saveMarkdown()` saves only selected tab. If adding close confirmation for a non-selected tab, either select it first or write a save method that accepts tab ID.
+Implementation detail:
+
+- `saveMarkdown()` still saves the selected tab for normal menu/toolbar Save.
+- Close-confirmation saving uses private tab-index-specific helpers (`saveMarkdownTab(at:)`, `saveMarkdownTabAs(at:)`) so closing a non-selected tab saves the correct document.
 
 ### 6.3 No session persistence for open tabs
 
@@ -741,16 +757,15 @@ Patrick is newer to Markdown and wants the app to teach/assist him. The Help gui
 
 Recommended order:
 
-1. Add unsaved-close confirmation for Markdown tabs.
-2. Add Markdown formatting polish:
+1. Add Markdown formatting polish:
    - visual labels or tooltips that are clearer for beginners
    - maybe a small "Format" dropdown with text labels, not only icons
    - support "insert table" and "insert task list"
    - smarter link editing/toggling for arbitrary existing Markdown links
    - more precise preview-to-source mapping when repeated phrases exist
-3. Improve Markdown preview rendering if Patrick relies heavily on tables/checklists.
-4. Improve PDF search result navigation.
-5. Add restore-open-tabs / last PDF page persistence.
+2. Improve Markdown preview rendering if Patrick relies heavily on tables/checklists.
+3. Improve PDF search result navigation.
+4. Add restore-open-tabs / last PDF page persistence.
 
 ## 11. Quick mental model for future agents
 

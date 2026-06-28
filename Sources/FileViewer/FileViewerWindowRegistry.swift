@@ -7,6 +7,7 @@ final class FileViewerWindowRegistry {
 
     private var registeredModels: [WeakAppModel] = []
     private var retainedWindows: [NSWindow] = []
+    private var windowDelegates: [ObjectIdentifier: WindowCloseDelegate] = [:]
     private var pendingExternalURLs: [URL] = []
     private var pendingFlushScheduled = false
 
@@ -18,6 +19,22 @@ final class FileViewerWindowRegistry {
             registeredModels.append(WeakAppModel(value: model))
         }
         flushPendingExternalURLsIfPossible()
+    }
+
+    func register(_ model: AppModel, window: NSWindow) {
+        register(model)
+        let key = ObjectIdentifier(window)
+        if let existingDelegate = windowDelegates[key] {
+            existingDelegate.model = model
+        } else {
+            let delegate = WindowCloseDelegate(model: model) { [weak self, weak window] in
+                guard let self, let window else { return }
+                self.windowDelegates.removeValue(forKey: ObjectIdentifier(window))
+                self.retainedWindows.removeAll { $0 === window }
+            }
+            window.delegate = delegate
+            windowDelegates[key] = delegate
+        }
     }
 
     func openExternal(_ urls: [URL]) {
@@ -89,10 +106,33 @@ final class FileViewerWindowRegistry {
 
     private func cleanup() {
         registeredModels.removeAll { $0.value == nil }
+        let closedWindows = retainedWindows.filter { !$0.isVisible }
         retainedWindows.removeAll { !$0.isVisible }
+        for window in closedWindows {
+            windowDelegates.removeValue(forKey: ObjectIdentifier(window))
+        }
     }
 }
 
 private struct WeakAppModel {
     weak var value: AppModel?
+}
+
+@MainActor
+private final class WindowCloseDelegate: NSObject, NSWindowDelegate {
+    weak var model: AppModel?
+    let onClose: () -> Void
+
+    init(model: AppModel, onClose: @escaping () -> Void) {
+        self.model = model
+        self.onClose = onClose
+    }
+
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        model?.canCloseAllDocuments() ?? true
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        onClose()
+    }
 }

@@ -118,7 +118,7 @@ Acceptance criteria:
 - Show saved/unsaved state in the interface.
 - Add save action.
 - Add save-as action.
-- Warn before closing or switching away from unsaved edits. Not implemented yet.
+- Warn before closing unsaved Markdown tabs/windows.
 - Handle save errors clearly.
 
 Acceptance criteria:
@@ -127,7 +127,8 @@ Acceptance criteria:
 - Saved file contains the edited text.
 - Unsaved changes are visible to the user.
 - Save failure does not lose user edits.
-- Unsaved-close confirmation remains a high-priority follow-up.
+- Closing an unsaved Markdown tab/window asks Save, Don’t Save, or Cancel.
+- Cancelling Save As cancels the close.
 
 ## 9. PDF Rendering
 
@@ -321,13 +322,13 @@ Acceptance criteria:
 - Finder/Open With opens documents in separate windows without changing existing document windows.
 - Markdown windows can shrink for side-by-side comparison.
 - Markdown formatting buttons work from Source and Preview selections.
+- Unsaved Markdown tab/window close confirmation has been implemented.
 - A packaged `.app` bundle with icon and document type registration has been implemented.
 - The app builds successfully with Swift 6.3.2 / Xcode 26.5.
 
 Next implementation work:
 
 - Improve Markdown preview fidelity for GitHub-flavored tables and task lists.
-- Add unsaved-close confirmation for Markdown tabs/windows.
 - Add richer Markdown/PDF search result navigation.
 - Add PDF outline support when PDFs provide a table of contents.
 - Add persistent restore of open tabs/windows and PDF page/zoom state.

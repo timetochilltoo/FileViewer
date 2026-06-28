@@ -17,6 +17,7 @@ Current MVP build includes:
 - Markdown split view.
 - Markdown editing.
 - Markdown save and save-as.
+- Unsaved Markdown close confirmation for tabs and windows.
 - Markdown search count and preview highlighting.
 - Toggle-style Markdown formatting buttons, right-click actions, and menu commands for common syntax:
   - bold

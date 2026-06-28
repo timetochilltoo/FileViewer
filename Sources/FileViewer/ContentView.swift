@@ -44,6 +44,7 @@ struct ContentView: View {
             return true
         }
         .focusedSceneValue(\.fileViewerModel, model)
+        .background(WindowRegistrationView(model: model))
         .onAppear {
             FileViewerWindowRegistry.shared.register(model)
         }
@@ -166,7 +167,7 @@ struct ContentView: View {
                                         .frame(width: 7, height: 7)
                                 }
                                 Button {
-                                    model.closeTab(tab.id)
+                                    model.requestCloseTab(tab.id)
                                 } label: {
                                     Image(systemName: "xmark")
                                         .font(.caption)
@@ -330,4 +331,26 @@ extension Notification.Name {
     static let pdfFitPage = Notification.Name("FileViewer.pdfFitPage")
     static let pdfSearch = Notification.Name("FileViewer.pdfSearch")
     static let toggleSidebar = Notification.Name("FileViewer.toggleSidebar")
+}
+
+private struct WindowRegistrationView: NSViewRepresentable {
+    let model: AppModel
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            if let window = view.window {
+                FileViewerWindowRegistry.shared.register(model, window: window)
+            }
+        }
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        DispatchQueue.main.async {
+            if let window = view.window {
+                FileViewerWindowRegistry.shared.register(model, window: window)
+            }
+        }
+    }
 }

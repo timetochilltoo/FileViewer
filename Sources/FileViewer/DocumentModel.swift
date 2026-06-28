@@ -357,8 +357,41 @@ final class AppModel: ObservableObject {
         updateSidebarForSelectedDocument()
     }
 
-    func closeTab(_ id: DocumentTab.ID) {
+    func requestCloseTab(_ id: DocumentTab.ID) {
         guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
+        guard canCloseTab(at: index) else { return }
+        closeTab(at: index)
+    }
+
+    func canCloseAllDocuments() -> Bool {
+        let tabIDs = tabs.map(\.id)
+        for id in tabIDs {
+            guard let index = tabs.firstIndex(where: { $0.id == id }) else { continue }
+            guard canCloseTab(at: index) else { return false }
+        }
+        return true
+    }
+
+    private func canCloseTab(at index: Int) -> Bool {
+        guard tabs.indices.contains(index) else { return true }
+        guard case .markdown(let markdown) = tabs[index].document,
+              markdown.hasUnsavedChanges else {
+            return true
+        }
+
+        switch closeConfirmation(for: markdown) {
+        case .save:
+            return saveMarkdownTab(at: index)
+        case .discard:
+            return true
+        case .cancel:
+            return false
+        }
+    }
+
+    private func closeTab(at index: Int) {
+        guard tabs.indices.contains(index) else { return }
+        let id = tabs[index].id
         tabs.remove(at: index)
         if selectedTabID == id {
             selectedTabID = tabs.indices.contains(index) ? tabs[index].id : tabs.last?.id
@@ -387,6 +420,96 @@ final class AppModel: ObservableObject {
         } catch {
             statusMessage = "Could not save this Markdown file."
         }
+    }
+
+    private enum CloseConfirmationAction {
+        case save
+        case discard
+        case cancel
+    }
+
+    private func closeConfirmation(for markdown: MarkdownDocument) -> CloseConfirmationAction {
+        let alert = NSAlert()
+        alert.messageText = "Save changes to “\(markdown.name)” before closing?"
+        alert.informativeText = "If you don’t save, your changes will be lost."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Don’t Save")
+        alert.addButton(withTitle: "Cancel")
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            return .save
+        case .alertSecondButtonReturn:
+            return .discard
+        default:
+            return .cancel
+        }
+    }
+
+    private func saveMarkdownTab(at index: Int) -> Bool {
+        guard tabs.indices.contains(index),
+              case .markdown(var markdown) = tabs[index].document else {
+            return true
+        }
+
+        guard let url = markdown.url else {
+            return saveMarkdownTabAs(at: index)
+        }
+
+        do {
+            try markdown.text.write(to: url, atomically: true, encoding: .utf8)
+            markdown.savedText = markdown.text
+            tabs[index].document = .markdown(markdown)
+            statusMessage = "Saved."
+            return true
+        } catch {
+            statusMessage = "Could not save this Markdown file."
+            showSaveFailedAlert(for: markdown)
+            return false
+        }
+    }
+
+    private func saveMarkdownTabAs(at index: Int) -> Bool {
+        guard tabs.indices.contains(index),
+              case .markdown(var markdown) = tabs[index].document else {
+            return true
+        }
+
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = markdown.name
+        panel.allowedContentTypes = [.text, .plainText]
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return false
+        }
+
+        do {
+            try markdown.text.write(to: url, atomically: true, encoding: .utf8)
+            markdown = MarkdownDocument(
+                url: url,
+                untitledName: url.lastPathComponent,
+                text: markdown.text,
+                savedText: markdown.text
+            )
+            tabs[index].document = .markdown(markdown)
+            addRecent(name: url.lastPathComponent, kind: .markdown, url: url)
+            statusMessage = "Saved as new Markdown file."
+            return true
+        } catch {
+            statusMessage = "Could not save the new Markdown file."
+            showSaveFailedAlert(for: markdown)
+            return false
+        }
+    }
+
+    private func showSaveFailedAlert(for markdown: MarkdownDocument) {
+        let alert = NSAlert()
+        alert.messageText = "Could not save “\(markdown.name)”"
+        alert.informativeText = "The document was not closed, so your unsaved changes are still open."
+        alert.alertStyle = .critical
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     func saveMarkdownAs() {
