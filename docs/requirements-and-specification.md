@@ -12,7 +12,7 @@ The first version should feel like a useful everyday viewer, not a demo. Users s
 
 - Provide a fast, reliable Markdown viewer.
 - Provide a PDF viewer with navigation, zoom, thumbnails, and search.
-- Support common document workflows such as recent files, tabs, and drag-and-drop opening.
+- Support common document workflows such as recent files, tabs, separate side-by-side windows, Finder/Open With file opening, and drag-and-drop opening.
 - Keep files local unless the user explicitly chooses an export or sharing action.
 - Support useful PDF annotations without pretending PDFs are as easy to edit as Word documents.
 - Build the app in a way that can later grow into a full desktop document workspace.
@@ -42,7 +42,7 @@ The first version should feel like a useful everyday viewer, not a demo. Users s
 
 ## 5. Core User Workflows
 
-### 5.1 Open a Document
+### 5.1 Open Documents
 
 The user can open a document by:
 
@@ -55,7 +55,10 @@ Expected behavior:
 
 - The app detects file type automatically.
 - Unsupported file types show a clear message.
-- Opening multiple supported files keeps them available as tabs.
+- Opening multiple supported files inside one app window keeps them available as tabs.
+- Opening files from Finder / Open With uses separate windows when existing windows already contain documents, so comparing two Markdown/PDF files side-by-side is practical.
+- Opening document A from Finder, then document B from Finder, should leave the A window showing A and open/show B in a different window.
+- Opening the same supported file more than once is allowed. The app should create another tab/window copy rather than jump to an existing one.
 - Each open tab keeps its own search text and PDF page/zoom state during the current session.
 - Previously opened documents can restore last page, zoom, and scroll position in a later persistence milestone.
 
@@ -65,7 +68,8 @@ The user opens a Markdown file and can view either the rendered preview, the ori
 
 Expected behavior:
 
-- Headings, lists, links, tables, code blocks, blockquotes, images, and task lists render correctly.
+- Headings, basic lists, links, code blocks, blockquotes, and underline convenience render in the native preview.
+- Tables, task lists, and local images are known preview-fidelity improvement areas, not fully complete MVP behavior yet.
 - The user can switch between preview only, source only, and split view.
 - The source view shows the original Markdown text.
 - The user can edit the Markdown source.
@@ -78,12 +82,13 @@ Expected behavior:
 - Markdown search highlights matches in preview and reports a match count.
 - A Help menu Markdown syntax guide is available for common Markdown patterns.
 - Common Markdown formatting can be inserted from the editor toolbar, right-click menu, or Markdown app menu.
+- Common formatting can also be applied by selecting text in Preview; the app maps the selected preview text back to Markdown source and applies the same formatting command.
 - Generated headings must operate on whole lines so Markdown preview recognizes them.
 - Underline is represented as `<u>text</u>` in source and rendered by the app preview as a supported convenience even though underline is not standard Markdown.
 - Preview must preserve Markdown block structure instead of flattening the document into a single paragraph.
-- The user can adjust font size or zoom.
-- The user can switch between light and dark themes.
-- The user can open a table of contents generated from headings.
+- Markdown windows must be resizable narrow enough for side-by-side comparison with another document window.
+- The user can switch between light and dark system appearances.
+- The sidebar can list headings generated from Markdown content. Jump-to-heading behavior is a future improvement.
 
 ### 5.3 Read a PDF File
 
@@ -130,12 +135,14 @@ Expected behavior:
 
 Required:
 
-- Top toolbar with file open, search, zoom, view mode, and theme controls.
+- Top toolbar with file open, search, print, and document-specific view controls.
 - Left sidebar that can switch between thumbnails, table of contents, and recent files.
 - Main document viewing area.
 - Status area showing file name, current page or section, and loading state.
 - Keyboard-friendly navigation.
-- Tab strip for multiple open documents.
+- Tab strip for multiple open documents within a window.
+- Separate app windows for Finder/Open With document comparison.
+- Markdown document windows should be able to shrink to roughly half-screen width.
 
 Recommended:
 
@@ -146,7 +153,7 @@ Recommended:
 
 Required:
 
-- Render Markdown to HTML.
+- Render Markdown preview with native AppKit/SwiftUI components.
 - Show original Markdown source text.
 - Edit Markdown source text.
 - Save Markdown changes.
@@ -154,16 +161,12 @@ Required:
 - Switch between preview, source, and split view.
 - Update preview while editing.
 - Show saved and unsaved state.
-- Support GitHub-flavored Markdown.
-- Support tables.
-- Support task lists.
-- Support syntax-highlighted code blocks.
-- Support local images referenced by the Markdown file.
-- Generate a table of contents from headings.
+- Support common Markdown basics: headings, paragraphs, unordered lists, ordered lists, quotes, code blocks, bold, italic, underline convenience, and inline code.
+- Generate a heading list from Markdown headings in the sidebar.
 - Search within rendered content.
 - Help menu syntax guide for Markdown beginners.
 - Formatting assistance such as bold, italic, underline-like HTML, link, heading, list, quote, and code commands from toolbar buttons, menu items, keyboard shortcuts, or right-click/context actions.
-- Copy code block contents.
+- Formatting assistance should work from source selections and preview selections.
 - Print Markdown source text.
 - Preserve readable typography across different screen sizes.
 
@@ -171,6 +174,7 @@ Recommended:
 
 - A richer text-editor bridge that can preserve cursor/selection state more predictably across SwiftUI refreshes.
 - A richer Markdown renderer for tables, task lists, local images, and more GitHub-Flavored-Markdown-compatible output. Native `AttributedString(markdown:)` parses many constructs but currently flattens tables/task lists in preview.
+- Copy code block contents.
 - Export Markdown to PDF.
 - Export Markdown to HTML.
 - Mermaid diagram rendering.
@@ -437,8 +441,6 @@ Possible storage options:
 
 ## 13. Open Questions
 
-- Should the first version be browser-only or desktop?
 - Should PDF annotations be saved as a separate project file first, or directly embedded into exported PDFs?
-- Should the app support multiple tabs in the first version?
 - Should there be a file browser panel, or only open/recent files?
 - Should the design target technical users first, general office users first, or both?

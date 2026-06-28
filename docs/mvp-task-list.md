@@ -7,9 +7,11 @@ The MVP is a native macOS SwiftUI document viewer and editor that supports:
 - Opening Markdown and PDF files.
 - Viewing Markdown as rendered preview, source text, or split view.
 - Editing and saving Markdown files.
+- Formatting Markdown from source or preview selections.
 - Viewing PDFs with page navigation, zoom, thumbnails, and search.
-- Remembering recent files and last reading position.
+- Remembering recent files.
 - Light and dark themes.
+- Opening documents in tabs and Finder/Open With documents in separate windows for side-by-side comparison.
 
 PDF annotation and PDF page editing are not part of the MVP. They will be added after the core viewer is stable.
 
@@ -34,6 +36,7 @@ Acceptance criteria:
 
 - Add open-file button.
 - Add drag-and-drop file opening.
+- Add Finder/Open With file opening.
 - Detect file type by extension and file metadata.
 - Route Markdown files to Markdown workspace.
 - Route PDF files to PDF workspace.
@@ -44,7 +47,9 @@ Acceptance criteria:
 Acceptance criteria:
 
 - User can open `.md`, `.markdown`, and `.pdf` files.
-- Drag-and-drop works.
+- Drag-and-drop works, including multiple dropped files.
+- Finder/Open With documents open in a target window only; existing windows must not all switch to the newest document.
+- Opening the same file more than once is allowed.
 - Unsupported files do not crash the app.
 - Current file name appears in the interface.
 
@@ -65,10 +70,10 @@ Acceptance criteria:
 ## 5. Markdown Source View
 
 - Load Markdown file as plain text.
-- Display original Markdown source in a SwiftUI `TextEditor` or native editor component.
+- Display original Markdown source in a native `NSTextView` editor component.
 - Preserve line breaks and formatting.
 - Add source-only view mode.
-- Add basic source search.
+- Add formatting toolbar/menu/context commands for common Markdown syntax.
 
 Acceptance criteria:
 
@@ -78,20 +83,20 @@ Acceptance criteria:
 
 ## 6. Markdown Preview
 
-- Render Markdown to HTML.
-- Render Markdown preview using native Swift Markdown support for the first version.
-- Support GitHub-flavored Markdown.
-- Support headings, lists, links, blockquotes, tables, code blocks, images, and task lists.
-- Add syntax highlighting for code blocks.
-- Add copy button for code blocks.
-- Generate table of contents from headings.
+- Render Markdown preview using native AppKit/SwiftUI components.
+- Preserve Markdown block structure instead of flattening content into one paragraph.
+- Support headings, paragraphs, basic lists, links, blockquotes, code blocks, bold, italic, inline code, and underline convenience.
+- Treat tables, images, task lists, richer code styling, and copy-code buttons as future preview-fidelity improvements.
+- Generate a heading list from Markdown headings.
 - Add preview-only view mode.
+- Allow selected preview text to be formatted back into the Markdown source.
 
 Acceptance criteria:
 
-- Common Markdown features render correctly.
-- Code blocks are readable and copyable.
-- Table of contents jumps to headings.
+- Common Markdown basics render correctly.
+- Code blocks are readable.
+- Heading list appears in the sidebar.
+- Preview-selection formatting works for common text selections, with repeated-text ambiguity documented as a limitation.
 
 ## 7. Markdown Split View and Live Preview
 
@@ -99,7 +104,7 @@ Acceptance criteria:
 - In split view, show editor and preview side by side.
 - Update preview when source text changes.
 - Keep split view usable on smaller screens.
-- Consider stacked split layout on narrow screens.
+- Keep Markdown windows narrow enough for two documents side-by-side.
 
 Acceptance criteria:
 
@@ -113,7 +118,7 @@ Acceptance criteria:
 - Show saved/unsaved state in the interface.
 - Add save action.
 - Add save-as action.
-- Warn before closing or switching away from unsaved edits.
+- Warn before closing or switching away from unsaved edits. Not implemented yet.
 - Handle save errors clearly.
 
 Acceptance criteria:
@@ -122,6 +127,7 @@ Acceptance criteria:
 - Saved file contains the edited text.
 - Unsaved changes are visible to the user.
 - Save failure does not lose user edits.
+- Unsaved-close confirmation remains a high-priority follow-up.
 
 ## 9. PDF Rendering
 
@@ -142,16 +148,16 @@ Acceptance criteria:
 
 - Add next page and previous page controls.
 - Add page number input.
-- Add first page and last page actions.
+- Add first page and last page actions. Not implemented yet.
 - Add continuous scroll mode for MVP.
 - Track current page while scrolling.
-- Remember last page per file.
+- Remember last page per file. Not implemented yet.
 
 Acceptance criteria:
 
 - User can move through a PDF easily.
 - Page number display stays accurate.
-- Reopening a PDF restores last page.
+- Reopening a PDF restores last page after persistence is implemented.
 
 ## 11. PDF Zoom and View Controls
 
@@ -159,7 +165,7 @@ Acceptance criteria:
 - Add fit width.
 - Add fit page.
 - Add reset zoom.
-- Preserve zoom preference per file.
+- Preserve zoom preference per file. Not implemented yet.
 
 Acceptance criteria:
 
@@ -179,21 +185,21 @@ Acceptance criteria:
 
 - User can search text in a PDF.
 - Matches are highlighted.
-- User can move between matches.
+- User can move between matches after richer result navigation is implemented.
 
 ## 13. PDF Sidebar
 
 - Add thumbnail sidebar.
 - Use PDFKit thumbnails where possible.
 - Click thumbnail to jump to page.
-- Show PDF outline/table of contents when available.
+- Show PDF outline/table of contents when available. Not implemented yet.
 - Allow sidebar mode switching between thumbnails, outline, and recent files.
 
 Acceptance criteria:
 
 - Thumbnails appear for PDFs.
 - Clicking a thumbnail navigates to that page.
-- Outline appears when the PDF provides one.
+- Outline support remains a follow-up.
 
 ## 14. Shared Search
 
@@ -217,7 +223,7 @@ Acceptance criteria:
 
 Acceptance criteria:
 
-- Reopening a document restores useful context.
+- Reopening a document restores useful context after persistence is implemented.
 - App reload does not lose preferences.
 
 ## 16. Keyboard Shortcuts
@@ -264,13 +270,16 @@ Acceptance criteria:
 - Test recent files.
 - Test light and dark themes.
 - Test drag-and-drop.
+- Test Finder/Open With opening multiple files into separate windows.
+- Test shrinking two Markdown windows side-by-side.
+- Test formatting buttons in Source and Preview modes.
 
 Acceptance criteria:
 
 - Core workflows pass on sample Markdown and PDF files.
 - No obvious layout overlap on common screen sizes.
 - App can be used without developer tools.
-- App can be launched from Xcode or the Swift build output.
+- App can be launched from Xcode, Swift build output, or packaged `.app` bundle.
 
 ## 19. Out of Scope for MVP
 
@@ -295,9 +304,9 @@ Acceptance criteria:
 6. Markdown save and save-as.
 7. PDF rendering.
 8. PDF navigation and zoom.
-9. PDF thumbnails and outline.
+9. PDF thumbnails.
 10. PDF search.
-11. Recent files and persistent document state.
+11. Recent files.
 12. Keyboard shortcuts and final polish.
 
 ## 21. Current Native Build Status
@@ -308,12 +317,18 @@ Acceptance criteria:
 - PDFKit PDF viewing has been implemented.
 - PDF page navigation, zoom, thumbnails, and search highlighting have been implemented.
 - Recent files have been implemented.
+- Multiple tabs per window have been implemented.
+- Finder/Open With opens documents in separate windows without changing existing document windows.
+- Markdown windows can shrink for side-by-side comparison.
+- Markdown formatting buttons work from Source and Preview selections.
+- A packaged `.app` bundle with icon and document type registration has been implemented.
 - The app builds successfully with Swift 6.3.2 / Xcode 26.5.
 
 Next implementation work:
 
 - Improve Markdown preview fidelity for GitHub-flavored tables and task lists.
-- Add richer Markdown search result highlighting.
-- Package the executable as a `.app` bundle for normal double-click launching.
-- Add app icon and polished macOS menus.
+- Add unsaved-close confirmation for Markdown tabs/windows.
+- Add richer Markdown/PDF search result navigation.
+- Add PDF outline support when PDFs provide a table of contents.
+- Add persistent restore of open tabs/windows and PDF page/zoom state.
 - Add tests or sample files for repeatable verification.

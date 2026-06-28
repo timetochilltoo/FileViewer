@@ -526,18 +526,23 @@ Recent commits on `main`:
   - Replaced preview rendering with selectable read-only `NSTextView`.
   - Added preview-selection formatting that maps selected preview text back to Markdown source.
   - User confirmed preview formatting works.
-- Latest work after `b1956ae`
+- `9c479b3` — `Allow multiple document copies`
   - Removed the duplicate-URL guard in `open(url:)`.
   - Opening the same PDF/Markdown more than once now creates multiple tabs/copies.
   - Drag-and-drop now opens every dropped file instead of only the first provider.
   - Added `FileViewerAppDelegate` for macOS Open With/external file-open events.
   - Package script now registers document types for PDF, Markdown, and text files in `Info.plist`.
-- Latest work after `9c479b3`
+- `17c35e1` — `Open Finder documents in separate windows`
   - Replaced the global external-open notification with `FileViewerWindowRegistry`.
   - Finder/Open With external opens now create/reuse one target window only.
   - This fixes the bug where opening document B from Finder made every open FileViewer window show document B.
   - `ContentView` now accepts `initialURLs` and constructs its own `AppModel(opening:)`.
   - `AppModel` now has `canAcceptExternalOpenInCurrentWindow` so the registry can reuse an empty startup window.
+- `c36e3aa` — `Allow narrower markdown windows`
+  - Lowered the main app minimum width to support side-by-side Markdown document comparison.
+  - Made Finder-created document windows default to `760 x 720` with minimum size `520 x 620`.
+  - Reduced Markdown split-pane minimum widths.
+  - Made the top toolbar more compact so Markdown windows can shrink more like Preview/PDF windows.
 
 This handoff document itself should be committed after creation.
 
