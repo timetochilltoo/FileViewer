@@ -19,7 +19,7 @@ Current MVP build includes:
 - Markdown save and save-as.
 - Unsaved Markdown close confirmation for tabs and windows.
 - Markdown search count and preview highlighting.
-- Toggle-style Markdown formatting buttons, source-editor right-click actions, and menu commands for common syntax:
+- Beginner-friendly Markdown formatting controls through a visible Format dropdown, icon buttons, source-editor right-click actions, and menu commands for common syntax:
   - bold
   - italic
   - underline

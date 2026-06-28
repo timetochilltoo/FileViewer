@@ -66,6 +66,22 @@ enum MarkdownFormatCommand: String, CaseIterable {
         }
     }
 
+    var helpText: String {
+        switch self {
+        case .bold: "Make selected text bold, or remove bold if it is already bold."
+        case .italic: "Make selected text italic, or remove italic if it is already italic."
+        case .underline: "Underline selected text using the app’s <u>underline</u> Markdown convenience."
+        case .heading: "Turn the selected line into a heading, or remove heading marks from an existing heading."
+        case .bulletList: "Turn selected line(s) into bullet list items."
+        case .numberedList: "Turn selected line(s) into a numbered list."
+        case .quote: "Turn selected line(s) into a block quote."
+        case .link: "Insert a Markdown link around selected text."
+        case .code: "Format selected text as inline code, or selected lines as a code block."
+        case .table: "Insert a simple Markdown table, or convert comma-separated selected lines into a table."
+        case .taskList: "Insert a task checklist, or convert selected lines into unchecked tasks."
+        }
+    }
+
     var placeholderText: String {
         switch self {
         case .bold: "bold text"

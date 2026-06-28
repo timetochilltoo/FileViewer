@@ -81,7 +81,7 @@ Expected behavior:
 - The user can search within the document.
 - Markdown search highlights matches in preview and reports a match count.
 - A Help menu Markdown syntax guide is available for common Markdown patterns.
-- Common Markdown formatting can be inserted from the editor toolbar, source-editor right-click menu, or Markdown app menu.
+- Common Markdown formatting can be inserted from the editor toolbar, visible Format dropdown, source-editor right-click menu, or Markdown app menu.
 - Common formatting can also be applied by selecting text in Preview; the app maps the selected preview text back to Markdown source and applies the same formatting command.
 - Generated headings must operate on whole lines so Markdown preview recognizes them.
 - Underline is represented as `<u>text</u>` in source and rendered by the app preview as a supported convenience even though underline is not standard Markdown.
@@ -165,7 +165,7 @@ Required:
 - Generate a heading list from Markdown headings in the sidebar.
 - Search within rendered content.
 - Help menu syntax guide for Markdown beginners.
-- Formatting assistance such as bold, italic, underline-like HTML, link, heading, list, quote, and code commands from toolbar buttons, menu items, keyboard shortcuts, or right-click/context actions.
+- Formatting assistance such as bold, italic, underline-like HTML, link, heading, list, quote, and code commands from toolbar buttons, a visible Format dropdown, menu items, keyboard shortcuts, or right-click/context actions.
 - Formatting assistance should work from source selections and preview selections.
 - Print Markdown source text.
 - Preserve readable typography across different screen sizes.

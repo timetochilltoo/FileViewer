@@ -321,9 +321,11 @@ Current source editor:
 
 Formatting toolbar:
 
-- Horizontal scroll view of icon-only buttons.
+- Horizontal scroll view containing a visible `Format` dropdown plus icon buttons.
+- The `Format` dropdown was added because Patrick is new to Markdown and asked for clearer assistance than icon-only controls. Keep it visible unless replacing it with something even clearer.
 - One button per `MarkdownFormatCommand`.
 - Buttons call `model.applyMarkdownFormat(command)`.
+- Each command has `helpText` in `MarkdownFormatCommand`; toolbar icon buttons and dropdown items use it for help/tooltips.
 - Buttons are now working in both Source and Preview selection contexts.
 - Source editor buttons toggle bold, italic, underline, heading, bullet list, numbered list, quote, and inline code.
 - Preview buttons map selected preview text back to Markdown source and then run the same toggle logic.
@@ -778,11 +780,9 @@ Recommended order:
 
 1. Improve Markdown preview rendering if Patrick relies heavily on richer tables/checklists.
 2. Add remaining Markdown formatting polish:
-   - visual labels or tooltips that are clearer for beginners
-   - maybe a small "Format" dropdown with text labels, not only icons
    - smarter link editing/toggling for arbitrary existing Markdown links
    - more precise preview-to-source mapping when repeated phrases exist
-3. Improve PDF search result navigation.
+3. Improve PDF/Markdown search result navigation.
 4. Add restore-open-tabs / last PDF page persistence.
 
 ## 11. Quick mental model for future agents

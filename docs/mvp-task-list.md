@@ -322,6 +322,7 @@ Acceptance criteria:
 - Finder/Open With opens documents in separate windows without changing existing document windows.
 - Markdown windows can shrink for side-by-side comparison.
 - Markdown formatting buttons work from Source and Preview selections.
+- A visible Format dropdown gives text-labeled Markdown commands for beginners.
 - Insert Table and Task List formatting helpers have been implemented.
 - Basic Markdown table and task-list preview rendering has been implemented.
 - Source-editor right-click formatting uses a custom Markdown command menu.

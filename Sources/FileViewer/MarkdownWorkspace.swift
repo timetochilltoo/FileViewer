@@ -42,6 +42,11 @@ struct MarkdownWorkspace: View {
     private var formattingBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
+                formatMenu
+
+                Divider()
+                    .frame(height: 20)
+
                 ForEach(MarkdownFormatCommand.allCases, id: \.self) { command in
                     Button {
                         model.applyMarkdownFormat(command)
@@ -49,13 +54,41 @@ struct MarkdownWorkspace: View {
                         Label(command.title, systemImage: command.systemImage)
                             .labelStyle(.iconOnly)
                     }
-                    .help(command.title)
+                    .help(command.helpText)
                 }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
         }
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var formatMenu: some View {
+        Menu {
+            formatMenuSection([.bold, .italic, .underline])
+            Divider()
+            formatMenuSection([.heading, .bulletList, .numberedList, .quote])
+            Divider()
+            formatMenuSection([.link, .code])
+            Divider()
+            formatMenuSection([.table, .taskList])
+        } label: {
+            Label("Format", systemImage: "textformat")
+        }
+        .menuStyle(.button)
+        .help("Show Markdown formatting commands with text labels.")
+    }
+
+    @ViewBuilder
+    private func formatMenuSection(_ commands: [MarkdownFormatCommand]) -> some View {
+        ForEach(commands, id: \.self) { command in
+            Button {
+                model.applyMarkdownFormat(command)
+            } label: {
+                Label(command.title, systemImage: command.systemImage)
+            }
+            .help(command.helpText)
+        }
     }
 
     private var editor: some View {
