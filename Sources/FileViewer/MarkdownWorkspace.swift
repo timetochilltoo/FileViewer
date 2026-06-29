@@ -594,10 +594,11 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
             guard let documentView = scrollView.documentView else { return false }
             documentView.layoutSubtreeIfNeeded()
             if let textView, visibleLocation > 0, textView.string.count > 0 {
-                let safeLocation = min(visibleLocation, (textView.string as NSString).length)
-                textView.scrollRangeToVisible(NSRange(location: safeLocation, length: 0))
-                scrollView.reflectScrolledClipView(scrollView.contentView)
-                return true
+                return scrollToCharacterLocation(
+                    visibleLocation,
+                    in: scrollView,
+                    textView: textView
+                )
             }
             let visibleHeight = scrollView.contentView.bounds.height
             let maxY = max(0, documentView.bounds.height - visibleHeight)
@@ -612,10 +613,42 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
             guard let textView,
                   let layoutManager = textView.layoutManager,
                   let textContainer = textView.textContainer else { return 0 }
-            let visibleRect = scrollView.contentView.documentVisibleRect
+            let containerOrigin = textView.textContainerOrigin
+            let visibleRect = scrollView.contentView.documentVisibleRect.offsetBy(
+                dx: -containerOrigin.x,
+                dy: -containerOrigin.y
+            )
             let glyphRange = layoutManager.glyphRange(forBoundingRect: visibleRect, in: textContainer)
             let characterRange = layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
             return characterRange.location == NSNotFound ? 0 : characterRange.location
+        }
+
+        private static func scrollToCharacterLocation(
+            _ location: Int,
+            in scrollView: NSScrollView,
+            textView: NSTextView
+        ) -> Bool {
+            guard let layoutManager = textView.layoutManager,
+                  let textContainer = textView.textContainer,
+                  let documentView = scrollView.documentView else { return false }
+            layoutManager.ensureLayout(for: textContainer)
+            let textLength = (textView.string as NSString).length
+            let safeLocation = min(max(0, location), max(0, textLength))
+            let glyphIndex = safeLocation < textLength
+                ? layoutManager.glyphIndexForCharacter(at: safeLocation)
+                : max(0, layoutManager.numberOfGlyphs - 1)
+            let glyphRect = layoutManager.boundingRect(
+                forGlyphRange: NSRange(location: glyphIndex, length: min(1, max(0, layoutManager.numberOfGlyphs - glyphIndex))),
+                in: textContainer
+            )
+            guard glyphRect.origin.y.isFinite else { return false }
+            let containerOrigin = textView.textContainerOrigin
+            let visibleHeight = scrollView.contentView.bounds.height
+            let maxY = max(0, documentView.bounds.height - visibleHeight)
+            let targetY = min(max(0, glyphRect.origin.y + containerOrigin.y), maxY)
+            scrollView.contentView.scroll(to: NSPoint(x: scrollView.contentView.bounds.origin.x, y: targetY))
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+            return abs(scrollView.contentView.bounds.origin.y - targetY) <= 1 || targetY == 0
         }
     }
 
@@ -1113,10 +1146,11 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
             guard let documentView = scrollView.documentView else { return false }
             documentView.layoutSubtreeIfNeeded()
             if let textView, visibleLocation > 0, textView.string.count > 0 {
-                let safeLocation = min(visibleLocation, (textView.string as NSString).length)
-                textView.scrollRangeToVisible(NSRange(location: safeLocation, length: 0))
-                scrollView.reflectScrolledClipView(scrollView.contentView)
-                return true
+                return scrollToCharacterLocation(
+                    visibleLocation,
+                    in: scrollView,
+                    textView: textView
+                )
             }
             let visibleHeight = scrollView.contentView.bounds.height
             let maxY = max(0, documentView.bounds.height - visibleHeight)
@@ -1131,10 +1165,42 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
             guard let textView,
                   let layoutManager = textView.layoutManager,
                   let textContainer = textView.textContainer else { return 0 }
-            let visibleRect = scrollView.contentView.documentVisibleRect
+            let containerOrigin = textView.textContainerOrigin
+            let visibleRect = scrollView.contentView.documentVisibleRect.offsetBy(
+                dx: -containerOrigin.x,
+                dy: -containerOrigin.y
+            )
             let glyphRange = layoutManager.glyphRange(forBoundingRect: visibleRect, in: textContainer)
             let characterRange = layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
             return characterRange.location == NSNotFound ? 0 : characterRange.location
+        }
+
+        private static func scrollToCharacterLocation(
+            _ location: Int,
+            in scrollView: NSScrollView,
+            textView: NSTextView
+        ) -> Bool {
+            guard let layoutManager = textView.layoutManager,
+                  let textContainer = textView.textContainer,
+                  let documentView = scrollView.documentView else { return false }
+            layoutManager.ensureLayout(for: textContainer)
+            let textLength = (textView.string as NSString).length
+            let safeLocation = min(max(0, location), max(0, textLength))
+            let glyphIndex = safeLocation < textLength
+                ? layoutManager.glyphIndexForCharacter(at: safeLocation)
+                : max(0, layoutManager.numberOfGlyphs - 1)
+            let glyphRect = layoutManager.boundingRect(
+                forGlyphRange: NSRange(location: glyphIndex, length: min(1, max(0, layoutManager.numberOfGlyphs - glyphIndex))),
+                in: textContainer
+            )
+            guard glyphRect.origin.y.isFinite else { return false }
+            let containerOrigin = textView.textContainerOrigin
+            let visibleHeight = scrollView.contentView.bounds.height
+            let maxY = max(0, documentView.bounds.height - visibleHeight)
+            let targetY = min(max(0, glyphRect.origin.y + containerOrigin.y), maxY)
+            scrollView.contentView.scroll(to: NSPoint(x: scrollView.contentView.bounds.origin.x, y: targetY))
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+            return abs(scrollView.contentView.bounds.origin.y - targetY) <= 1 || targetY == 0
         }
 
         func contextMenu() -> NSMenu {
