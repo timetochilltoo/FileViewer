@@ -177,6 +177,8 @@ struct DocumentTab: Identifiable, Equatable {
     var searchMatchCount: Int
     var markdownSourceScrollY: Double
     var markdownPreviewScrollY: Double
+    var markdownSourceVisibleLocation: Int
+    var markdownPreviewVisibleLocation: Int
     var pdfPage: Int
     var pdfPageCount: Int
     var pdfScale: CGFloat
@@ -189,6 +191,8 @@ struct DocumentTab: Identifiable, Equatable {
         searchMatchCount = 0
         markdownSourceScrollY = 0
         markdownPreviewScrollY = 0
+        markdownSourceVisibleLocation = 0
+        markdownPreviewVisibleLocation = 0
         pdfPage = 1
         if case .pdf(let pdf) = document {
             pdfPageCount = pdf.document.pageCount
@@ -204,10 +208,18 @@ struct DocumentTab: Identifiable, Equatable {
         self.pdfScale = max(0.1, pdfScale)
     }
 
-    init(document: ViewerDocument, markdownSourceScrollY: Double, markdownPreviewScrollY: Double) {
+    init(
+        document: ViewerDocument,
+        markdownSourceScrollY: Double,
+        markdownPreviewScrollY: Double,
+        markdownSourceVisibleLocation: Int = 0,
+        markdownPreviewVisibleLocation: Int = 0
+    ) {
         self.init(document: document)
         self.markdownSourceScrollY = max(0, markdownSourceScrollY)
         self.markdownPreviewScrollY = max(0, markdownPreviewScrollY)
+        self.markdownSourceVisibleLocation = max(0, markdownSourceVisibleLocation)
+        self.markdownPreviewVisibleLocation = max(0, markdownPreviewVisibleLocation)
     }
 }
 
@@ -221,6 +233,8 @@ struct SavedSessionTab: Codable, Equatable {
     var path: String
     var markdownSourceScrollY: Double?
     var markdownPreviewScrollY: Double?
+    var markdownSourceVisibleLocation: Int?
+    var markdownPreviewVisibleLocation: Int?
     var pdfPage: Int
     var pdfScale: Double
 }
@@ -235,6 +249,8 @@ struct SavedMarkdownState: Codable, Equatable {
     var path: String
     var sourceScrollY: Double
     var previewScrollY: Double
+    var sourceVisibleLocation: Int?
+    var previewVisibleLocation: Int?
 }
 
 struct MarkdownDocument: Equatable {
@@ -439,6 +455,14 @@ final class AppModel: ObservableObject {
         selectedTab?.markdownPreviewScrollY ?? 0
     }
 
+    var markdownSourceVisibleLocation: Int {
+        selectedTab?.markdownSourceVisibleLocation ?? 0
+    }
+
+    var markdownPreviewVisibleLocation: Int {
+        selectedTab?.markdownPreviewVisibleLocation ?? 0
+    }
+
     var markdownHeadings: [MarkdownHeading] {
         guard case .markdown(let document) = document else { return [] }
         return Self.extractHeadings(from: document.text)
@@ -509,7 +533,9 @@ final class AppModel: ObservableObject {
                         savedText: text
                     )),
                     markdownSourceScrollY: savedState?.sourceScrollY ?? 0,
-                    markdownPreviewScrollY: savedState?.previewScrollY ?? 0
+                    markdownPreviewScrollY: savedState?.previewScrollY ?? 0,
+                    markdownSourceVisibleLocation: savedState?.sourceVisibleLocation ?? 0,
+                    markdownPreviewVisibleLocation: savedState?.previewVisibleLocation ?? 0
                 ))
                 sidebarMode = .contents
                 addRecent(name: url.lastPathComponent, kind: .markdown, url: url)
@@ -838,20 +864,30 @@ final class AppModel: ObservableObject {
         lastActiveMarkdownSelectionKind = .preview
     }
 
-    func recordMarkdownSourceScrollY(_ scrollY: Double) {
+    func recordMarkdownSourceViewport(scrollY: Double, visibleLocation: Int) {
         guard let index = selectedTabIndex,
               case .markdown = tabs[index].document else { return }
         let safeScrollY = max(0, scrollY)
-        guard abs(tabs[index].markdownSourceScrollY - safeScrollY) > 0.5 else { return }
-        tabs[index].markdownSourceScrollY = safeScrollY
+        let safeVisibleLocation = max(0, visibleLocation)
+        if abs(tabs[index].markdownSourceScrollY - safeScrollY) > 0.5 {
+            tabs[index].markdownSourceScrollY = safeScrollY
+        }
+        if tabs[index].markdownSourceVisibleLocation != safeVisibleLocation {
+            tabs[index].markdownSourceVisibleLocation = safeVisibleLocation
+        }
     }
 
-    func recordMarkdownPreviewScrollY(_ scrollY: Double) {
+    func recordMarkdownPreviewViewport(scrollY: Double, visibleLocation: Int) {
         guard let index = selectedTabIndex,
               case .markdown = tabs[index].document else { return }
         let safeScrollY = max(0, scrollY)
-        guard abs(tabs[index].markdownPreviewScrollY - safeScrollY) > 0.5 else { return }
-        tabs[index].markdownPreviewScrollY = safeScrollY
+        let safeVisibleLocation = max(0, visibleLocation)
+        if abs(tabs[index].markdownPreviewScrollY - safeScrollY) > 0.5 {
+            tabs[index].markdownPreviewScrollY = safeScrollY
+        }
+        if tabs[index].markdownPreviewVisibleLocation != safeVisibleLocation {
+            tabs[index].markdownPreviewVisibleLocation = safeVisibleLocation
+        }
     }
 
     private func markdownTextViewForFormatting() -> NSTextView? {
@@ -1426,7 +1462,9 @@ final class AppModel: ObservableObject {
         states.insert(SavedMarkdownState(
             path: url.path,
             sourceScrollY: tab.markdownSourceScrollY,
-            previewScrollY: tab.markdownPreviewScrollY
+            previewScrollY: tab.markdownPreviewScrollY,
+            sourceVisibleLocation: tab.markdownSourceVisibleLocation,
+            previewVisibleLocation: tab.markdownPreviewVisibleLocation
         ), at: 0)
         Self.saveMarkdownStates(states)
     }
@@ -1448,6 +1486,8 @@ final class AppModel: ObservableObject {
                 path: url.path,
                 markdownSourceScrollY: tab.markdownSourceScrollY,
                 markdownPreviewScrollY: tab.markdownPreviewScrollY,
+                markdownSourceVisibleLocation: tab.markdownSourceVisibleLocation,
+                markdownPreviewVisibleLocation: tab.markdownPreviewVisibleLocation,
                 pdfPage: tab.pdfPage,
                 pdfScale: Double(tab.pdfScale)
             )
@@ -1513,7 +1553,9 @@ final class AppModel: ObservableObject {
                             savedText: text
                         )),
                         markdownSourceScrollY: savedState?.sourceScrollY ?? savedTab.markdownSourceScrollY ?? 0,
-                        markdownPreviewScrollY: savedState?.previewScrollY ?? savedTab.markdownPreviewScrollY ?? 0
+                        markdownPreviewScrollY: savedState?.previewScrollY ?? savedTab.markdownPreviewScrollY ?? 0,
+                        markdownSourceVisibleLocation: savedState?.sourceVisibleLocation ?? savedTab.markdownSourceVisibleLocation ?? 0,
+                        markdownPreviewVisibleLocation: savedState?.previewVisibleLocation ?? savedTab.markdownPreviewVisibleLocation ?? 0
                     ))
                 case .pdf:
                     guard url.pathExtension.lowercased() == "pdf",

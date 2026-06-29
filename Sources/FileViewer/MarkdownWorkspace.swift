@@ -95,10 +95,12 @@ struct MarkdownWorkspace: View {
         MarkdownSourceEditor(text: Binding(
             get: { document.text },
             set: { model.updateMarkdown($0) }
-        ), initialScrollY: model.markdownSourceScrollY, onFormatCommand: { command in
+        ), initialScrollY: model.markdownSourceScrollY,
+           initialVisibleLocation: model.markdownSourceVisibleLocation,
+           onFormatCommand: { command in
             model.applyMarkdownFormat(command)
-        }, onScrollChanged: { scrollY in
-            model.recordMarkdownSourceScrollY(scrollY)
+        }, onViewportChanged: { scrollY, visibleLocation in
+            model.recordMarkdownSourceViewport(scrollY: scrollY, visibleLocation: visibleLocation)
         }) { textView in
             model.rememberMarkdownTextView(textView)
         }
@@ -112,8 +114,9 @@ struct MarkdownWorkspace: View {
             searchText: model.searchText,
             searchMatchIndex: model.searchMatchIndex,
             initialScrollY: model.markdownPreviewScrollY,
-            onScrollChanged: { scrollY in
-                model.recordMarkdownPreviewScrollY(scrollY)
+            initialVisibleLocation: model.markdownPreviewVisibleLocation,
+            onViewportChanged: { scrollY, visibleLocation in
+                model.recordMarkdownPreviewViewport(scrollY: scrollY, visibleLocation: visibleLocation)
             }
         ) { textView in
             model.rememberMarkdownPreviewTextView(textView)
@@ -401,13 +404,15 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
     let searchText: String
     let searchMatchIndex: Int
     let initialScrollY: Double
-    let onScrollChanged: (Double) -> Void
+    let initialVisibleLocation: Int
+    let onViewportChanged: (Double, Int) -> Void
     let onTextViewReady: (NSTextView) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             initialScrollY: initialScrollY,
-            onScrollChanged: onScrollChanged,
+            initialVisibleLocation: initialVisibleLocation,
+            onViewportChanged: onViewportChanged,
             onTextViewReady: onTextViewReady
         )
     }
@@ -463,7 +468,7 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? NSTextView else { return }
         context.coordinator.onTextViewReady = onTextViewReady
-        context.coordinator.onScrollChanged = onScrollChanged
+        context.coordinator.onViewportChanged = onViewportChanged
         let selectedRange = textView.selectedRange()
         textView.textStorage?.setAttributedString(Self.attributedPreview(
             markdown: markdown,
@@ -486,7 +491,8 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
         let initialScrollY: Double
-        var onScrollChanged: (Double) -> Void
+        let initialVisibleLocation: Int
+        var onViewportChanged: (Double, Int) -> Void
         var onTextViewReady: (NSTextView) -> Void
         weak var textView: NSTextView?
         weak var scrollView: NSScrollView?
@@ -496,11 +502,13 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
 
         init(
             initialScrollY: Double,
-            onScrollChanged: @escaping (Double) -> Void,
+            initialVisibleLocation: Int,
+            onViewportChanged: @escaping (Double, Int) -> Void,
             onTextViewReady: @escaping (NSTextView) -> Void
         ) {
             self.initialScrollY = initialScrollY
-            self.onScrollChanged = onScrollChanged
+            self.initialVisibleLocation = max(0, initialVisibleLocation)
+            self.onViewportChanged = onViewportChanged
             self.onTextViewReady = onTextViewReady
             super.init()
             NotificationCenter.default.addObserver(
@@ -530,7 +538,12 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
         func restoreInitialScrollIfNeeded() {
             guard !didRestoreInitialScroll,
                   let scrollView else { return }
-            let didScroll = Self.scroll(scrollView, toY: initialScrollY)
+            let didScroll = Self.restore(
+                scrollView,
+                textView: textView,
+                toY: initialScrollY,
+                visibleLocation: initialVisibleLocation
+            )
             if didScroll || initialScrollY <= 0 {
                 didRestoreInitialScroll = true
             } else if restoreAttempts < 12 {
@@ -546,7 +559,10 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
 
         private func publishCurrentScroll() {
             guard let scrollView else { return }
-            onScrollChanged(Double(scrollView.contentView.bounds.origin.y))
+            onViewportChanged(
+                Double(scrollView.contentView.bounds.origin.y),
+                Self.visibleCharacterLocation(in: scrollView, textView: textView)
+            )
         }
 
         @objc private func syncCurrentScroll() {
@@ -569,9 +585,20 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
             }
         }
 
-        private static func scroll(_ scrollView: NSScrollView, toY scrollY: Double) -> Bool {
+        private static func restore(
+            _ scrollView: NSScrollView,
+            textView: NSTextView?,
+            toY scrollY: Double,
+            visibleLocation: Int
+        ) -> Bool {
             guard let documentView = scrollView.documentView else { return false }
             documentView.layoutSubtreeIfNeeded()
+            if let textView, visibleLocation > 0, textView.string.count > 0 {
+                let safeLocation = min(visibleLocation, (textView.string as NSString).length)
+                textView.scrollRangeToVisible(NSRange(location: safeLocation, length: 0))
+                scrollView.reflectScrolledClipView(scrollView.contentView)
+                return true
+            }
             let visibleHeight = scrollView.contentView.bounds.height
             let maxY = max(0, documentView.bounds.height - visibleHeight)
             guard maxY > 0 || scrollY <= 0 else { return false }
@@ -579,6 +606,16 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
             scrollView.contentView.scroll(to: NSPoint(x: scrollView.contentView.bounds.origin.x, y: safeY))
             scrollView.reflectScrolledClipView(scrollView.contentView)
             return abs(scrollView.contentView.bounds.origin.y - safeY) <= 1 || safeY == 0
+        }
+
+        private static func visibleCharacterLocation(in scrollView: NSScrollView, textView: NSTextView?) -> Int {
+            guard let textView,
+                  let layoutManager = textView.layoutManager,
+                  let textContainer = textView.textContainer else { return 0 }
+            let visibleRect = scrollView.contentView.documentVisibleRect
+            let glyphRange = layoutManager.glyphRange(forBoundingRect: visibleRect, in: textContainer)
+            let characterRange = layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
+            return characterRange.location == NSNotFound ? 0 : characterRange.location
         }
     }
 
@@ -897,16 +934,18 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
 private struct MarkdownSourceEditor: NSViewRepresentable {
     @Binding var text: String
     let initialScrollY: Double
+    let initialVisibleLocation: Int
     let onFormatCommand: (MarkdownFormatCommand) -> Void
-    let onScrollChanged: (Double) -> Void
+    let onViewportChanged: (Double, Int) -> Void
     let onTextViewReady: (NSTextView) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             text: $text,
             initialScrollY: initialScrollY,
+            initialVisibleLocation: initialVisibleLocation,
             onFormatCommand: onFormatCommand,
-            onScrollChanged: onScrollChanged,
+            onViewportChanged: onViewportChanged,
             onTextViewReady: onTextViewReady
         )
     }
@@ -957,7 +996,7 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
         guard let textView = scrollView.documentView as? NSTextView else { return }
         context.coordinator.text = $text
         context.coordinator.onFormatCommand = onFormatCommand
-        context.coordinator.onScrollChanged = onScrollChanged
+        context.coordinator.onViewportChanged = onViewportChanged
         context.coordinator.onTextViewReady = onTextViewReady
         textView.menu = context.coordinator.contextMenu()
         if textView.string != text {
@@ -978,8 +1017,9 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
     final class Coordinator: NSObject, NSTextViewDelegate {
         var text: Binding<String>
         let initialScrollY: Double
+        let initialVisibleLocation: Int
         var onFormatCommand: (MarkdownFormatCommand) -> Void
-        var onScrollChanged: (Double) -> Void
+        var onViewportChanged: (Double, Int) -> Void
         var onTextViewReady: (NSTextView) -> Void
         weak var textView: NSTextView?
         weak var scrollView: NSScrollView?
@@ -990,14 +1030,16 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
         init(
             text: Binding<String>,
             initialScrollY: Double,
+            initialVisibleLocation: Int,
             onFormatCommand: @escaping (MarkdownFormatCommand) -> Void,
-            onScrollChanged: @escaping (Double) -> Void,
+            onViewportChanged: @escaping (Double, Int) -> Void,
             onTextViewReady: @escaping (NSTextView) -> Void
         ) {
             self.text = text
             self.initialScrollY = initialScrollY
+            self.initialVisibleLocation = max(0, initialVisibleLocation)
             self.onFormatCommand = onFormatCommand
-            self.onScrollChanged = onScrollChanged
+            self.onViewportChanged = onViewportChanged
             self.onTextViewReady = onTextViewReady
             super.init()
             NotificationCenter.default.addObserver(
@@ -1027,7 +1069,12 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
         func restoreInitialScrollIfNeeded() {
             guard !didRestoreInitialScroll,
                   let scrollView else { return }
-            let didScroll = Self.scroll(scrollView, toY: initialScrollY)
+            let didScroll = Self.restore(
+                scrollView,
+                textView: textView,
+                toY: initialScrollY,
+                visibleLocation: initialVisibleLocation
+            )
             if didScroll || initialScrollY <= 0 {
                 didRestoreInitialScroll = true
             } else if restoreAttempts < 12 {
@@ -1043,7 +1090,10 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
 
         private func publishCurrentScroll() {
             guard let scrollView else { return }
-            onScrollChanged(Double(scrollView.contentView.bounds.origin.y))
+            onViewportChanged(
+                Double(scrollView.contentView.bounds.origin.y),
+                Self.visibleCharacterLocation(in: scrollView, textView: textView)
+            )
         }
 
         @objc private func syncCurrentScroll() {
@@ -1054,9 +1104,20 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
             publishCurrentScroll()
         }
 
-        private static func scroll(_ scrollView: NSScrollView, toY scrollY: Double) -> Bool {
+        private static func restore(
+            _ scrollView: NSScrollView,
+            textView: NSTextView?,
+            toY scrollY: Double,
+            visibleLocation: Int
+        ) -> Bool {
             guard let documentView = scrollView.documentView else { return false }
             documentView.layoutSubtreeIfNeeded()
+            if let textView, visibleLocation > 0, textView.string.count > 0 {
+                let safeLocation = min(visibleLocation, (textView.string as NSString).length)
+                textView.scrollRangeToVisible(NSRange(location: safeLocation, length: 0))
+                scrollView.reflectScrolledClipView(scrollView.contentView)
+                return true
+            }
             let visibleHeight = scrollView.contentView.bounds.height
             let maxY = max(0, documentView.bounds.height - visibleHeight)
             guard maxY > 0 || scrollY <= 0 else { return false }
@@ -1064,6 +1125,16 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
             scrollView.contentView.scroll(to: NSPoint(x: scrollView.contentView.bounds.origin.x, y: safeY))
             scrollView.reflectScrolledClipView(scrollView.contentView)
             return abs(scrollView.contentView.bounds.origin.y - safeY) <= 1 || safeY == 0
+        }
+
+        private static func visibleCharacterLocation(in scrollView: NSScrollView, textView: NSTextView?) -> Int {
+            guard let textView,
+                  let layoutManager = textView.layoutManager,
+                  let textContainer = textView.textContainer else { return 0 }
+            let visibleRect = scrollView.contentView.documentVisibleRect
+            let glyphRange = layoutManager.glyphRange(forBoundingRect: visibleRect, in: textContainer)
+            let characterRange = layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
+            return characterRange.location == NSNotFound ? 0 : characterRange.location
         }
 
         func contextMenu() -> NSMenu {
