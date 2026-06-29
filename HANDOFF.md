@@ -433,6 +433,8 @@ PDF search:
 - Jumps to the first result.
 - `PDFKitView` binds `searchMatchIndex` and `searchMatchCount` back to `AppModel`.
 - Search count updates are dispatched through stored `Binding` values on the next main-queue tick. This avoids mutating SwiftUI state directly during `PDFKitView.updateNSView`, which previously prevented the toolbar from reliably showing current/total matches.
+- 2026-06-29 follow-up: PDF match count is also calculated immediately in `AppModel.searchText` using the selected `PDFDocument.findString(...)`. This makes the toolbar count deterministic even if the `PDFKitView` binding callback is delayed or skipped by SwiftUI/PDFKit refresh timing.
+- PDF search status text is prefixed with `PDF:` so it is visually clear that the count is coming from PDF search, e.g. `PDF: 1 of 6`.
 - Previous/next search buttons update `searchMatchIndex`; `PDFKitView.Coordinator.goToSearchMatch(_:)` selects and scrolls to the requested `PDFSelection`.
 
 ### `SidebarView.swift`
@@ -582,6 +584,7 @@ Recent commits on `main`:
 - 2026-06-29 — Search navigation regression fixes
   - Replaced the toolbar search `TextField` with native `SearchTextField` so pressing Return reliably advances to the next Markdown/PDF search match.
   - Changed PDF search result count updates to write back through `Binding` values asynchronously after PDFKit finishes finding selections, so the toolbar shows current/total PDF matches.
+  - Follow-up fix after Patrick confirmed PDF count was still missing: `AppModel.searchText` now computes PDF match count directly from the open PDF document, and PDF status text displays with a `PDF:` prefix.
 
 This handoff document itself should be committed after creation.
 

@@ -271,7 +271,7 @@ final class AppModel: ObservableObject {
             objectWillChange.send()
             tabs[index].searchText = newValue
             tabs[index].searchMatchIndex = 0
-            tabs[index].searchMatchCount = 0
+            tabs[index].searchMatchCount = searchMatchCount(for: newValue, in: tabs[index].document)
         }
     }
 
@@ -306,7 +306,11 @@ final class AppModel: ObservableObject {
         guard !query.isEmpty else { return "" }
         let count = searchMatchCount
         guard count > 0 else { return "0 matches" }
-        return "\(min(searchMatchIndex, count - 1) + 1) of \(count)"
+        let current = min(searchMatchIndex, count - 1) + 1
+        if isPDFDocument {
+            return "PDF: \(current) of \(count)"
+        }
+        return "\(current) of \(count)"
     }
 
     var canNavigateSearch: Bool {
@@ -323,6 +327,17 @@ final class AppModel: ObservableObject {
         let count = searchMatchCount
         guard count > 0 else { return }
         searchMatchIndex = (searchMatchIndex + 1) % count
+    }
+
+    private func searchMatchCount(for searchText: String, in document: ViewerDocument) -> Int {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return 0 }
+        switch document {
+        case .markdown(let markdown):
+            return Self.markdownMatchCount(in: markdown.text, query: query)
+        case .pdf(let pdf):
+            return pdf.document.findString(query, withOptions: [.caseInsensitive]).count
+        }
     }
 
     var pdfPage: Int {
@@ -661,11 +676,15 @@ final class AppModel: ObservableObject {
         guard case .markdown(let markdown) = document else { return 0 }
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return 0 }
+        return Self.markdownMatchCount(in: markdown.text, query: query)
+    }
+
+    private static func markdownMatchCount(in text: String, query: String) -> Int {
         var count = 0
-        var searchRange = markdown.text.startIndex..<markdown.text.endIndex
-        while let range = markdown.text.range(of: query, options: [.caseInsensitive], range: searchRange) {
+        var searchRange = text.startIndex..<text.endIndex
+        while let range = text.range(of: query, options: [.caseInsensitive], range: searchRange) {
             count += 1
-            searchRange = range.upperBound..<markdown.text.endIndex
+            searchRange = range.upperBound..<text.endIndex
         }
         return count
     }
