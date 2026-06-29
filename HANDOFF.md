@@ -144,6 +144,7 @@ Important types:
 - `SavedSessionTab`
 - `SavedPDFState`
 - `MarkdownHeading`
+- `PDFOutlineEntry`
 - `ViewerDocument`
   - `.markdown(MarkdownDocument)`
   - `.pdf(PDFViewerDocument)`
@@ -218,6 +219,7 @@ Session restore:
 - Does not restore search text by design; search text is session-only and would be annoying to revive unexpectedly.
 - Restores PDF page and zoom via saved `pdfPage` / `pdfScale`.
 - Also stores per-file PDF page/zoom in `UserDefaults` key `FileViewer.pdf.lastStates`. This is separate from session restore. It lets `A.pdf` reopen to its previous page even after its tab/window was closed and removed from the session snapshot.
+- This per-file last-position restore is PDF-only today. Markdown files can reopen as tabs/windows, but Markdown per-file scroll position after close/reopen is not implemented yet.
 - PDF state is saved when `pdfPage` / `pdfScale` changes, when session snapshots are made, before opening another file, before switching tabs, and before closing a tab/window.
 - `pdfSyncCurrentState` notification asks the visible `PDFKitView` to synchronously push its current page/zoom back into `AppModel` before the model saves state. This covers the sequence: open `A.pdf`, go to page 67, open `B.pdf`, switch back to `A.pdf`, close, then reopen `A.pdf`.
 - `FileViewerWindowRegistry.saveCurrentSession()` collects live window model snapshots and writes them.
@@ -474,8 +476,12 @@ Sidebar sections:
   - list of recent documents
   - opens recent in tab
 - Contents
-  - generated from Markdown headings in selected Markdown tab
-  - currently displays headings only; does not jump to heading yet
+  - for Markdown: generated from Markdown headings in the selected Markdown tab
+  - Markdown headings currently display only; clicking a heading does not jump to that heading yet
+  - for PDF: generated from the PDF outline/table of contents when the PDF provides outline/bookmark entries
+  - PDF outline entries navigate to their destination page by posting `.pdfGoToPage`
+  - PDF outline extraction checks both direct outline destinations and `PDFActionGoTo` destinations
+  - PDFs without an outline show `No PDF Outline`
 - Pages
   - PDF thumbnails through `PDFThumbnailSidebar`
   - clicking a thumbnail posts `.pdfGoToPage`
@@ -750,9 +756,24 @@ Missing:
 - clearing search highlights more predictably
 - search result sidebar/list
 
-### 6.8 PDF outline support missing
+### 6.8 PDF outline support is basic
 
-Requirements mention PDF outline/table of contents. Current sidebar Pages mode uses thumbnails only. No PDF outline mode yet.
+Implemented in `SidebarView.contentsList` and `AppModel.extractPDFOutline(from:)`.
+
+Behavior:
+
+- The Contents sidebar shows PDF outline/table-of-contents entries when `PDFDocument.outlineRoot` is available.
+- The outline tree is flattened into `PDFOutlineEntry` rows with indentation based on outline level.
+- Clicking an entry with a destination page posts `.pdfGoToPage`.
+- Entries without a destination page are displayed but disabled.
+- The extraction handles both `PDFOutline.destination` and `PDFActionGoTo.destination`.
+- PDFs without an outline show `No PDF Outline`.
+
+Known limitations:
+
+- There is no collapsible PDF outline tree yet; it is a flat indented list.
+- It only navigates to a page, not an exact coordinate within the page.
+- Some unusual PDFs may encode outline actions differently; if a PDF shows disabled entries even though Preview can jump from them, inspect the `PDFOutline.action` type and add support for that action.
 
 ### 6.9 App lifecycle and document model
 
@@ -826,11 +847,11 @@ Recommended order:
 2. Add remaining Markdown formatting polish:
    - smarter link editing/toggling for arbitrary existing Markdown links
    - more precise preview-to-source mapping when repeated phrases exist
-3. Add PDF outline support when PDFs provide a table of contents.
-4. Add restore polish if needed:
+3. Add restore polish if needed:
    - restore exact window positions/sizes
    - restore Markdown scroll position
    - optionally restore search text if Patrick later wants it
+4. Add repeatable sample files/tests for PDF outline, PDF search counts, Markdown formatting, and multi-window restore.
 
 ## 11. Quick mental model for future agents
 

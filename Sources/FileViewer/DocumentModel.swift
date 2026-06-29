@@ -136,6 +136,13 @@ struct MarkdownHeading: Identifiable, Equatable {
     let title: String
 }
 
+struct PDFOutlineEntry: Identifiable, Equatable {
+    let id: String
+    let level: Int
+    let title: String
+    let page: Int?
+}
+
 enum ViewerDocument: Equatable {
     case markdown(MarkdownDocument)
     case pdf(PDFViewerDocument)
@@ -408,6 +415,11 @@ final class AppModel: ObservableObject {
     var markdownHeadings: [MarkdownHeading] {
         guard case .markdown(let document) = document else { return [] }
         return Self.extractHeadings(from: document.text)
+    }
+
+    var pdfOutlineEntries: [PDFOutlineEntry] {
+        guard case .pdf(let document) = document else { return [] }
+        return Self.extractPDFOutline(from: document.document)
     }
 
     var canSaveMarkdown: Bool {
@@ -1465,6 +1477,41 @@ final class AppModel: ObservableObject {
                 guard !title.isEmpty else { return nil }
                 return MarkdownHeading(id: title.slugID, level: level, title: title)
             }
+    }
+
+    static func extractPDFOutline(from document: PDFDocument) -> [PDFOutlineEntry] {
+        guard let root = document.outlineRoot else { return [] }
+        var entries: [PDFOutlineEntry] = []
+
+        func appendChildren(of outline: PDFOutline, level: Int, path: String) {
+            for index in 0..<outline.numberOfChildren {
+                guard let child = outline.child(at: index) else { continue }
+                let childPath = "\(path).\(index)"
+                let title = child.label?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let destination = child.destination ?? (child.action as? PDFActionGoTo)?.destination
+                let page: Int?
+                if let destinationPage = destination?.page {
+                    let pageIndex = document.index(for: destinationPage)
+                    page = pageIndex == NSNotFound ? nil : pageIndex + 1
+                } else {
+                    page = nil
+                }
+
+                if let title, !title.isEmpty {
+                    entries.append(PDFOutlineEntry(
+                        id: childPath,
+                        level: level,
+                        title: title,
+                        page: page
+                    ))
+                }
+
+                appendChildren(of: child, level: level + 1, path: childPath)
+            }
+        }
+
+        appendChildren(of: root, level: 1, path: "root")
+        return entries
     }
 }
 

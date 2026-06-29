@@ -60,14 +60,51 @@ struct SidebarView: View {
     }
 
     private var contentsList: some View {
-        List(model.markdownHeadings) { heading in
-            Text(heading.title)
-                .lineLimit(1)
-                .padding(.leading, CGFloat(max(heading.level - 1, 0)) * 12)
-        }
-        .overlay {
-            if model.markdownHeadings.isEmpty {
-                ContentUnavailableView("No Headings", systemImage: "list.bullet")
+        Group {
+            switch model.document {
+            case .markdown:
+                List(model.markdownHeadings) { heading in
+                    Text(heading.title)
+                        .lineLimit(1)
+                        .padding(.leading, CGFloat(max(heading.level - 1, 0)) * 12)
+                }
+                .overlay {
+                    if model.markdownHeadings.isEmpty {
+                        ContentUnavailableView("No Headings", systemImage: "list.bullet")
+                    }
+                }
+            case .pdf:
+                List(model.pdfOutlineEntries) { entry in
+                    Button {
+                        if let page = entry.page {
+                            NotificationCenter.default.post(name: .pdfGoToPage, object: page)
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: entry.page == nil ? "text.book.closed" : "text.book.closed.fill")
+                                .foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(entry.title)
+                                    .lineLimit(2)
+                                if let page = entry.page {
+                                    Text("Page \(page)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .padding(.leading, CGFloat(max(entry.level - 1, 0)) * 12)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(entry.page == nil)
+                }
+                .overlay {
+                    if model.pdfOutlineEntries.isEmpty {
+                        ContentUnavailableView("No PDF Outline", systemImage: "list.bullet.rectangle")
+                    }
+                }
+            case nil:
+                ContentUnavailableView("No Document Open", systemImage: "doc")
             }
         }
     }

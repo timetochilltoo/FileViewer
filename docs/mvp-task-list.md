@@ -194,14 +194,15 @@ Acceptance criteria:
 - Add thumbnail sidebar.
 - Use PDFKit thumbnails where possible.
 - Click thumbnail to jump to page.
-- Show PDF outline/table of contents when available. Not implemented yet.
+- Show PDF outline/table of contents when available.
 - Allow sidebar mode switching between thumbnails, outline, and recent files.
 
 Acceptance criteria:
 
 - Thumbnails appear for PDFs.
 - Clicking a thumbnail navigates to that page.
-- Outline support remains a follow-up.
+- Outline entries appear for PDFs that provide a table of contents/bookmarks.
+- Clicking an outline entry navigates to its destination page when available.
 
 ## 14. Shared Search
 
@@ -325,6 +326,7 @@ Acceptance criteria:
 - File-backed tabs/windows restore after app restart.
 - PDF page and zoom state restore after app restart.
 - Reopened PDFs restore page and zoom from per-file PDF state even after the previous tab/window was closed.
+- PDF outline/table-of-contents support has been implemented for PDFs that provide outline/bookmark entries.
 - Finder/Open With opens documents in separate windows without changing existing document windows.
 - Markdown windows can shrink for side-by-side comparison.
 - Markdown formatting buttons work from Source and Preview selections.
@@ -340,6 +342,5 @@ Acceptance criteria:
 Next implementation work:
 
 - Improve Markdown preview fidelity for richer GitHub-flavored tables, local images, and task-list polish.
-- Add PDF outline support when PDFs provide a table of contents.
-- Add restore polish if needed, such as exact window position/size or Markdown scroll position.
+- Add restore polish if needed, such as exact window position/size or Markdown scroll position. Current per-file last-position restore is PDF-only.
 - Add tests or sample files for repeatable verification.
