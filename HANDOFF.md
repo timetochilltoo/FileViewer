@@ -142,6 +142,7 @@ Important types:
 - `RecentDocument`
 - `SavedSessionWindow`
 - `SavedSessionTab`
+- `SavedPDFState`
 - `MarkdownHeading`
 - `ViewerDocument`
   - `.markdown(MarkdownDocument)`
@@ -203,6 +204,8 @@ Important methods:
 - `loadSavedSessionWindows()`
 - `saveSessionWindows(_:)`
 - `restore(window:)`
+- `savePDFStateIfNeeded(for:)`
+- `loadPDFState(for:)`
 
 Session restore:
 
@@ -214,6 +217,9 @@ Session restore:
 - Skips missing files silently.
 - Does not restore search text by design; search text is session-only and would be annoying to revive unexpectedly.
 - Restores PDF page and zoom via saved `pdfPage` / `pdfScale`.
+- Also stores per-file PDF page/zoom in `UserDefaults` key `FileViewer.pdf.lastStates`. This is separate from session restore. It lets `A.pdf` reopen to its previous page even after its tab/window was closed and removed from the session snapshot.
+- PDF state is saved when `pdfPage` / `pdfScale` changes, when session snapshots are made, before opening another file, before switching tabs, and before closing a tab/window.
+- `pdfSyncCurrentState` notification asks the visible `PDFKitView` to synchronously push its current page/zoom back into `AppModel` before the model saves state. This covers the sequence: open `A.pdf`, go to page 67, open `B.pdf`, switch back to `A.pdf`, close, then reopen `A.pdf`.
 - `FileViewerWindowRegistry.saveCurrentSession()` collects live window model snapshots and writes them.
 - Closing a window removes that window's model from the registry and resaves the session, so closed windows should not come back on next launch.
 - Important crash fix: do not release program-created `NSWindow` immediately inside `windowWillClose`, and do not mutate the retained window array from a delayed close callback. Patrick hit AppKit/Swift crashes after open/close/open and after closing multiple restored PDF windows. The app now keeps program-created windows retained for the life of the process; this small temporary memory cost is safer than fighting AppKit close-animation lifetime.

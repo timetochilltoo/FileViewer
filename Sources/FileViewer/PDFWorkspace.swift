@@ -97,6 +97,7 @@ struct PDFKitView: NSViewRepresentable {
             NotificationCenter.default.addObserver(self, selector: #selector(zoomOut), name: .pdfZoomOut, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(fitWidth), name: .pdfFitWidth, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(fitPage), name: .pdfFitPage, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(syncCurrentState), name: .pdfSyncCurrentState, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(pageChanged), name: Notification.Name.PDFViewPageChanged, object: pdfView)
         }
 
@@ -146,6 +147,11 @@ struct PDFKitView: NSViewRepresentable {
 
         @MainActor @objc private func pageChanged() {
             syncPage()
+        }
+
+        @MainActor @objc private func syncCurrentState() {
+            syncPage()
+            syncScale()
         }
 
         @MainActor func applySearch(_ text: String) {
@@ -213,17 +219,13 @@ struct PDFKitView: NSViewRepresentable {
             guard index != NSNotFound,
                   index >= 0,
                   index < parent.document.pageCount else { return }
-            DispatchQueue.main.async {
-                self.parent.page = index + 1
-                self.parent.pageCount = self.parent.document.pageCount
-            }
+            parent.page = index + 1
+            parent.pageCount = parent.document.pageCount
         }
 
         @MainActor private func syncScale() {
             guard let view = pdfView else { return }
-            DispatchQueue.main.async {
-                self.parent.scale = view.scaleFactor
-            }
+            parent.scale = view.scaleFactor
         }
 
         deinit {

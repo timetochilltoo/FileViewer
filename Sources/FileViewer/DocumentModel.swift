@@ -206,6 +206,12 @@ struct SavedSessionTab: Codable, Equatable {
     var pdfScale: Double
 }
 
+struct SavedPDFState: Codable, Equatable {
+    var path: String
+    var pdfPage: Int
+    var pdfScale: Double
+}
+
 struct MarkdownDocument: Equatable {
     var url: URL?
     var untitledName: String
@@ -242,6 +248,7 @@ final class AppModel: ObservableObject {
     private let recentsKey = "FileViewer.recents"
     private let markdownModeKey = "FileViewer.markdownMode"
     private static let sessionKey = "FileViewer.session.windows"
+    private static let pdfStateKey = "FileViewer.pdf.lastStates"
     private weak var lastActiveMarkdownTextView: NSTextView?
     private weak var lastActiveMarkdownPreviewTextView: NSTextView?
     private var lastActiveMarkdownSelectionKind: MarkdownSelectionKind = .source
@@ -373,6 +380,7 @@ final class AppModel: ObservableObject {
             guard let index = selectedTabIndex else { return }
             objectWillChange.send()
             tabs[index].pdfPage = newValue
+            savePDFStateIfNeeded(for: tabs[index])
             saveCurrentSession()
         }
     }
@@ -392,6 +400,7 @@ final class AppModel: ObservableObject {
             guard let index = selectedTabIndex else { return }
             objectWillChange.send()
             tabs[index].pdfScale = newValue
+            savePDFStateIfNeeded(for: tabs[index])
             saveCurrentSession()
         }
     }
@@ -447,6 +456,7 @@ final class AppModel: ObservableObject {
     }
 
     func open(url: URL) {
+        syncVisiblePDFState()
         statusMessage = ""
         do {
             if Self.isMarkdown(url) {
@@ -464,7 +474,12 @@ final class AppModel: ObservableObject {
             }
 
             if url.pathExtension.lowercased() == "pdf", let pdf = PDFDocument(url: url) {
-                appendTab(.pdf(PDFViewerDocument(url: url, document: pdf)))
+                let savedState = Self.loadPDFState(for: url)
+                appendTab(DocumentTab(
+                    document: .pdf(PDFViewerDocument(url: url, document: pdf)),
+                    pdfPage: savedState?.pdfPage ?? 1,
+                    pdfScale: CGFloat(savedState?.pdfScale ?? 1.0)
+                ))
                 sidebarMode = .pages
                 addRecent(name: url.lastPathComponent, kind: .pdf, url: url)
                 saveCurrentSession()
@@ -478,6 +493,7 @@ final class AppModel: ObservableObject {
     }
 
     func selectTab(_ id: DocumentTab.ID) {
+        syncVisiblePDFState()
         selectedTabID = id
         statusMessage = ""
         updateSidebarForSelectedDocument()
@@ -491,6 +507,7 @@ final class AppModel: ObservableObject {
     }
 
     func canCloseAllDocuments() -> Bool {
+        syncVisiblePDFState()
         let tabIDs = tabs.map(\.id)
         for id in tabIDs {
             guard let index = tabs.firstIndex(where: { $0.id == id }) else { continue }
@@ -518,6 +535,8 @@ final class AppModel: ObservableObject {
 
     private func closeTab(at index: Int) {
         guard tabs.indices.contains(index) else { return }
+        syncVisiblePDFState()
+        savePDFStateIfNeeded(for: tabs[index])
         let id = tabs[index].id
         tabs.remove(at: index)
         if selectedTabID == id {
@@ -1289,9 +1308,42 @@ final class AppModel: ObservableObject {
         UserDefaults.standard.set(data, forKey: sessionKey)
     }
 
+    private static func loadPDFStates() -> [SavedPDFState] {
+        guard let data = UserDefaults.standard.data(forKey: pdfStateKey),
+              let decoded = try? JSONDecoder().decode([SavedPDFState].self, from: data) else {
+            return []
+        }
+        return decoded
+    }
+
+    private static func savePDFStates(_ states: [SavedPDFState]) {
+        let trimmed = Array(states.prefix(100))
+        guard let data = try? JSONEncoder().encode(trimmed) else { return }
+        UserDefaults.standard.set(data, forKey: pdfStateKey)
+    }
+
+    private static func loadPDFState(for url: URL) -> SavedPDFState? {
+        loadPDFStates().first { $0.path == url.path }
+    }
+
+    private func savePDFStateIfNeeded(for tab: DocumentTab) {
+        guard case .pdf(let pdf) = tab.document else { return }
+        var states = Self.loadPDFStates()
+        states.removeAll { $0.path == pdf.url.path }
+        states.insert(SavedPDFState(
+            path: pdf.url.path,
+            pdfPage: tab.pdfPage,
+            pdfScale: Double(tab.pdfScale)
+        ), at: 0)
+        Self.savePDFStates(states)
+    }
+
     func sessionSnapshot() -> SavedSessionWindow? {
         let restorableTabs = tabs.compactMap { tab -> SavedSessionTab? in
             guard let url = tab.document.url else { return nil }
+            if case .pdf = tab.document {
+                savePDFStateIfNeeded(for: tab)
+            }
             return SavedSessionTab(
                 kind: tab.document.kind,
                 path: url.path,
@@ -1318,6 +1370,11 @@ final class AppModel: ObservableObject {
 
     private func saveCurrentSession() {
         FileViewerWindowRegistry.shared.saveCurrentSession()
+    }
+
+    private func syncVisiblePDFState() {
+        guard isPDFDocument else { return }
+        NotificationCenter.default.post(name: .pdfSyncCurrentState, object: nil)
     }
 
     func restoreSavedSession(window: SavedSessionWindow) {
@@ -1349,10 +1406,11 @@ final class AppModel: ObservableObject {
                 case .pdf:
                     guard url.pathExtension.lowercased() == "pdf",
                           let pdf = PDFDocument(url: url) else { continue }
+                    let savedState = Self.loadPDFState(for: url)
                     appendTab(DocumentTab(
                         document: .pdf(PDFViewerDocument(url: url, document: pdf)),
-                        pdfPage: savedTab.pdfPage,
-                        pdfScale: CGFloat(savedTab.pdfScale)
+                        pdfPage: savedState?.pdfPage ?? savedTab.pdfPage,
+                        pdfScale: CGFloat(savedState?.pdfScale ?? savedTab.pdfScale)
                     ))
                 }
             } catch {

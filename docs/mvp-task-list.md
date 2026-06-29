@@ -152,13 +152,13 @@ Acceptance criteria:
 - Add first page and last page actions. Not implemented yet.
 - Add continuous scroll mode for MVP.
 - Track current page while scrolling.
-- Remember last page per file. Not implemented yet.
+- Remember last page per file.
 
 Acceptance criteria:
 
 - User can move through a PDF easily.
 - Page number display stays accurate.
-- Reopening a PDF restores last page after session restore is available.
+- Reopening a PDF restores last page after session restore or per-file PDF state is available.
 
 ## 11. PDF Zoom and View Controls
 
@@ -324,6 +324,7 @@ Acceptance criteria:
 - Multiple tabs per window have been implemented.
 - File-backed tabs/windows restore after app restart.
 - PDF page and zoom state restore after app restart.
+- Reopened PDFs restore page and zoom from per-file PDF state even after the previous tab/window was closed.
 - Finder/Open With opens documents in separate windows without changing existing document windows.
 - Markdown windows can shrink for side-by-side comparison.
 - Markdown formatting buttons work from Source and Preview selections.

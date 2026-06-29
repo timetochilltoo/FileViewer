@@ -62,6 +62,7 @@ Expected behavior:
 - Each open tab keeps its own search text, current search match, PDF page, and zoom state during the current session.
 - File-backed tabs/windows restore after app restart.
 - Reopened PDFs restore page and zoom state.
+- Reopened PDFs also restore page and zoom from per-file PDF state after the previous tab/window was closed.
 - Unsaved Untitled Markdown documents are not restored unless they have been saved to a file.
 - Markdown scroll position and exact window position/size can be added as later restore polish.
 

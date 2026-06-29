@@ -407,6 +407,7 @@ extension Notification.Name {
     static let pdfFitWidth = Notification.Name("FileViewer.pdfFitWidth")
     static let pdfFitPage = Notification.Name("FileViewer.pdfFitPage")
     static let pdfSearch = Notification.Name("FileViewer.pdfSearch")
+    static let pdfSyncCurrentState = Notification.Name("FileViewer.pdfSyncCurrentState")
     static let toggleSidebar = Notification.Name("FileViewer.toggleSidebar")
 }
 
