@@ -552,6 +552,7 @@ final class AppModel: ObservableObject {
 
     func canCloseAllDocuments() -> Bool {
         syncVisibleDocumentState()
+        saveDocumentStates()
         let tabIDs = tabs.map(\.id)
         for id in tabIDs {
             guard let index = tabs.firstIndex(where: { $0.id == id }) else { continue }
@@ -1430,15 +1431,18 @@ final class AppModel: ObservableObject {
         Self.saveMarkdownStates(states)
     }
 
+    private func saveDocumentStates() {
+        for tab in tabs {
+            savePDFStateIfNeeded(for: tab)
+            saveMarkdownStateIfNeeded(for: tab)
+        }
+    }
+
     func sessionSnapshot() -> SavedSessionWindow? {
         syncVisibleDocumentState()
+        saveDocumentStates()
         let restorableTabs = tabs.compactMap { tab -> SavedSessionTab? in
             guard let url = tab.document.url else { return nil }
-            if case .pdf = tab.document {
-                savePDFStateIfNeeded(for: tab)
-            } else if case .markdown = tab.document {
-                saveMarkdownStateIfNeeded(for: tab)
-            }
             return SavedSessionTab(
                 kind: tab.document.kind,
                 path: url.path,

@@ -491,6 +491,7 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
         weak var textView: NSTextView?
         weak var scrollView: NSScrollView?
         private var didRestoreInitialScroll = false
+        private var restoreAttempts = 0
         private var isObservingScroll = false
 
         init(
@@ -529,8 +530,17 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
         func restoreInitialScrollIfNeeded() {
             guard !didRestoreInitialScroll,
                   let scrollView else { return }
-            didRestoreInitialScroll = true
-            Self.scroll(scrollView, toY: initialScrollY)
+            let didScroll = Self.scroll(scrollView, toY: initialScrollY)
+            if didScroll || initialScrollY <= 0 {
+                didRestoreInitialScroll = true
+            } else if restoreAttempts < 12 {
+                restoreAttempts += 1
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                    self?.restoreInitialScrollIfNeeded()
+                }
+            } else {
+                didRestoreInitialScroll = true
+            }
             publishCurrentScroll()
         }
 
@@ -559,13 +569,16 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
             }
         }
 
-        private static func scroll(_ scrollView: NSScrollView, toY scrollY: Double) {
-            guard let documentView = scrollView.documentView else { return }
+        private static func scroll(_ scrollView: NSScrollView, toY scrollY: Double) -> Bool {
+            guard let documentView = scrollView.documentView else { return false }
+            documentView.layoutSubtreeIfNeeded()
             let visibleHeight = scrollView.contentView.bounds.height
             let maxY = max(0, documentView.bounds.height - visibleHeight)
+            guard maxY > 0 || scrollY <= 0 else { return false }
             let safeY = min(max(0, CGFloat(scrollY)), maxY)
             scrollView.contentView.scroll(to: NSPoint(x: scrollView.contentView.bounds.origin.x, y: safeY))
             scrollView.reflectScrolledClipView(scrollView.contentView)
+            return abs(scrollView.contentView.bounds.origin.y - safeY) <= 1 || safeY == 0
         }
     }
 
@@ -971,6 +984,7 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
         weak var textView: NSTextView?
         weak var scrollView: NSScrollView?
         private var didRestoreInitialScroll = false
+        private var restoreAttempts = 0
         private var isObservingScroll = false
 
         init(
@@ -1013,8 +1027,17 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
         func restoreInitialScrollIfNeeded() {
             guard !didRestoreInitialScroll,
                   let scrollView else { return }
-            didRestoreInitialScroll = true
-            Self.scroll(scrollView, toY: initialScrollY)
+            let didScroll = Self.scroll(scrollView, toY: initialScrollY)
+            if didScroll || initialScrollY <= 0 {
+                didRestoreInitialScroll = true
+            } else if restoreAttempts < 12 {
+                restoreAttempts += 1
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                    self?.restoreInitialScrollIfNeeded()
+                }
+            } else {
+                didRestoreInitialScroll = true
+            }
             publishCurrentScroll()
         }
 
@@ -1031,13 +1054,16 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
             publishCurrentScroll()
         }
 
-        private static func scroll(_ scrollView: NSScrollView, toY scrollY: Double) {
-            guard let documentView = scrollView.documentView else { return }
+        private static func scroll(_ scrollView: NSScrollView, toY scrollY: Double) -> Bool {
+            guard let documentView = scrollView.documentView else { return false }
+            documentView.layoutSubtreeIfNeeded()
             let visibleHeight = scrollView.contentView.bounds.height
             let maxY = max(0, documentView.bounds.height - visibleHeight)
+            guard maxY > 0 || scrollY <= 0 else { return false }
             let safeY = min(max(0, CGFloat(scrollY)), maxY)
             scrollView.contentView.scroll(to: NSPoint(x: scrollView.contentView.bounds.origin.x, y: safeY))
             scrollView.reflectScrolledClipView(scrollView.contentView)
+            return abs(scrollView.contentView.bounds.origin.y - safeY) <= 1 || safeY == 0
         }
 
         func contextMenu() -> NSMenu {
