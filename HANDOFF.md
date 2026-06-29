@@ -278,6 +278,7 @@ Main pieces:
 - PDF toolbar when PDF tab is selected
 - Print button when any document is selected
 - search field
+  - implemented as `SearchTextField`, a small AppKit `NSTextField` bridge, because SwiftUI `TextField.onSubmit` did not reliably fire Return in the toolbar on macOS
   - shows current match / total matches while searching
   - up/down buttons move to previous/next match
   - Return in the search field moves to next match
@@ -431,6 +432,7 @@ PDF search:
 - Highlights results through `pdfView?.highlightedSelections`.
 - Jumps to the first result.
 - `PDFKitView` binds `searchMatchIndex` and `searchMatchCount` back to `AppModel`.
+- Search count updates are dispatched through stored `Binding` values on the next main-queue tick. This avoids mutating SwiftUI state directly during `PDFKitView.updateNSView`, which previously prevented the toolbar from reliably showing current/total matches.
 - Previous/next search buttons update `searchMatchIndex`; `PDFKitView.Coordinator.goToSearchMatch(_:)` selects and scrolls to the requested `PDFSelection`.
 
 ### `SidebarView.swift`
@@ -577,6 +579,9 @@ Recent commits on `main`:
   - Added lightweight task-list preview rendering for `- [ ]` and `- [x]` items.
   - Replaced the SwiftUI `.contextMenu` on the source editor with a custom AppKit `NSMenu` assigned directly to the underlying `NSTextView`, because Patrick saw the default macOS Font/Spelling menu instead of Markdown commands.
   - The new source-editor right-click menu shows Markdown commands first, then Cut / Copy / Paste.
+- 2026-06-29 — Search navigation regression fixes
+  - Replaced the toolbar search `TextField` with native `SearchTextField` so pressing Return reliably advances to the next Markdown/PDF search match.
+  - Changed PDF search result count updates to write back through `Binding` values asynchronously after PDFKit finishes finding selections, so the toolbar shows current/total PDF matches.
 
 This handoff document itself should be committed after creation.
 

@@ -1,3 +1,4 @@
+import AppKit
 import PDFKit
 import SwiftUI
 import UniformTypeIdentifiers
@@ -132,15 +133,13 @@ struct ContentView: View {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("Search", text: Binding(
+                SearchTextField(text: Binding(
                     get: { model.searchText },
                     set: { model.searchText = $0 }
-                ))
-                    .textFieldStyle(.plain)
-                    .frame(minWidth: 80, idealWidth: 180, maxWidth: 220)
-                    .onSubmit {
-                        model.nextSearchMatch()
-                    }
+                ), onSubmit: {
+                    model.nextSearchMatch()
+                })
+                .frame(minWidth: 80, idealWidth: 180, maxWidth: 220)
                 if !model.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text(model.searchStatusText)
                         .font(.caption)
@@ -343,6 +342,55 @@ struct EmptyDocumentView: View {
             .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct SearchTextField: NSViewRepresentable {
+    @Binding var text: String
+    let onSubmit: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text, onSubmit: onSubmit)
+    }
+
+    func makeNSView(context: Context) -> NSTextField {
+        let textField = NSTextField()
+        textField.delegate = context.coordinator
+        textField.target = context.coordinator
+        textField.action = #selector(Coordinator.submit)
+        textField.placeholderString = "Search"
+        textField.isBordered = false
+        textField.drawsBackground = false
+        textField.focusRingType = .none
+        textField.lineBreakMode = .byTruncatingTail
+        return textField
+    }
+
+    func updateNSView(_ textField: NSTextField, context: Context) {
+        context.coordinator.text = $text
+        context.coordinator.onSubmit = onSubmit
+        if textField.stringValue != text {
+            textField.stringValue = text
+        }
+    }
+
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        var text: Binding<String>
+        var onSubmit: () -> Void
+
+        init(text: Binding<String>, onSubmit: @escaping () -> Void) {
+            self.text = text
+            self.onSubmit = onSubmit
+        }
+
+        func controlTextDidChange(_ notification: Notification) {
+            guard let textField = notification.object as? NSTextField else { return }
+            text.wrappedValue = textField.stringValue
+        }
+
+        @objc func submit() {
+            onSubmit()
+        }
     }
 }
 

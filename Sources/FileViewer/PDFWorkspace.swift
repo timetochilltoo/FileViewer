@@ -150,13 +150,12 @@ struct PDFKitView: NSViewRepresentable {
             lastSearchIndex = 0
             pdfView?.highlightedSelections = []
             searchSelections = []
-            parent.searchMatchCount = 0
+            setSearchState(count: 0, index: 0)
 
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             searchSelections = parent.document.findString(text, withOptions: [.caseInsensitive])
             pdfView?.highlightedSelections = searchSelections
-            parent.searchMatchCount = searchSelections.count
-            parent.searchMatchIndex = 0
+            setSearchState(count: searchSelections.count, index: 0)
             if let first = searchSelections.first {
                 pdfView?.setCurrentSelection(first, animate: false)
                 pdfView?.go(to: first)
@@ -171,6 +170,15 @@ struct PDFKitView: NSViewRepresentable {
             let selection = searchSelections[safeIndex]
             pdfView?.setCurrentSelection(selection, animate: false)
             pdfView?.go(to: selection)
+        }
+
+        @MainActor private func setSearchState(count: Int, index: Int) {
+            let countBinding = parent.$searchMatchCount
+            let indexBinding = parent.$searchMatchIndex
+            DispatchQueue.main.async {
+                countBinding.wrappedValue = count
+                indexBinding.wrappedValue = min(max(0, index), max(0, count - 1))
+            }
         }
 
         @MainActor private func syncPage() {
