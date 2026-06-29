@@ -60,7 +60,10 @@ Expected behavior:
 - Opening document A from Finder, then document B from Finder, should leave the A window showing A and open/show B in a different window.
 - Opening the same supported file more than once is allowed. The app should create another tab/window copy rather than jump to an existing one.
 - Each open tab keeps its own search text, current search match, PDF page, and zoom state during the current session.
-- Previously opened documents can restore last page, zoom, and scroll position in a later persistence milestone.
+- File-backed tabs/windows restore after app restart.
+- Reopened PDFs restore page and zoom state.
+- Unsaved Untitled Markdown documents are not restored unless they have been saved to a file.
+- Markdown scroll position and exact window position/size can be added as later restore polish.
 
 ### 5.2 Read and Edit a Markdown File
 

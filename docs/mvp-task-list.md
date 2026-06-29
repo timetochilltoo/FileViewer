@@ -158,7 +158,7 @@ Acceptance criteria:
 
 - User can move through a PDF easily.
 - Page number display stays accurate.
-- Reopening a PDF restores last page after persistence is implemented.
+- Reopening a PDF restores last page after session restore is available.
 
 ## 11. PDF Zoom and View Controls
 
@@ -322,6 +322,8 @@ Acceptance criteria:
 - PDF page navigation, zoom, thumbnails, search highlighting, search result count, and previous/next search navigation have been implemented.
 - Recent files have been implemented.
 - Multiple tabs per window have been implemented.
+- File-backed tabs/windows restore after app restart.
+- PDF page and zoom state restore after app restart.
 - Finder/Open With opens documents in separate windows without changing existing document windows.
 - Markdown windows can shrink for side-by-side comparison.
 - Markdown formatting buttons work from Source and Preview selections.
@@ -338,5 +340,5 @@ Next implementation work:
 
 - Improve Markdown preview fidelity for richer GitHub-flavored tables, local images, and task-list polish.
 - Add PDF outline support when PDFs provide a table of contents.
-- Add persistent restore of open tabs/windows and PDF page/zoom state.
+- Add restore polish if needed, such as exact window position/size or Markdown scroll position.
 - Add tests or sample files for repeatable verification.

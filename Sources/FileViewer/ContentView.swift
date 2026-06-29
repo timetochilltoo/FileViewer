@@ -11,6 +11,10 @@ struct ContentView: View {
         _model = StateObject(wrappedValue: AppModel(opening: initialURLs))
     }
 
+    init(restoring session: SavedSessionWindow) {
+        _model = StateObject(wrappedValue: AppModel(restoring: session))
+    }
+
     var body: some View {
         NavigationSplitView {
             if sidebarVisible {

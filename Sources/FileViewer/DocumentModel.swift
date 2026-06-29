@@ -186,6 +186,24 @@ struct DocumentTab: Identifiable, Equatable {
         }
         pdfScale = 1.0
     }
+
+    init(document: ViewerDocument, pdfPage: Int, pdfScale: CGFloat) {
+        self.init(document: document)
+        self.pdfPage = max(1, pdfPage)
+        self.pdfScale = max(0.1, pdfScale)
+    }
+}
+
+struct SavedSessionWindow: Codable, Equatable {
+    var tabs: [SavedSessionTab]
+    var selectedTabIndex: Int
+}
+
+struct SavedSessionTab: Codable, Equatable {
+    var kind: DocumentKind
+    var path: String
+    var pdfPage: Int
+    var pdfScale: Double
 }
 
 struct MarkdownDocument: Equatable {
@@ -223,6 +241,7 @@ final class AppModel: ObservableObject {
 
     private let recentsKey = "FileViewer.recents"
     private let markdownModeKey = "FileViewer.markdownMode"
+    private static let sessionKey = "FileViewer.session.windows"
     private weak var lastActiveMarkdownTextView: NSTextView?
     private weak var lastActiveMarkdownPreviewTextView: NSTextView?
     private var lastActiveMarkdownSelectionKind: MarkdownSelectionKind = .source
@@ -232,9 +251,23 @@ final class AppModel: ObservableObject {
         case preview
     }
 
+    private(set) var restoredFromSession = false
+
     init(opening urls: [URL] = []) {
         loadSettings()
-        urls.forEach { open(url: $0) }
+        if urls.isEmpty,
+           let firstWindow = Self.loadSavedSessionWindows().first {
+            restore(window: firstWindow)
+            restoredFromSession = !tabs.isEmpty
+        } else {
+            urls.forEach { open(url: $0) }
+        }
+    }
+
+    init(restoring window: SavedSessionWindow) {
+        loadSettings()
+        restore(window: window)
+        restoredFromSession = !tabs.isEmpty
     }
 
     var selectedTab: DocumentTab? {
@@ -346,6 +379,7 @@ final class AppModel: ObservableObject {
             guard let index = selectedTabIndex else { return }
             objectWillChange.send()
             tabs[index].pdfPage = newValue
+            saveCurrentSession()
         }
     }
 
@@ -364,6 +398,7 @@ final class AppModel: ObservableObject {
             guard let index = selectedTabIndex else { return }
             objectWillChange.send()
             tabs[index].pdfScale = newValue
+            saveCurrentSession()
         }
     }
 
@@ -450,6 +485,7 @@ final class AppModel: ObservableObject {
         selectedTabID = id
         statusMessage = ""
         updateSidebarForSelectedDocument()
+        saveCurrentSession()
     }
 
     func requestCloseTab(_ id: DocumentTab.ID) {
@@ -492,6 +528,7 @@ final class AppModel: ObservableObject {
             selectedTabID = tabs.indices.contains(index) ? tabs[index].id : tabs.last?.id
             updateSidebarForSelectedDocument()
         }
+        saveCurrentSession()
     }
 
     func updateMarkdown(_ text: String) {
@@ -1242,8 +1279,100 @@ final class AppModel: ObservableObject {
         UserDefaults.standard.set(data, forKey: recentsKey)
     }
 
+    static func loadSavedSessionWindows() -> [SavedSessionWindow] {
+        guard let data = UserDefaults.standard.data(forKey: sessionKey),
+              let decoded = try? JSONDecoder().decode([SavedSessionWindow].self, from: data) else {
+            return []
+        }
+        return decoded.filter { !$0.tabs.isEmpty }
+    }
+
+    static func saveSessionWindows(_ windows: [SavedSessionWindow]) {
+        let restorableWindows = windows.filter { !$0.tabs.isEmpty }
+        guard let data = try? JSONEncoder().encode(restorableWindows) else { return }
+        UserDefaults.standard.set(data, forKey: sessionKey)
+    }
+
+    func sessionSnapshot() -> SavedSessionWindow? {
+        let restorableTabs = tabs.compactMap { tab -> SavedSessionTab? in
+            guard let url = tab.document.url else { return nil }
+            return SavedSessionTab(
+                kind: tab.document.kind,
+                path: url.path,
+                pdfPage: tab.pdfPage,
+                pdfScale: Double(tab.pdfScale)
+            )
+        }
+        guard !restorableTabs.isEmpty else { return nil }
+
+        let selectedRestorableIndex: Int
+        if let selectedTab,
+           let selectedURL = selectedTab.document.url,
+           let match = restorableTabs.firstIndex(where: { $0.path == selectedURL.path }) {
+            selectedRestorableIndex = match
+        } else {
+            selectedRestorableIndex = min(max(0, selectedTabIndex ?? 0), restorableTabs.count - 1)
+        }
+
+        return SavedSessionWindow(
+            tabs: restorableTabs,
+            selectedTabIndex: selectedRestorableIndex
+        )
+    }
+
+    private func saveCurrentSession() {
+        FileViewerWindowRegistry.shared.saveCurrentSession()
+    }
+
+    private func restore(window: SavedSessionWindow) {
+        for savedTab in window.tabs {
+            let url = URL(fileURLWithPath: savedTab.path)
+            guard FileManager.default.fileExists(atPath: url.path) else { continue }
+
+            do {
+                switch savedTab.kind {
+                case .markdown:
+                    guard Self.isMarkdown(url) else { continue }
+                    let text = try String(contentsOf: url, encoding: .utf8)
+                    appendTab(DocumentTab(
+                        document: .markdown(MarkdownDocument(
+                            url: url,
+                            untitledName: url.lastPathComponent,
+                            text: text,
+                            savedText: text
+                        )),
+                        pdfPage: 1,
+                        pdfScale: 1.0
+                    ))
+                case .pdf:
+                    guard url.pathExtension.lowercased() == "pdf",
+                          let pdf = PDFDocument(url: url) else { continue }
+                    appendTab(DocumentTab(
+                        document: .pdf(PDFViewerDocument(url: url, document: pdf)),
+                        pdfPage: savedTab.pdfPage,
+                        pdfScale: CGFloat(savedTab.pdfScale)
+                    ))
+                }
+            } catch {
+                continue
+            }
+        }
+
+        if tabs.indices.contains(window.selectedTabIndex) {
+            selectedTabID = tabs[window.selectedTabIndex].id
+        } else {
+            selectedTabID = tabs.first?.id
+        }
+        updateSidebarForSelectedDocument()
+    }
+
     private func appendTab(_ document: ViewerDocument) {
         let tab = DocumentTab(document: document)
+        tabs.append(tab)
+        selectedTabID = tab.id
+    }
+
+    private func appendTab(_ tab: DocumentTab) {
         tabs.append(tab)
         selectedTabID = tab.id
     }

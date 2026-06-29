@@ -10,6 +10,7 @@ final class FileViewerWindowRegistry {
     private var windowDelegates: [ObjectIdentifier: WindowCloseDelegate] = [:]
     private var pendingExternalURLs: [URL] = []
     private var pendingFlushScheduled = false
+    private var restoredAdditionalSessionWindows = false
 
     private init() {}
 
@@ -18,6 +19,7 @@ final class FileViewerWindowRegistry {
         if !registeredModels.contains(where: { $0.value === model }) {
             registeredModels.append(WeakAppModel(value: model))
         }
+        restoreAdditionalSessionWindowsIfNeeded(from: model)
         flushPendingExternalURLsIfPossible()
     }
 
@@ -27,10 +29,14 @@ final class FileViewerWindowRegistry {
         if let existingDelegate = windowDelegates[key] {
             existingDelegate.model = model
         } else {
-            let delegate = WindowCloseDelegate(model: model) { [weak self, weak window] in
+            let delegate = WindowCloseDelegate(model: model) { [weak self, weak window, weak model] in
                 guard let self, let window else { return }
                 self.windowDelegates.removeValue(forKey: ObjectIdentifier(window))
                 self.retainedWindows.removeAll { $0 === window }
+                if let model {
+                    self.registeredModels.removeAll { $0.value === model }
+                }
+                self.saveCurrentSession()
             }
             window.delegate = delegate
             windowDelegates[key] = delegate
@@ -48,6 +54,14 @@ final class FileViewerWindowRegistry {
         for url in urls {
             openExternal(url)
         }
+    }
+
+    func saveCurrentSession() {
+        cleanup()
+        let snapshots = registeredModels
+            .compactMap(\.value)
+            .compactMap { $0.sessionSnapshot() }
+        AppModel.saveSessionWindows(snapshots)
     }
 
     private func flushPendingExternalURLsIfPossible() {
@@ -102,6 +116,32 @@ final class FileViewerWindowRegistry {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         retainedWindows.append(window)
+    }
+
+    private func openNewWindow(session: SavedSessionWindow) {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 760, height: 720),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.minSize = NSSize(width: 520, height: 620)
+        window.title = session.tabs.first.map { URL(fileURLWithPath: $0.path).lastPathComponent } ?? "FileViewer"
+        window.contentView = NSHostingView(rootView: ContentView(restoring: session))
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        retainedWindows.append(window)
+    }
+
+    private func restoreAdditionalSessionWindowsIfNeeded(from model: AppModel) {
+        guard model.restoredFromSession,
+              !restoredAdditionalSessionWindows else { return }
+        restoredAdditionalSessionWindows = true
+        let additionalWindows = Array(AppModel.loadSavedSessionWindows().dropFirst())
+        for session in additionalWindows {
+            openNewWindow(session: session)
+        }
     }
 
     private func cleanup() {

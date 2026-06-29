@@ -140,6 +140,8 @@ Important types:
   - `.contents`
   - `.pages`
 - `RecentDocument`
+- `SavedSessionWindow`
+- `SavedSessionTab`
 - `MarkdownHeading`
 - `ViewerDocument`
   - `.markdown(MarkdownDocument)`
@@ -197,6 +199,22 @@ Important methods:
   - Markdown currently prints source text through an `NSTextView`
 - `setMarkdownMode(_:)`
 - `reopenRecent(_:)`
+- `sessionSnapshot()`
+- `loadSavedSessionWindows()`
+- `saveSessionWindows(_:)`
+- `restore(window:)`
+
+Session restore:
+
+- Implemented with `UserDefaults` key `FileViewer.session.windows`.
+- Restores file-backed Markdown/PDF tabs and additional windows on launch.
+- Skips unsaved Untitled Markdown documents because there is no safe file path to reopen.
+- Skips missing files silently.
+- Does not restore search text by design; search text is session-only and would be annoying to revive unexpectedly.
+- Restores PDF page and zoom via saved `pdfPage` / `pdfScale`.
+- `FileViewerWindowRegistry.saveCurrentSession()` collects live window model snapshots and writes them.
+- Closing a window removes that window's model from the registry and resaves the session, so closed windows should not come back on next launch.
+- `FileViewerWindowRegistry.restoreAdditionalSessionWindowsIfNeeded(from:)` opens saved windows after the first restored `ContentView` registers.
 - `markdownMatchCount()`
 - `applyMarkdownFormat(_:)`
 
@@ -683,9 +701,9 @@ Implementation detail:
 - `saveMarkdown()` still saves the selected tab for normal menu/toolbar Save.
 - Close-confirmation saving uses private tab-index-specific helpers (`saveMarkdownTab(at:)`, `saveMarkdownTabAs(at:)`) so closing a non-selected tab saves the correct document.
 
-### 6.3 No session persistence for open tabs
+### 6.3 Session persistence for open tabs/windows
 
-Recents persist, but open tabs do not restore after app restart. PDF page/zoom state only lives in current session. Requirements mention later persistence; not implemented.
+File-backed tabs/windows restore after app restart. PDF page/zoom state is restored. Unsaved Untitled Markdown documents are intentionally not restored.
 
 ### 6.4 Markdown preview quality is limited
 
@@ -797,8 +815,11 @@ Recommended order:
 2. Add remaining Markdown formatting polish:
    - smarter link editing/toggling for arbitrary existing Markdown links
    - more precise preview-to-source mapping when repeated phrases exist
-3. Add restore-open-tabs / last PDF page persistence.
-4. Add PDF outline support when PDFs provide a table of contents.
+3. Add PDF outline support when PDFs provide a table of contents.
+4. Add restore polish if needed:
+   - restore exact window positions/sizes
+   - restore Markdown scroll position
+   - optionally restore search text if Patrick later wants it
 
 ## 11. Quick mental model for future agents
 

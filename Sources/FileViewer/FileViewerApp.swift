@@ -17,9 +17,11 @@ struct FileViewerApp: App {
 }
 
 final class FileViewerAppDelegate: NSObject, NSApplicationDelegate {
-    func application(_ application: NSApplication, open urls: [URL]) {
-        Task { @MainActor in
-            FileViewerWindowRegistry.shared.openExternal(urls)
-        }
+    @MainActor func application(_ application: NSApplication, open urls: [URL]) {
+        FileViewerWindowRegistry.shared.openExternal(urls)
+    }
+
+    @MainActor func applicationWillTerminate(_ notification: Notification) {
+        FileViewerWindowRegistry.shared.saveCurrentSession()
     }
 }

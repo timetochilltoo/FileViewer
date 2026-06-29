@@ -58,7 +58,10 @@ struct PDFKitView: NSViewRepresentable {
         context.coordinator.installObservers()
         DispatchQueue.main.async {
             pageCount = document.pageCount
-            page = 1
+            if page < 1 {
+                page = 1
+            }
+            context.coordinator.applyRestoredPageAndScale()
         }
         return view
     }
@@ -70,6 +73,7 @@ struct PDFKitView: NSViewRepresentable {
         }
 
         context.coordinator.parent = self
+        context.coordinator.applyRestoredPageAndScale()
         context.coordinator.applySearch(searchText)
         context.coordinator.goToSearchMatch(searchMatchIndex)
     }
@@ -170,6 +174,27 @@ struct PDFKitView: NSViewRepresentable {
             let selection = searchSelections[safeIndex]
             pdfView?.setCurrentSelection(selection, animate: false)
             pdfView?.go(to: selection)
+        }
+
+        @MainActor func applyRestoredPageAndScale() {
+            guard let view = pdfView else { return }
+
+            let requestedPage = max(1, min(parent.page, max(parent.document.pageCount, 1)))
+            if let currentPage = view.currentPage {
+                let currentIndex = parent.document.index(for: currentPage)
+                if currentIndex != requestedPage - 1,
+                   let targetPage = parent.document.page(at: requestedPage - 1) {
+                    view.go(to: targetPage)
+                }
+            } else if let targetPage = parent.document.page(at: requestedPage - 1) {
+                view.go(to: targetPage)
+            }
+
+            if parent.scale > 0.1,
+               abs(view.scaleFactor - parent.scale) > 0.01 {
+                view.autoScales = false
+                view.scaleFactor = parent.scale
+            }
         }
 
         @MainActor private func setSearchState(count: Int, index: Int) {
