@@ -255,13 +255,7 @@ final class AppModel: ObservableObject {
 
     init(opening urls: [URL] = []) {
         loadSettings()
-        if urls.isEmpty,
-           let firstWindow = Self.loadSavedSessionWindows().first {
-            restore(window: firstWindow)
-            restoredFromSession = !tabs.isEmpty
-        } else {
-            urls.forEach { open(url: $0) }
-        }
+        urls.forEach { open(url: $0) }
     }
 
     init(restoring window: SavedSessionWindow) {
@@ -465,6 +459,7 @@ final class AppModel: ObservableObject {
                 )))
                 sidebarMode = .contents
                 addRecent(name: url.lastPathComponent, kind: .markdown, url: url)
+                saveCurrentSession()
                 return
             }
 
@@ -472,6 +467,7 @@ final class AppModel: ObservableObject {
                 appendTab(.pdf(PDFViewerDocument(url: url, document: pdf)))
                 sidebarMode = .pages
                 addRecent(name: url.lastPathComponent, kind: .pdf, url: url)
+                saveCurrentSession()
                 return
             }
 
@@ -1322,6 +1318,12 @@ final class AppModel: ObservableObject {
 
     private func saveCurrentSession() {
         FileViewerWindowRegistry.shared.saveCurrentSession()
+    }
+
+    func restoreSavedSession(window: SavedSessionWindow) {
+        guard tabs.isEmpty else { return }
+        restore(window: window)
+        restoredFromSession = !tabs.isEmpty
     }
 
     private func restore(window: SavedSessionWindow) {

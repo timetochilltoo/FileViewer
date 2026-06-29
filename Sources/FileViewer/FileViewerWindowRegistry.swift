@@ -11,6 +11,8 @@ final class FileViewerWindowRegistry {
     private var pendingExternalURLs: [URL] = []
     private var pendingFlushScheduled = false
     private var restoredAdditionalSessionWindows = false
+    private var sessionRestoreScheduled = false
+    private var suppressSessionRestore = false
 
     private init() {}
 
@@ -19,7 +21,7 @@ final class FileViewerWindowRegistry {
         if !registeredModels.contains(where: { $0.value === model }) {
             registeredModels.append(WeakAppModel(value: model))
         }
-        restoreAdditionalSessionWindowsIfNeeded(from: model)
+        scheduleSessionRestoreIfPossible(using: model)
         flushPendingExternalURLsIfPossible()
     }
 
@@ -43,6 +45,7 @@ final class FileViewerWindowRegistry {
     }
 
     func openExternal(_ urls: [URL]) {
+        suppressSessionRestore = true
         cleanupModels()
         if registeredModels.compactMap(\.value).isEmpty {
             pendingExternalURLs.append(contentsOf: urls)
@@ -133,11 +136,29 @@ final class FileViewerWindowRegistry {
         retainedWindows.append(window)
     }
 
-    private func restoreAdditionalSessionWindowsIfNeeded(from model: AppModel) {
+    private func scheduleSessionRestoreIfPossible(using model: AppModel) {
+        guard !sessionRestoreScheduled,
+              !suppressSessionRestore,
+              model.canAcceptExternalOpenInCurrentWindow else { return }
+        sessionRestoreScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self, weak model] in
+            guard let self,
+                  let model else { return }
+            self.sessionRestoreScheduled = false
+            guard !self.suppressSessionRestore,
+                  model.canAcceptExternalOpenInCurrentWindow else { return }
+            let savedWindows = AppModel.loadSavedSessionWindows()
+            guard let firstWindow = savedWindows.first else { return }
+            model.restoreSavedSession(window: firstWindow)
+            self.restoreAdditionalSessionWindowsIfNeeded(from: model, savedWindows: savedWindows)
+        }
+    }
+
+    private func restoreAdditionalSessionWindowsIfNeeded(from model: AppModel, savedWindows: [SavedSessionWindow]) {
         guard model.restoredFromSession,
               !restoredAdditionalSessionWindows else { return }
         restoredAdditionalSessionWindows = true
-        let additionalWindows = Array(AppModel.loadSavedSessionWindows().dropFirst())
+        let additionalWindows = Array(savedWindows.dropFirst())
         for session in additionalWindows {
             openNewWindow(session: session)
         }
@@ -149,15 +170,8 @@ final class FileViewerWindowRegistry {
 
     private func releaseClosedWindowLater(_ window: NSWindow) {
         let key = ObjectIdentifier(window)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self, weak window] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
             guard let self else { return }
-            if let window, window.isVisible {
-                return
-            }
-            self.retainedWindows.removeAll { retainedWindow in
-                guard let window else { return !retainedWindow.isVisible }
-                return retainedWindow === window
-            }
             self.windowDelegates.removeValue(forKey: key)
         }
     }
