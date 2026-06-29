@@ -326,6 +326,7 @@ Acceptance criteria:
 - File-backed tabs/windows restore after app restart.
 - PDF page and zoom state restore after app restart.
 - Reopened PDFs restore page and zoom from per-file PDF state even after the previous tab/window was closed.
+- Reopened Markdown files restore Source and Preview vertical scroll position from per-file Markdown state.
 - PDF outline/table-of-contents support has been implemented for PDFs that provide outline/bookmark entries.
 - Finder/Open With opens documents in separate windows without changing existing document windows.
 - Markdown windows can shrink for side-by-side comparison.
@@ -342,5 +343,5 @@ Acceptance criteria:
 Next implementation work:
 
 - Improve Markdown preview fidelity for richer GitHub-flavored tables, local images, and task-list polish.
-- Add restore polish if needed, such as exact window position/size or Markdown scroll position. Current per-file last-position restore is PDF-only.
+- Add restore polish if needed, such as exact window position/size.
 - Add tests or sample files for repeatable verification.

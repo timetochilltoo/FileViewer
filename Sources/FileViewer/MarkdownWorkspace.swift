@@ -95,8 +95,10 @@ struct MarkdownWorkspace: View {
         MarkdownSourceEditor(text: Binding(
             get: { document.text },
             set: { model.updateMarkdown($0) }
-        ), onFormatCommand: { command in
+        ), initialScrollY: model.markdownSourceScrollY, onFormatCommand: { command in
             model.applyMarkdownFormat(command)
+        }, onScrollChanged: { scrollY in
+            model.recordMarkdownSourceScrollY(scrollY)
         }) { textView in
             model.rememberMarkdownTextView(textView)
         }
@@ -108,7 +110,11 @@ struct MarkdownWorkspace: View {
         MarkdownPreviewTextView(
             markdown: document.text,
             searchText: model.searchText,
-            searchMatchIndex: model.searchMatchIndex
+            searchMatchIndex: model.searchMatchIndex,
+            initialScrollY: model.markdownPreviewScrollY,
+            onScrollChanged: { scrollY in
+                model.recordMarkdownPreviewScrollY(scrollY)
+            }
         ) { textView in
             model.rememberMarkdownPreviewTextView(textView)
         }
@@ -394,10 +400,16 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
     let markdown: String
     let searchText: String
     let searchMatchIndex: Int
+    let initialScrollY: Double
+    let onScrollChanged: (Double) -> Void
     let onTextViewReady: (NSTextView) -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onTextViewReady: onTextViewReady)
+        Coordinator(
+            initialScrollY: initialScrollY,
+            onScrollChanged: onScrollChanged,
+            onTextViewReady: onTextViewReady
+        )
     }
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -433,10 +445,17 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
         ))
 
         scrollView.documentView = textView
+        scrollView.contentView.postsBoundsChangedNotifications = true
+        context.coordinator.scrollView = scrollView
+        context.coordinator.startObservingScroll()
         context.coordinator.textView = textView
         onTextViewReady(textView)
         DispatchQueue.main.async {
-            Self.scrollToSearchMatch(in: textView, searchText: searchText, searchMatchIndex: searchMatchIndex)
+            if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                context.coordinator.restoreInitialScrollIfNeeded()
+            } else {
+                Self.scrollToSearchMatch(in: textView, searchText: searchText, searchMatchIndex: searchMatchIndex)
+            }
         }
         return scrollView
     }
@@ -444,6 +463,7 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? NSTextView else { return }
         context.coordinator.onTextViewReady = onTextViewReady
+        context.coordinator.onScrollChanged = onScrollChanged
         let selectedRange = textView.selectedRange()
         textView.textStorage?.setAttributedString(Self.attributedPreview(
             markdown: markdown,
@@ -455,16 +475,76 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
         let safeLength = min(selectedRange.length, max(0, textLength - safeLocation))
         textView.setSelectedRange(NSRange(location: safeLocation, length: safeLength))
         DispatchQueue.main.async {
-            Self.scrollToSearchMatch(in: textView, searchText: searchText, searchMatchIndex: searchMatchIndex)
+            if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                context.coordinator.restoreInitialScrollIfNeeded()
+            } else {
+                Self.scrollToSearchMatch(in: textView, searchText: searchText, searchMatchIndex: searchMatchIndex)
+            }
         }
     }
 
+    @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
+        let initialScrollY: Double
+        var onScrollChanged: (Double) -> Void
         var onTextViewReady: (NSTextView) -> Void
         weak var textView: NSTextView?
+        weak var scrollView: NSScrollView?
+        private var didRestoreInitialScroll = false
+        private var isObservingScroll = false
 
-        init(onTextViewReady: @escaping (NSTextView) -> Void) {
+        init(
+            initialScrollY: Double,
+            onScrollChanged: @escaping (Double) -> Void,
+            onTextViewReady: @escaping (NSTextView) -> Void
+        ) {
+            self.initialScrollY = initialScrollY
+            self.onScrollChanged = onScrollChanged
             self.onTextViewReady = onTextViewReady
+            super.init()
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(syncCurrentScroll),
+                name: .markdownSyncCurrentState,
+                object: nil
+            )
+        }
+
+        deinit {
+            NotificationCenter.default.removeObserver(self)
+        }
+
+        func startObservingScroll() {
+            guard !isObservingScroll,
+                  let clipView = scrollView?.contentView else { return }
+            isObservingScroll = true
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(scrollBoundsDidChange),
+                name: NSView.boundsDidChangeNotification,
+                object: clipView
+            )
+        }
+
+        func restoreInitialScrollIfNeeded() {
+            guard !didRestoreInitialScroll,
+                  let scrollView else { return }
+            didRestoreInitialScroll = true
+            Self.scroll(scrollView, toY: initialScrollY)
+            publishCurrentScroll()
+        }
+
+        private func publishCurrentScroll() {
+            guard let scrollView else { return }
+            onScrollChanged(Double(scrollView.contentView.bounds.origin.y))
+        }
+
+        @objc private func syncCurrentScroll() {
+            publishCurrentScroll()
+        }
+
+        @objc private func scrollBoundsDidChange() {
+            publishCurrentScroll()
         }
 
         func textDidBeginEditing(_ notification: Notification) {
@@ -477,6 +557,15 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
             if let textView = notification.object as? NSTextView {
                 onTextViewReady(textView)
             }
+        }
+
+        private static func scroll(_ scrollView: NSScrollView, toY scrollY: Double) {
+            guard let documentView = scrollView.documentView else { return }
+            let visibleHeight = scrollView.contentView.bounds.height
+            let maxY = max(0, documentView.bounds.height - visibleHeight)
+            let safeY = min(max(0, CGFloat(scrollY)), maxY)
+            scrollView.contentView.scroll(to: NSPoint(x: scrollView.contentView.bounds.origin.x, y: safeY))
+            scrollView.reflectScrolledClipView(scrollView.contentView)
         }
     }
 
@@ -794,13 +883,17 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
 
 private struct MarkdownSourceEditor: NSViewRepresentable {
     @Binding var text: String
+    let initialScrollY: Double
     let onFormatCommand: (MarkdownFormatCommand) -> Void
+    let onScrollChanged: (Double) -> Void
     let onTextViewReady: (NSTextView) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             text: $text,
+            initialScrollY: initialScrollY,
             onFormatCommand: onFormatCommand,
+            onScrollChanged: onScrollChanged,
             onTextViewReady: onTextViewReady
         )
     }
@@ -836,8 +929,14 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
         textView.menu = context.coordinator.contextMenu()
 
         scrollView.documentView = textView
+        scrollView.contentView.postsBoundsChangedNotifications = true
+        context.coordinator.scrollView = scrollView
+        context.coordinator.startObservingScroll()
         context.coordinator.textView = textView
         onTextViewReady(textView)
+        DispatchQueue.main.async {
+            context.coordinator.restoreInitialScrollIfNeeded()
+        }
         return scrollView
     }
 
@@ -845,6 +944,7 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
         guard let textView = scrollView.documentView as? NSTextView else { return }
         context.coordinator.text = $text
         context.coordinator.onFormatCommand = onFormatCommand
+        context.coordinator.onScrollChanged = onScrollChanged
         context.coordinator.onTextViewReady = onTextViewReady
         textView.menu = context.coordinator.contextMenu()
         if textView.string != text {
@@ -856,22 +956,88 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
             ))
         }
         onTextViewReady(textView)
+        DispatchQueue.main.async {
+            context.coordinator.restoreInitialScrollIfNeeded()
+        }
     }
 
+    @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
         var text: Binding<String>
+        let initialScrollY: Double
         var onFormatCommand: (MarkdownFormatCommand) -> Void
+        var onScrollChanged: (Double) -> Void
         var onTextViewReady: (NSTextView) -> Void
         weak var textView: NSTextView?
+        weak var scrollView: NSScrollView?
+        private var didRestoreInitialScroll = false
+        private var isObservingScroll = false
 
         init(
             text: Binding<String>,
+            initialScrollY: Double,
             onFormatCommand: @escaping (MarkdownFormatCommand) -> Void,
+            onScrollChanged: @escaping (Double) -> Void,
             onTextViewReady: @escaping (NSTextView) -> Void
         ) {
             self.text = text
+            self.initialScrollY = initialScrollY
             self.onFormatCommand = onFormatCommand
+            self.onScrollChanged = onScrollChanged
             self.onTextViewReady = onTextViewReady
+            super.init()
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(syncCurrentScroll),
+                name: .markdownSyncCurrentState,
+                object: nil
+            )
+        }
+
+        deinit {
+            NotificationCenter.default.removeObserver(self)
+        }
+
+        func startObservingScroll() {
+            guard !isObservingScroll,
+                  let clipView = scrollView?.contentView else { return }
+            isObservingScroll = true
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(scrollBoundsDidChange),
+                name: NSView.boundsDidChangeNotification,
+                object: clipView
+            )
+        }
+
+        func restoreInitialScrollIfNeeded() {
+            guard !didRestoreInitialScroll,
+                  let scrollView else { return }
+            didRestoreInitialScroll = true
+            Self.scroll(scrollView, toY: initialScrollY)
+            publishCurrentScroll()
+        }
+
+        private func publishCurrentScroll() {
+            guard let scrollView else { return }
+            onScrollChanged(Double(scrollView.contentView.bounds.origin.y))
+        }
+
+        @objc private func syncCurrentScroll() {
+            publishCurrentScroll()
+        }
+
+        @objc private func scrollBoundsDidChange() {
+            publishCurrentScroll()
+        }
+
+        private static func scroll(_ scrollView: NSScrollView, toY scrollY: Double) {
+            guard let documentView = scrollView.documentView else { return }
+            let visibleHeight = scrollView.contentView.bounds.height
+            let maxY = max(0, documentView.bounds.height - visibleHeight)
+            let safeY = min(max(0, CGFloat(scrollY)), maxY)
+            scrollView.contentView.scroll(to: NSPoint(x: scrollView.contentView.bounds.origin.x, y: safeY))
+            scrollView.reflectScrolledClipView(scrollView.contentView)
         }
 
         func contextMenu() -> NSMenu {

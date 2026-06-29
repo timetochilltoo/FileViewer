@@ -8,7 +8,7 @@ Current MVP build includes:
 - New unsaved Markdown documents.
 - Open multiple Markdown/PDF documents in tabs or separate windows, including multiple copies of the same file.
 - Restore previously open file-backed tabs/windows after app restart.
-- Restore PDF page and zoom state for reopened PDFs. Markdown per-file scroll restore is not implemented yet.
+- Restore PDF page/zoom and Markdown Source/Preview scroll position for reopened files.
 - Markdown windows can be resized narrow enough for two documents side-by-side.
 - Drag-and-drop file opening, including multiple dropped files.
 - macOS Open With / external file-open handling for PDF, Markdown, and text files. Finder-opened documents use separate windows so existing windows do not all switch to the newest document.

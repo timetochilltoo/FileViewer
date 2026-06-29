@@ -143,6 +143,7 @@ Important types:
 - `SavedSessionWindow`
 - `SavedSessionTab`
 - `SavedPDFState`
+- `SavedMarkdownState`
 - `MarkdownHeading`
 - `PDFOutlineEntry`
 - `ViewerDocument`
@@ -152,6 +153,7 @@ Important types:
   - wraps a `ViewerDocument`
   - stores per-tab `searchText`
   - stores per-tab `searchMatchIndex` and `searchMatchCount`
+  - stores per-tab `markdownSourceScrollY` and `markdownPreviewScrollY`
   - stores per-tab `pdfPage`, `pdfPageCount`, and `pdfScale`
 - `MarkdownDocument`
   - `url`
@@ -207,6 +209,8 @@ Important methods:
 - `restore(window:)`
 - `savePDFStateIfNeeded(for:)`
 - `loadPDFState(for:)`
+- `saveMarkdownStateIfNeeded(for:)`
+- `loadMarkdownState(for:)`
 
 Session restore:
 
@@ -219,9 +223,12 @@ Session restore:
 - Does not restore search text by design; search text is session-only and would be annoying to revive unexpectedly.
 - Restores PDF page and zoom via saved `pdfPage` / `pdfScale`.
 - Also stores per-file PDF page/zoom in `UserDefaults` key `FileViewer.pdf.lastStates`. This is separate from session restore. It lets `A.pdf` reopen to its previous page even after its tab/window was closed and removed from the session snapshot.
-- This per-file last-position restore is PDF-only today. Markdown files can reopen as tabs/windows, but Markdown per-file scroll position after close/reopen is not implemented yet.
+- Also stores per-file Markdown Source/Preview vertical scroll positions in `UserDefaults` key `FileViewer.markdown.lastStates`. This is separate from session restore and lets a Markdown file reopen near the previous reading/editing position after its tab/window was closed.
+- Markdown Source and Preview scroll positions are tracked separately because the two panes can be at different vertical offsets.
 - PDF state is saved when `pdfPage` / `pdfScale` changes, when session snapshots are made, before opening another file, before switching tabs, and before closing a tab/window.
+- Markdown scroll state is kept in memory while scrolling and written during natural save points: session snapshot, opening another file, switching tabs, and closing a tab/window. It intentionally does not write to `UserDefaults` on every tiny scroll movement.
 - `pdfSyncCurrentState` notification asks the visible `PDFKitView` to synchronously push its current page/zoom back into `AppModel` before the model saves state. This covers the sequence: open `A.pdf`, go to page 67, open `B.pdf`, switch back to `A.pdf`, close, then reopen `A.pdf`.
+- `markdownSyncCurrentState` notification asks visible Markdown Source/Preview scroll views to push their current vertical offsets back into `AppModel` before the model saves state.
 - `FileViewerWindowRegistry.saveCurrentSession()` collects live window model snapshots and writes them.
 - Closing a window removes that window's model from the registry and resaves the session, so closed windows should not come back on next launch.
 - Important crash fix: do not release program-created `NSWindow` immediately inside `windowWillClose`, and do not mutate the retained window array from a delayed close callback. Patrick hit AppKit/Swift crashes after open/close/open and after closing multiple restored PDF windows. The app now keeps program-created windows retained for the life of the process; this small temporary memory cost is safer than fighting AppKit close-animation lifetime.
@@ -720,7 +727,7 @@ Implementation detail:
 
 ### 6.3 Session persistence for open tabs/windows
 
-File-backed tabs/windows restore after app restart. PDF page/zoom state is restored. Unsaved Untitled Markdown documents are intentionally not restored.
+File-backed tabs/windows restore after app restart. PDF page/zoom state is restored. Markdown Source/Preview scroll state is restored for file-backed Markdown documents. Unsaved Untitled Markdown documents are intentionally not restored.
 
 ### 6.4 Markdown preview quality is limited
 
@@ -849,7 +856,6 @@ Recommended order:
    - more precise preview-to-source mapping when repeated phrases exist
 3. Add restore polish if needed:
    - restore exact window positions/sizes
-   - restore Markdown scroll position
    - optionally restore search text if Patrick later wants it
 4. Add repeatable sample files/tests for PDF outline, PDF search counts, Markdown formatting, and multi-window restore.
 

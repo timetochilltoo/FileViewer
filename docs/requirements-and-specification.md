@@ -63,10 +63,9 @@ Expected behavior:
 - File-backed tabs/windows restore after app restart.
 - Reopened PDFs restore page and zoom state.
 - Reopened PDFs also restore page and zoom from per-file PDF state after the previous tab/window was closed.
+- Reopened Markdown files restore Source and Preview vertical scroll position from per-file Markdown state after the previous tab/window was closed.
 - Unsaved Untitled Markdown documents are not restored unless they have been saved to a file.
-- Per-file last page/zoom restore currently applies to PDFs only.
-- Markdown files can reopen as documents/windows, but their per-file scroll position is not restored yet.
-- Markdown scroll position and exact window position/size can be added as later restore polish.
+- Exact window position/size can be added as later restore polish.
 
 ### 5.2 Read and Edit a Markdown File
 

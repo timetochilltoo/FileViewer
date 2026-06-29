@@ -175,6 +175,8 @@ struct DocumentTab: Identifiable, Equatable {
     var searchText: String
     var searchMatchIndex: Int
     var searchMatchCount: Int
+    var markdownSourceScrollY: Double
+    var markdownPreviewScrollY: Double
     var pdfPage: Int
     var pdfPageCount: Int
     var pdfScale: CGFloat
@@ -185,6 +187,8 @@ struct DocumentTab: Identifiable, Equatable {
         searchText = ""
         searchMatchIndex = 0
         searchMatchCount = 0
+        markdownSourceScrollY = 0
+        markdownPreviewScrollY = 0
         pdfPage = 1
         if case .pdf(let pdf) = document {
             pdfPageCount = pdf.document.pageCount
@@ -199,6 +203,12 @@ struct DocumentTab: Identifiable, Equatable {
         self.pdfPage = max(1, pdfPage)
         self.pdfScale = max(0.1, pdfScale)
     }
+
+    init(document: ViewerDocument, markdownSourceScrollY: Double, markdownPreviewScrollY: Double) {
+        self.init(document: document)
+        self.markdownSourceScrollY = max(0, markdownSourceScrollY)
+        self.markdownPreviewScrollY = max(0, markdownPreviewScrollY)
+    }
 }
 
 struct SavedSessionWindow: Codable, Equatable {
@@ -209,6 +219,8 @@ struct SavedSessionWindow: Codable, Equatable {
 struct SavedSessionTab: Codable, Equatable {
     var kind: DocumentKind
     var path: String
+    var markdownSourceScrollY: Double?
+    var markdownPreviewScrollY: Double?
     var pdfPage: Int
     var pdfScale: Double
 }
@@ -217,6 +229,12 @@ struct SavedPDFState: Codable, Equatable {
     var path: String
     var pdfPage: Int
     var pdfScale: Double
+}
+
+struct SavedMarkdownState: Codable, Equatable {
+    var path: String
+    var sourceScrollY: Double
+    var previewScrollY: Double
 }
 
 struct MarkdownDocument: Equatable {
@@ -256,6 +274,7 @@ final class AppModel: ObservableObject {
     private let markdownModeKey = "FileViewer.markdownMode"
     private static let sessionKey = "FileViewer.session.windows"
     private static let pdfStateKey = "FileViewer.pdf.lastStates"
+    private static let markdownStateKey = "FileViewer.markdown.lastStates"
     private weak var lastActiveMarkdownTextView: NSTextView?
     private weak var lastActiveMarkdownPreviewTextView: NSTextView?
     private var lastActiveMarkdownSelectionKind: MarkdownSelectionKind = .source
@@ -412,6 +431,14 @@ final class AppModel: ObservableObject {
         }
     }
 
+    var markdownSourceScrollY: Double {
+        selectedTab?.markdownSourceScrollY ?? 0
+    }
+
+    var markdownPreviewScrollY: Double {
+        selectedTab?.markdownPreviewScrollY ?? 0
+    }
+
     var markdownHeadings: [MarkdownHeading] {
         guard case .markdown(let document) = document else { return [] }
         return Self.extractHeadings(from: document.text)
@@ -468,17 +495,22 @@ final class AppModel: ObservableObject {
     }
 
     func open(url: URL) {
-        syncVisiblePDFState()
+        syncVisibleDocumentState()
         statusMessage = ""
         do {
             if Self.isMarkdown(url) {
                 let text = try String(contentsOf: url, encoding: .utf8)
-                appendTab(.markdown(MarkdownDocument(
-                    url: url,
-                    untitledName: url.lastPathComponent,
-                    text: text,
-                    savedText: text
-                )))
+                let savedState = Self.loadMarkdownState(for: url)
+                appendTab(DocumentTab(
+                    document: .markdown(MarkdownDocument(
+                        url: url,
+                        untitledName: url.lastPathComponent,
+                        text: text,
+                        savedText: text
+                    )),
+                    markdownSourceScrollY: savedState?.sourceScrollY ?? 0,
+                    markdownPreviewScrollY: savedState?.previewScrollY ?? 0
+                ))
                 sidebarMode = .contents
                 addRecent(name: url.lastPathComponent, kind: .markdown, url: url)
                 saveCurrentSession()
@@ -505,7 +537,7 @@ final class AppModel: ObservableObject {
     }
 
     func selectTab(_ id: DocumentTab.ID) {
-        syncVisiblePDFState()
+        syncVisibleDocumentState()
         selectedTabID = id
         statusMessage = ""
         updateSidebarForSelectedDocument()
@@ -519,7 +551,7 @@ final class AppModel: ObservableObject {
     }
 
     func canCloseAllDocuments() -> Bool {
-        syncVisiblePDFState()
+        syncVisibleDocumentState()
         let tabIDs = tabs.map(\.id)
         for id in tabIDs {
             guard let index = tabs.firstIndex(where: { $0.id == id }) else { continue }
@@ -547,8 +579,9 @@ final class AppModel: ObservableObject {
 
     private func closeTab(at index: Int) {
         guard tabs.indices.contains(index) else { return }
-        syncVisiblePDFState()
+        syncVisibleDocumentState()
         savePDFStateIfNeeded(for: tabs[index])
+        saveMarkdownStateIfNeeded(for: tabs[index])
         let id = tabs[index].id
         tabs.remove(at: index)
         if selectedTabID == id {
@@ -802,6 +835,22 @@ final class AppModel: ObservableObject {
     func rememberMarkdownPreviewTextView(_ textView: NSTextView) {
         lastActiveMarkdownPreviewTextView = textView
         lastActiveMarkdownSelectionKind = .preview
+    }
+
+    func recordMarkdownSourceScrollY(_ scrollY: Double) {
+        guard let index = selectedTabIndex,
+              case .markdown = tabs[index].document else { return }
+        let safeScrollY = max(0, scrollY)
+        guard abs(tabs[index].markdownSourceScrollY - safeScrollY) > 0.5 else { return }
+        tabs[index].markdownSourceScrollY = safeScrollY
+    }
+
+    func recordMarkdownPreviewScrollY(_ scrollY: Double) {
+        guard let index = selectedTabIndex,
+              case .markdown = tabs[index].document else { return }
+        let safeScrollY = max(0, scrollY)
+        guard abs(tabs[index].markdownPreviewScrollY - safeScrollY) > 0.5 else { return }
+        tabs[index].markdownPreviewScrollY = safeScrollY
     }
 
     private func markdownTextViewForFormatting() -> NSTextView? {
@@ -1338,6 +1387,24 @@ final class AppModel: ObservableObject {
         loadPDFStates().first { $0.path == url.path }
     }
 
+    private static func loadMarkdownStates() -> [SavedMarkdownState] {
+        guard let data = UserDefaults.standard.data(forKey: markdownStateKey),
+              let decoded = try? JSONDecoder().decode([SavedMarkdownState].self, from: data) else {
+            return []
+        }
+        return decoded
+    }
+
+    private static func saveMarkdownStates(_ states: [SavedMarkdownState]) {
+        let trimmed = Array(states.prefix(100))
+        guard let data = try? JSONEncoder().encode(trimmed) else { return }
+        UserDefaults.standard.set(data, forKey: markdownStateKey)
+    }
+
+    private static func loadMarkdownState(for url: URL) -> SavedMarkdownState? {
+        loadMarkdownStates().first { $0.path == url.path }
+    }
+
     private func savePDFStateIfNeeded(for tab: DocumentTab) {
         guard case .pdf(let pdf) = tab.document else { return }
         var states = Self.loadPDFStates()
@@ -1350,15 +1417,33 @@ final class AppModel: ObservableObject {
         Self.savePDFStates(states)
     }
 
+    private func saveMarkdownStateIfNeeded(for tab: DocumentTab) {
+        guard case .markdown(let markdown) = tab.document,
+              let url = markdown.url else { return }
+        var states = Self.loadMarkdownStates()
+        states.removeAll { $0.path == url.path }
+        states.insert(SavedMarkdownState(
+            path: url.path,
+            sourceScrollY: tab.markdownSourceScrollY,
+            previewScrollY: tab.markdownPreviewScrollY
+        ), at: 0)
+        Self.saveMarkdownStates(states)
+    }
+
     func sessionSnapshot() -> SavedSessionWindow? {
+        syncVisibleDocumentState()
         let restorableTabs = tabs.compactMap { tab -> SavedSessionTab? in
             guard let url = tab.document.url else { return nil }
             if case .pdf = tab.document {
                 savePDFStateIfNeeded(for: tab)
+            } else if case .markdown = tab.document {
+                saveMarkdownStateIfNeeded(for: tab)
             }
             return SavedSessionTab(
                 kind: tab.document.kind,
                 path: url.path,
+                markdownSourceScrollY: tab.markdownSourceScrollY,
+                markdownPreviewScrollY: tab.markdownPreviewScrollY,
                 pdfPage: tab.pdfPage,
                 pdfScale: Double(tab.pdfScale)
             )
@@ -1384,6 +1469,16 @@ final class AppModel: ObservableObject {
         FileViewerWindowRegistry.shared.saveCurrentSession()
     }
 
+    private func syncVisibleDocumentState() {
+        syncVisibleMarkdownState()
+        syncVisiblePDFState()
+    }
+
+    private func syncVisibleMarkdownState() {
+        guard isMarkdownDocument else { return }
+        NotificationCenter.default.post(name: .markdownSyncCurrentState, object: nil)
+    }
+
     private func syncVisiblePDFState() {
         guard isPDFDocument else { return }
         NotificationCenter.default.post(name: .pdfSyncCurrentState, object: nil)
@@ -1405,6 +1500,7 @@ final class AppModel: ObservableObject {
                 case .markdown:
                     guard Self.isMarkdown(url) else { continue }
                     let text = try String(contentsOf: url, encoding: .utf8)
+                    let savedState = Self.loadMarkdownState(for: url)
                     appendTab(DocumentTab(
                         document: .markdown(MarkdownDocument(
                             url: url,
@@ -1412,8 +1508,8 @@ final class AppModel: ObservableObject {
                             text: text,
                             savedText: text
                         )),
-                        pdfPage: 1,
-                        pdfScale: 1.0
+                        markdownSourceScrollY: savedState?.sourceScrollY ?? savedTab.markdownSourceScrollY ?? 0,
+                        markdownPreviewScrollY: savedState?.previewScrollY ?? savedTab.markdownPreviewScrollY ?? 0
                     ))
                 case .pdf:
                     guard url.pathExtension.lowercased() == "pdf",
