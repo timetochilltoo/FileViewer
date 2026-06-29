@@ -15,7 +15,7 @@ final class FileViewerWindowRegistry {
     private init() {}
 
     func register(_ model: AppModel) {
-        cleanup()
+        cleanupModels()
         if !registeredModels.contains(where: { $0.value === model }) {
             registeredModels.append(WeakAppModel(value: model))
         }
@@ -31,12 +31,11 @@ final class FileViewerWindowRegistry {
         } else {
             let delegate = WindowCloseDelegate(model: model) { [weak self, weak window, weak model] in
                 guard let self, let window else { return }
-                self.windowDelegates.removeValue(forKey: ObjectIdentifier(window))
-                self.retainedWindows.removeAll { $0 === window }
                 if let model {
                     self.registeredModels.removeAll { $0.value === model }
                 }
                 self.saveCurrentSession()
+                self.releaseClosedWindowLater(window)
             }
             window.delegate = delegate
             windowDelegates[key] = delegate
@@ -44,7 +43,7 @@ final class FileViewerWindowRegistry {
     }
 
     func openExternal(_ urls: [URL]) {
-        cleanup()
+        cleanupModels()
         if registeredModels.compactMap(\.value).isEmpty {
             pendingExternalURLs.append(contentsOf: urls)
             schedulePendingFlush()
@@ -57,7 +56,7 @@ final class FileViewerWindowRegistry {
     }
 
     func saveCurrentSession() {
-        cleanup()
+        cleanupModels()
         let snapshots = registeredModels
             .compactMap(\.value)
             .compactMap { $0.sessionSnapshot() }
@@ -144,12 +143,22 @@ final class FileViewerWindowRegistry {
         }
     }
 
-    private func cleanup() {
+    private func cleanupModels() {
         registeredModels.removeAll { $0.value == nil }
-        let closedWindows = retainedWindows.filter { !$0.isVisible }
-        retainedWindows.removeAll { !$0.isVisible }
-        for window in closedWindows {
-            windowDelegates.removeValue(forKey: ObjectIdentifier(window))
+    }
+
+    private func releaseClosedWindowLater(_ window: NSWindow) {
+        let key = ObjectIdentifier(window)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self, weak window] in
+            guard let self else { return }
+            if let window, window.isVisible {
+                return
+            }
+            self.retainedWindows.removeAll { retainedWindow in
+                guard let window else { return !retainedWindow.isVisible }
+                return retainedWindow === window
+            }
+            self.windowDelegates.removeValue(forKey: key)
         }
     }
 }

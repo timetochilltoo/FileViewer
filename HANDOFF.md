@@ -214,6 +214,8 @@ Session restore:
 - Restores PDF page and zoom via saved `pdfPage` / `pdfScale`.
 - `FileViewerWindowRegistry.saveCurrentSession()` collects live window model snapshots and writes them.
 - Closing a window removes that window's model from the registry and resaves the session, so closed windows should not come back on next launch.
+- Important crash fix: do not release program-created `NSWindow` / `WindowCloseDelegate` immediately inside `windowWillClose`. Patrick hit an AppKit `EXC_BAD_ACCESS` in `_NSWindowTransformAnimation dealloc` after open/close/open sequences. `FileViewerWindowRegistry.releaseClosedWindowLater(_:)` intentionally waits about 2 seconds before removing the retained window/delegate so AppKit can finish close animation cleanup.
+- `saveCurrentSession()` must not perform aggressive closed-window cleanup for the same reason. It only removes dead model references.
 - `FileViewerWindowRegistry.restoreAdditionalSessionWindowsIfNeeded(from:)` opens saved windows after the first restored `ContentView` registers.
 - `markdownMatchCount()`
 - `applyMarkdownFormat(_:)`
