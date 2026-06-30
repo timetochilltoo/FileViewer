@@ -295,6 +295,7 @@ final class AppModel: ObservableObject {
     private weak var lastActiveMarkdownTextView: NSTextView?
     private weak var lastActiveMarkdownPreviewTextView: NSTextView?
     private var lastActiveMarkdownSelectionKind: MarkdownSelectionKind = .source
+    private var isSavingSessionSnapshot = false
 
     private enum MarkdownSelectionKind {
         case source
@@ -421,10 +422,14 @@ final class AppModel: ObservableObject {
         get { selectedTab?.pdfPage ?? 1 }
         set {
             guard let index = selectedTabIndex else { return }
+            let newPage = max(1, newValue)
+            guard tabs[index].pdfPage != newPage else { return }
             objectWillChange.send()
-            tabs[index].pdfPage = newValue
+            tabs[index].pdfPage = newPage
             savePDFStateIfNeeded(for: tabs[index])
-            saveCurrentSession()
+            if !isSavingSessionSnapshot {
+                saveCurrentSession()
+            }
         }
     }
 
@@ -441,10 +446,13 @@ final class AppModel: ObservableObject {
         get { selectedTab?.pdfScale ?? 1.0 }
         set {
             guard let index = selectedTabIndex else { return }
+            guard abs(tabs[index].pdfScale - newValue) > 0.0001 else { return }
             objectWillChange.send()
             tabs[index].pdfScale = newValue
             savePDFStateIfNeeded(for: tabs[index])
-            saveCurrentSession()
+            if !isSavingSessionSnapshot {
+                saveCurrentSession()
+            }
         }
     }
 
@@ -1478,6 +1486,10 @@ final class AppModel: ObservableObject {
     }
 
     func sessionSnapshot(frameString: String? = nil) -> SavedSessionWindow? {
+        guard !isSavingSessionSnapshot else { return nil }
+        isSavingSessionSnapshot = true
+        defer { isSavingSessionSnapshot = false }
+
         syncVisibleDocumentState()
         saveDocumentStates()
         let restorableTabs = tabs.compactMap { tab -> SavedSessionTab? in
@@ -1512,6 +1524,7 @@ final class AppModel: ObservableObject {
     }
 
     private func saveCurrentSession() {
+        guard !isSavingSessionSnapshot else { return }
         FileViewerWindowRegistry.shared.saveCurrentSession()
     }
 
