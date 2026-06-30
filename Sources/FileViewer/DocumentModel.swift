@@ -226,6 +226,7 @@ struct DocumentTab: Identifiable, Equatable {
 struct SavedSessionWindow: Codable, Equatable {
     var tabs: [SavedSessionTab]
     var selectedTabIndex: Int
+    var frameString: String?
 }
 
 struct SavedSessionTab: Codable, Equatable {
@@ -1476,7 +1477,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func sessionSnapshot() -> SavedSessionWindow? {
+    func sessionSnapshot(frameString: String? = nil) -> SavedSessionWindow? {
         syncVisibleDocumentState()
         saveDocumentStates()
         let restorableTabs = tabs.compactMap { tab -> SavedSessionTab? in
@@ -1505,7 +1506,8 @@ final class AppModel: ObservableObject {
 
         return SavedSessionWindow(
             tabs: restorableTabs,
-            selectedTabIndex: selectedRestorableIndex
+            selectedTabIndex: selectedRestorableIndex,
+            frameString: frameString
         )
     }
 

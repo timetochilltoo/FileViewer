@@ -149,7 +149,7 @@ Acceptance criteria:
 
 - Add next page and previous page controls.
 - Add page number input.
-- Add first page and last page actions. Not implemented yet.
+- Add first page and last page actions.
 - Add continuous scroll mode for MVP.
 - Track current page while scrolling.
 - Remember last page per file.
@@ -166,7 +166,7 @@ Acceptance criteria:
 - Add fit width.
 - Add fit page.
 - Add reset zoom.
-- Preserve zoom preference per file. Not implemented yet.
+- Preserve zoom preference per file.
 
 Acceptance criteria:
 
@@ -320,13 +320,14 @@ Acceptance criteria:
 - Native app shell has been created.
 - Markdown source, preview, split view, edit, save, and save-as have been implemented.
 - PDFKit PDF viewing has been implemented.
-- PDF page navigation, zoom, thumbnails, search highlighting, search result count, and previous/next search navigation have been implemented.
+- PDF page navigation, first/last page controls, zoom, thumbnails, search highlighting, search result count, and previous/next search navigation have been implemented.
 - Recent files have been implemented.
 - Multiple tabs per window have been implemented.
 - File-backed tabs/windows restore after app restart.
 - PDF page and zoom state restore after app restart.
 - Reopened PDFs restore page and zoom from per-file PDF state even after the previous tab/window was closed.
 - Reopened Markdown files restore Source and Preview vertical scroll position from per-file Markdown state.
+- Session windows restore saved window size and position when possible.
 - PDF outline/table-of-contents support has been implemented for PDFs that provide outline/bookmark entries.
 - Finder/Open With opens documents in separate windows without changing existing document windows.
 - Markdown windows can shrink for side-by-side comparison.
@@ -342,6 +343,6 @@ Acceptance criteria:
 
 Next implementation work:
 
-- Improve Markdown preview fidelity for richer GitHub-flavored tables, local images, and task-list polish.
-- Add restore polish if needed, such as exact window position/size.
+- PDF annotation.
+- Improve Markdown preview fidelity for richer GitHub-flavored tables, local images, and task-list polish if needed later.
 - Add tests or sample files for repeatable verification.

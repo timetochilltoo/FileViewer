@@ -216,6 +216,7 @@ Session restore:
 
 - Implemented with `UserDefaults` key `FileViewer.session.windows`.
 - Restores file-backed Markdown/PDF tabs and additional windows on launch.
+- Restores saved window size/position through optional `SavedSessionWindow.frameString` when possible.
 - Session restore is delayed briefly by `FileViewerWindowRegistry.scheduleSessionRestoreIfPossible(using:)`.
 - If the app receives Finder/Open With URLs during launch, `suppressSessionRestore` is set and old session windows are not restored. This avoids the confusing case where opening `A.pdf` also reopens previously closed/restored `D.pdf`, `E.pdf`, and `G.pdf`.
 - Skips unsaved Untitled Markdown documents because there is no safe file path to reopen.
@@ -233,6 +234,7 @@ Session restore:
 - Important Markdown restore fix: Source/Preview scroll restoration can happen before NSTextView layout has calculated the full content height. `restoreInitialScrollIfNeeded()` now retries briefly when the saved offset is non-zero but the scroll view still reports no scrollable height.
 - Important Markdown accuracy fix: pixel-only scroll restore can land on the wrong area after Markdown reflows due to window width, preview/source mode, or font/layout changes. Markdown panes now also save the first visible character location and prefer that when restoring; the older pixel scroll value remains as fallback for saved states that do not yet have a visible-location value. The visible-location implementation must convert between `NSScrollView` document coordinates and `NSTextView.textContainerOrigin`; using `scrollRangeToVisible` alone was not accurate enough because it only guarantees the target is visible somewhere, not aligned near the prior top-of-view position.
 - `FileViewerWindowRegistry.saveCurrentSession()` collects live window model snapshots and writes them.
+- `FileViewerWindowRegistry` keeps weak model-to-window references so session snapshots can include each window frame. Old saved sessions without `frameString` still load and simply center the window.
 - Closing a window removes that window's model from the registry and resaves the session, so closed windows should not come back on next launch.
 - Important crash fix: do not release program-created `NSWindow` immediately inside `windowWillClose`, and do not mutate the retained window array from a delayed close callback. Patrick hit AppKit/Swift crashes after open/close/open and after closing multiple restored PDF windows. The app now keeps program-created windows retained for the life of the process; this small temporary memory cost is safer than fighting AppKit close-animation lifetime.
 - `releaseClosedWindowLater(_:)` only removes the delegate after a delay. It intentionally does not remove the window from `retainedWindows`.

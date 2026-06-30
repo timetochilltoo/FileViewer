@@ -61,11 +61,12 @@ Expected behavior:
 - Opening the same supported file more than once is allowed. The app should create another tab/window copy rather than jump to an existing one.
 - Each open tab keeps its own search text, current search match, PDF page, and zoom state during the current session.
 - File-backed tabs/windows restore after app restart.
+- Session windows restore saved size and position when possible.
 - Reopened PDFs restore page and zoom state.
 - Reopened PDFs also restore page and zoom from per-file PDF state after the previous tab/window was closed.
 - Reopened Markdown files restore Source and Preview vertical scroll position from per-file Markdown state after the previous tab/window was closed.
 - Unsaved Untitled Markdown documents are not restored unless they have been saved to a file.
-- Exact window position/size can be added as later restore polish.
+- Search text remains session-only by design unless a later workflow needs it.
 
 ### 5.2 Read and Edit a Markdown File
 

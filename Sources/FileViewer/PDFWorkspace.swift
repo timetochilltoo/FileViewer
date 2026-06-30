@@ -90,8 +90,10 @@ struct PDFKitView: NSViewRepresentable {
         }
 
         func installObservers() {
+            NotificationCenter.default.addObserver(self, selector: #selector(firstPage), name: .pdfFirstPage, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(previousPage), name: .pdfPreviousPage, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(nextPage), name: .pdfNextPage, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(lastPage), name: .pdfLastPage, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(goToPage(_:)), name: .pdfGoToPage, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(zoomIn), name: .pdfZoomIn, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(zoomOut), name: .pdfZoomOut, object: nil)
@@ -101,6 +103,12 @@ struct PDFKitView: NSViewRepresentable {
             NotificationCenter.default.addObserver(self, selector: #selector(pageChanged), name: Notification.Name.PDFViewPageChanged, object: pdfView)
         }
 
+        @MainActor @objc private func firstPage() {
+            guard let firstPage = parent.document.page(at: 0) else { return }
+            pdfView?.go(to: firstPage)
+            syncPage()
+        }
+
         @MainActor @objc private func previousPage() {
             pdfView?.goToPreviousPage(nil)
             syncPage()
@@ -108,6 +116,13 @@ struct PDFKitView: NSViewRepresentable {
 
         @MainActor @objc private func nextPage() {
             pdfView?.goToNextPage(nil)
+            syncPage()
+        }
+
+        @MainActor @objc private func lastPage() {
+            guard parent.document.pageCount > 0,
+                  let lastPage = parent.document.page(at: parent.document.pageCount - 1) else { return }
+            pdfView?.go(to: lastPage)
             syncPage()
         }
 

@@ -8,6 +8,7 @@ Current MVP build includes:
 - New unsaved Markdown documents.
 - Open multiple Markdown/PDF documents in tabs or separate windows, including multiple copies of the same file.
 - Restore previously open file-backed tabs/windows after app restart.
+- Restore session window size/position when possible.
 - Restore PDF page/zoom and Markdown Source/Preview scroll position for reopened files.
 - Markdown windows can be resized narrow enough for two documents side-by-side.
 - Drag-and-drop file opening, including multiple dropped files.
@@ -36,6 +37,7 @@ Current MVP build includes:
 - Help menu Markdown syntax guide.
 - PDF rendering.
 - PDF page navigation.
+- PDF first/last page controls.
 - PDF zoom controls.
 - PDF thumbnails.
 - PDF outline/table-of-contents sidebar when the PDF provides one.

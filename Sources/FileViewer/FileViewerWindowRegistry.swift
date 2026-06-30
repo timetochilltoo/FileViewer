@@ -6,6 +6,7 @@ final class FileViewerWindowRegistry {
     static let shared = FileViewerWindowRegistry()
 
     private var registeredModels: [WeakAppModel] = []
+    private var registeredWindows: [ObjectIdentifier: WeakWindow] = [:]
     private var retainedWindows: [NSWindow] = []
     private var windowDelegates: [ObjectIdentifier: WindowCloseDelegate] = [:]
     private var pendingExternalURLs: [URL] = []
@@ -27,6 +28,7 @@ final class FileViewerWindowRegistry {
 
     func register(_ model: AppModel, window: NSWindow) {
         register(model)
+        registeredWindows[ObjectIdentifier(model)] = WeakWindow(value: window)
         let key = ObjectIdentifier(window)
         if let existingDelegate = windowDelegates[key] {
             existingDelegate.model = model
@@ -35,6 +37,7 @@ final class FileViewerWindowRegistry {
                 guard let self, let window else { return }
                 if let model {
                     self.registeredModels.removeAll { $0.value === model }
+                    self.registeredWindows.removeValue(forKey: ObjectIdentifier(model))
                 }
                 self.saveCurrentSession()
                 self.releaseClosedWindowLater(window)
@@ -62,7 +65,11 @@ final class FileViewerWindowRegistry {
         cleanupModels()
         let snapshots = registeredModels
             .compactMap(\.value)
-            .compactMap { $0.sessionSnapshot() }
+            .compactMap { model -> SavedSessionWindow? in
+                let frameString = registeredWindows[ObjectIdentifier(model)]?.value
+                    .map { NSStringFromRect($0.frame) }
+                return model.sessionSnapshot(frameString: frameString)
+            }
         AppModel.saveSessionWindows(snapshots)
     }
 
@@ -130,7 +137,16 @@ final class FileViewerWindowRegistry {
         window.minSize = NSSize(width: 520, height: 620)
         window.title = session.tabs.first.map { URL(fileURLWithPath: $0.path).lastPathComponent } ?? "FileViewer"
         window.contentView = NSHostingView(rootView: ContentView(restoring: session))
-        window.center()
+        if let frameString = session.frameString {
+            let savedFrame = NSRectFromString(frameString)
+            if savedFrame.width > 0, savedFrame.height > 0 {
+                window.setFrame(savedFrame, display: false)
+            } else {
+                window.center()
+            }
+        } else {
+            window.center()
+        }
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         retainedWindows.append(window)
@@ -149,6 +165,13 @@ final class FileViewerWindowRegistry {
                   model.canAcceptExternalOpenInCurrentWindow else { return }
             let savedWindows = AppModel.loadSavedSessionWindows()
             guard let firstWindow = savedWindows.first else { return }
+            if let frameString = firstWindow.frameString,
+               let window = self.registeredWindows[ObjectIdentifier(model)]?.value {
+                let savedFrame = NSRectFromString(frameString)
+                if savedFrame.width > 0, savedFrame.height > 0 {
+                    window.setFrame(savedFrame, display: true)
+                }
+            }
             model.restoreSavedSession(window: firstWindow)
             self.restoreAdditionalSessionWindowsIfNeeded(from: model, savedWindows: savedWindows)
         }
@@ -166,6 +189,7 @@ final class FileViewerWindowRegistry {
 
     private func cleanupModels() {
         registeredModels.removeAll { $0.value == nil }
+        registeredWindows = registeredWindows.filter { $0.value.value != nil }
     }
 
     private func releaseClosedWindowLater(_ window: NSWindow) {
@@ -179,6 +203,10 @@ final class FileViewerWindowRegistry {
 
 private struct WeakAppModel {
     weak var value: AppModel?
+}
+
+private struct WeakWindow {
+    weak var value: NSWindow?
 }
 
 @MainActor

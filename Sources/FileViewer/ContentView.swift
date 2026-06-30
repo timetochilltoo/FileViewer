@@ -274,6 +274,13 @@ struct PDFToolbar: View {
     var body: some View {
         HStack(spacing: 6) {
             Button {
+                NotificationCenter.default.post(name: .pdfFirstPage, object: nil)
+            } label: {
+                Image(systemName: "backward.end")
+            }
+            .help("First Page")
+
+            Button {
                 NotificationCenter.default.post(name: .pdfPreviousPage, object: nil)
             } label: {
                 Image(systemName: "chevron.left")
@@ -296,6 +303,13 @@ struct PDFToolbar: View {
                 Image(systemName: "chevron.right")
             }
             .help("Next Page")
+
+            Button {
+                NotificationCenter.default.post(name: .pdfLastPage, object: nil)
+            } label: {
+                Image(systemName: "forward.end")
+            }
+            .help("Last Page")
 
             Button {
                 NotificationCenter.default.post(name: .pdfZoomOut, object: nil)
@@ -399,8 +413,10 @@ private struct SearchTextField: NSViewRepresentable {
 }
 
 extension Notification.Name {
+    static let pdfFirstPage = Notification.Name("FileViewer.pdfFirstPage")
     static let pdfPreviousPage = Notification.Name("FileViewer.pdfPreviousPage")
     static let pdfNextPage = Notification.Name("FileViewer.pdfNextPage")
+    static let pdfLastPage = Notification.Name("FileViewer.pdfLastPage")
     static let pdfGoToPage = Notification.Name("FileViewer.pdfGoToPage")
     static let pdfZoomIn = Notification.Name("FileViewer.pdfZoomIn")
     static let pdfZoomOut = Notification.Name("FileViewer.pdfZoomOut")
