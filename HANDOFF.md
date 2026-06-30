@@ -444,13 +444,17 @@ PDF support uses PDFKit.
 
 PDF toolbar controls communicate through `NotificationCenter` names defined in `ContentView.swift`:
 
+- `.pdfFirstPage`
 - `.pdfPreviousPage`
 - `.pdfNextPage`
+- `.pdfLastPage`
 - `.pdfGoToPage`
 - `.pdfZoomIn`
 - `.pdfZoomOut`
 - `.pdfFitWidth`
 - `.pdfFitPage`
+- `.pdfApplyAnnotation`
+- `.pdfAnnotationDidChange`
 
 Crash fix already implemented:
 
@@ -479,6 +483,38 @@ PDF search:
 - 2026-06-29 follow-up: PDF match count is also calculated immediately in `AppModel.searchText` using the selected `PDFDocument.findString(...)`. This makes the toolbar count deterministic even if the `PDFKitView` binding callback is delayed or skipped by SwiftUI/PDFKit refresh timing.
 - PDF search status text is prefixed with `PDF:` so it is visually clear that the count is coming from PDF search, e.g. `PDF: 1 of 6`.
 - Previous/next search buttons update `searchMatchIndex`; `PDFKitView.Coordinator.goToSearchMatch(_:)` selects and scrolls to the requested `PDFSelection`.
+
+PDF annotation v1:
+
+- Implemented on branch `feature/pdf-annotation`.
+- User flow:
+  1. Open a PDF.
+  2. Select text in the PDF view.
+  3. Click Highlight, Underline, or Strikeout in the PDF toolbar, or use the PDF menu.
+  4. The selected text receives a real PDFKit annotation.
+  5. The tab/window is marked as having unsaved PDF annotations.
+  6. Click the PDF Save button or use Command-S to embed the annotation in the PDF file.
+- Supported annotation types:
+  - highlight: `PDFAnnotationSubtype.highlight`
+  - underline: `PDFAnnotationSubtype.underline`
+  - strikeout: `PDFAnnotationSubtype.strikeOut`
+- Implementation details:
+  - `PDFAnnotationKind` and `PDFAnnotationCommand` live in `DocumentModel.swift`.
+  - `PDFToolbar.postAnnotation(_:)` posts `.pdfApplyAnnotation` with the selected PDF URL and annotation kind.
+  - `PDFKitView.Coordinator.applyAnnotation(_:)` checks that `command.url == parent.documentURL` before modifying the PDF. This protects multi-window use.
+  - Annotation bounds come from `PDFSelection.selectionsByLine()` and `bounds(for:)`, so multi-line selected text becomes one annotation per selected line/page.
+  - After a successful annotation, `PDFKitView` posts `.pdfAnnotationDidChange` with the PDF URL.
+  - `ContentView` receives `.pdfAnnotationDidChange` and calls `model.markPDFAnnotationsChanged(for:)`.
+  - `DocumentTab.pdfHasUnsavedAnnotations` drives the orange unsaved status, enabled PDF Save button, Command-S behavior, and close warning.
+  - `AppModel.savePDFAnnotations()` / `savePDFTab(at:)` writes through `PDFDocument.write(to:)`.
+- Known limitations:
+  - No freehand ink yet.
+  - No text boxes or sticky notes yet.
+  - No shape annotations yet.
+  - No annotation selection/move/delete UI yet.
+  - No undo/redo for annotations yet.
+  - Save currently writes back to the original PDF. A later “Save Annotated Copy As...” option would be safer for important source PDFs.
+  - The current implementation depends on PDF text selection. Scanned-image PDFs without OCR text cannot be highlighted this way.
 
 ### `SidebarView.swift`
 
@@ -632,6 +668,12 @@ Recent commits on `main`:
   - Replaced the toolbar search `TextField` with native `SearchTextField` so pressing Return reliably advances to the next Markdown/PDF search match.
   - Changed PDF search result count updates to write back through `Binding` values asynchronously after PDFKit finishes finding selections, so the toolbar shows current/total PDF matches.
   - Follow-up fix after Patrick confirmed PDF count was still missing: `AppModel.searchText` now computes PDF match count directly from the open PDF document, and PDF status text displays with a `PDF:` prefix.
+- 2026-07-01 — PDF annotation v1 on branch `feature/pdf-annotation`
+  - Added selection-based PDF text annotations: Highlight, Underline, and Strikeout.
+  - Added a PDF Save button and wired Command-S so annotated PDFs can be saved back to the original file.
+  - Added close confirmation for PDFs with unsaved annotations.
+  - Annotation commands are routed with a `PDFAnnotationCommand(url:kind:)` payload, so a toolbar/menu action targets the active PDF URL instead of blindly applying to every open PDF window.
+  - This is intentionally not freehand drawing, shape annotation, or full annotation management yet.
 
 This handoff document itself should be committed after creation.
 
@@ -787,7 +829,37 @@ Known limitations:
 - It only navigates to a page, not an exact coordinate within the page.
 - Some unusual PDFs may encode outline actions differently; if a PDF shows disabled entries even though Preview can jump from them, inspect the `PDFOutline.action` type and add support for that action.
 
-### 6.9 App lifecycle and document model
+### 6.9 PDF annotation v1 limitations
+
+PDF annotation v1 is selection-based and intentionally conservative.
+
+Implemented:
+
+- highlight selected text
+- underline selected text
+- strike through selected text
+- mark PDF tab/window as dirty after annotation
+- save annotations back into the PDF file
+- close warning for unsaved PDF annotations
+
+Not implemented yet:
+
+- pen/freehand drawing
+- text box annotation
+- sticky note/comment annotation
+- rectangle/ellipse/line/arrow shapes
+- color picker
+- deleting existing annotations
+- moving/resizing annotations
+- undo/redo
+- Save As annotated copy
+- annotation summary/sidebar
+
+Important caution:
+
+Because v1 saves into the original PDF, test on copies for valuable PDFs until “Save Annotated Copy As...” exists.
+
+### 6.10 App lifecycle and document model
 
 This app is a custom tabbed viewer, not a macOS `DocumentGroup` app. That makes tab control simpler, but it means native document lifecycle features are manual:
 
@@ -855,14 +927,22 @@ Patrick is newer to Markdown and wants the app to teach/assist him. The Help gui
 
 Recommended order:
 
-1. Improve Markdown preview rendering if Patrick relies heavily on richer tables/checklists.
-2. Add remaining Markdown formatting polish:
+1. Continue PDF annotation:
+   - Save Annotated Copy As
+   - delete selected annotations
+   - text box / sticky note
+   - freehand ink
+   - shapes
+   - color controls
+   - undo/redo
+2. Improve Markdown preview rendering if Patrick relies heavily on richer tables/checklists.
+3. Add remaining Markdown formatting polish:
    - smarter link editing/toggling for arbitrary existing Markdown links
    - more precise preview-to-source mapping when repeated phrases exist
-3. Add restore polish if needed:
+4. Add restore polish if needed:
    - restore exact window positions/sizes
    - optionally restore search text if Patrick later wants it
-4. Add repeatable sample files/tests for PDF outline, PDF search counts, Markdown formatting, and multi-window restore.
+5. Add repeatable sample files/tests for PDF outline, PDF search counts, Markdown formatting, PDF annotation, and multi-window restore.
 
 ## 11. Quick mental model for future agents
 

@@ -217,9 +217,16 @@ Recommended:
 
 ## 6.4 PDF Annotation
 
-Required after MVP:
+Implemented v1 on branch `feature/pdf-annotation`:
 
 - Highlight selected text.
+- Underline selected text.
+- Strike through selected text.
+- Save embedded annotations back to the PDF file.
+- Warn before closing a PDF tab/window with unsaved annotations.
+
+Still required after v1:
+
 - Add text boxes.
 - Add sticky note comments.
 - Draw freehand ink.

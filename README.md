@@ -42,6 +42,12 @@ Current MVP build includes:
 - PDF thumbnails.
 - PDF outline/table-of-contents sidebar when the PDF provides one.
 - PDF search highlighting with current/total count and previous/next navigation.
+- PDF annotation v1 on the `feature/pdf-annotation` branch:
+  - highlight selected PDF text
+  - underline selected PDF text
+  - strike through selected PDF text
+  - save embedded PDF annotations back to the PDF file
+  - warn before closing a PDF tab/window with unsaved annotations
 - Print support for PDFs and Markdown source text.
 - Recent files.
 - Light and dark theme.

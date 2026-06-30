@@ -343,6 +343,11 @@ Acceptance criteria:
 
 Next implementation work:
 
-- PDF annotation.
+- Continue PDF annotation beyond v1:
+  - text boxes / sticky notes
+  - freehand ink
+  - shapes
+  - annotation selection/delete/undo
+  - Save As annotated copy
 - Improve Markdown preview fidelity for richer GitHub-flavored tables, local images, and task-list polish if needed later.
 - Add tests or sample files for repeatable verification.

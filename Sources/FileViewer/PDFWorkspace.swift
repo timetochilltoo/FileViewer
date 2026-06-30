@@ -7,6 +7,7 @@ struct PDFWorkspace: View {
 
     var body: some View {
         PDFKitView(
+            documentURL: viewerDocument.url,
             document: viewerDocument.document,
             searchText: model.searchText,
             page: Binding(
@@ -35,6 +36,7 @@ struct PDFWorkspace: View {
 }
 
 struct PDFKitView: NSViewRepresentable {
+    let documentURL: URL
     let document: PDFDocument
     let searchText: String
     @Binding var page: Int
@@ -100,6 +102,7 @@ struct PDFKitView: NSViewRepresentable {
             NotificationCenter.default.addObserver(self, selector: #selector(fitWidth), name: .pdfFitWidth, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(fitPage), name: .pdfFitPage, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(syncCurrentState), name: .pdfSyncCurrentState, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(applyAnnotation(_:)), name: .pdfApplyAnnotation, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(pageChanged), name: Notification.Name.PDFViewPageChanged, object: pdfView)
         }
 
@@ -167,6 +170,18 @@ struct PDFKitView: NSViewRepresentable {
         @MainActor @objc private func syncCurrentState() {
             syncPage()
             syncScale()
+        }
+
+        @MainActor @objc private func applyAnnotation(_ notification: Notification) {
+            guard let command = notification.object as? PDFAnnotationCommand,
+                  command.url == parent.documentURL else { return }
+            guard let selection = pdfView?.currentSelection,
+                  addAnnotation(command.kind, to: selection) else {
+                NSSound.beep()
+                return
+            }
+            pdfView?.setCurrentSelection(nil, animate: false)
+            NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
         }
 
         @MainActor func applySearch(_ text: String) {
@@ -243,8 +258,52 @@ struct PDFKitView: NSViewRepresentable {
             parent.scale = view.scaleFactor
         }
 
+        @MainActor private func addAnnotation(_ kind: PDFAnnotationKind, to selection: PDFSelection) -> Bool {
+            let lineSelections = selection.selectionsByLine()
+            let selections = lineSelections.isEmpty ? [selection] : lineSelections
+            var addedAnnotation = false
+
+            for lineSelection in selections {
+                for page in lineSelection.pages {
+                    let bounds = lineSelection.bounds(for: page).insetBy(dx: -1.5, dy: -1.5)
+                    guard bounds.width > 0, bounds.height > 0 else { continue }
+                    let annotation = PDFAnnotation(
+                        bounds: bounds,
+                        forType: kind.pdfAnnotationSubtype,
+                        withProperties: nil
+                    )
+                    annotation.color = kind.annotationColor
+                    page.addAnnotation(annotation)
+                    addedAnnotation = true
+                }
+            }
+
+            return addedAnnotation
+        }
+
         deinit {
             NotificationCenter.default.removeObserver(self)
+        }
+    }
+}
+
+private extension PDFAnnotationKind {
+    var pdfAnnotationSubtype: PDFAnnotationSubtype {
+        switch self {
+        case .highlight: .highlight
+        case .underline: .underline
+        case .strikeout: .strikeOut
+        }
+    }
+
+    var annotationColor: NSColor {
+        switch self {
+        case .highlight:
+            NSColor.systemYellow.withAlphaComponent(0.55)
+        case .underline:
+            NSColor.systemBlue.withAlphaComponent(0.85)
+        case .strikeout:
+            NSColor.systemRed.withAlphaComponent(0.85)
         }
     }
 }

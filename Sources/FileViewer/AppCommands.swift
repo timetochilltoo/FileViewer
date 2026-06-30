@@ -29,10 +29,14 @@ struct FileViewerCommands: Commands {
 
         CommandGroup(after: .saveItem) {
             Button("Save") {
-                model?.saveMarkdown()
+                if model?.isPDFDocument == true {
+                    model?.savePDFAnnotations()
+                } else {
+                    model?.saveMarkdown()
+                }
             }
             .keyboardShortcut("s", modifiers: .command)
-            .disabled(model?.canSaveMarkdown != true)
+            .disabled(model?.canSaveMarkdown != true && model?.canSavePDF != true)
 
             Button("Save As...") {
                 model?.saveMarkdownAs()
@@ -182,11 +186,46 @@ struct FileViewerCommands: Commands {
             .disabled(model?.isMarkdownDocument != true)
         }
 
+        CommandMenu("PDF") {
+            Button("Highlight Selection") {
+                postPDFAnnotation(.highlight)
+            }
+            .keyboardShortcut("h", modifiers: [.command, .shift])
+            .disabled(model?.isPDFDocument != true)
+
+            Button("Underline Selection") {
+                postPDFAnnotation(.underline)
+            }
+            .keyboardShortcut("u", modifiers: [.command, .shift])
+            .disabled(model?.isPDFDocument != true)
+
+            Button("Strike Through Selection") {
+                postPDFAnnotation(.strikeout)
+            }
+            .keyboardShortcut("x", modifiers: [.command, .shift])
+            .disabled(model?.isPDFDocument != true)
+
+            Divider()
+
+            Button("Save PDF Annotations") {
+                model?.savePDFAnnotations()
+            }
+            .disabled(model?.canSavePDF != true)
+        }
+
         CommandGroup(replacing: .help) {
             Button("Markdown Syntax Guide") {
                 MarkdownSyntaxHelpPresenter.shared.show()
             }
             .keyboardShortcut("/", modifiers: [.command, .shift])
         }
+    }
+
+    private func postPDFAnnotation(_ kind: PDFAnnotationKind) {
+        guard let url = model?.selectedPDFURL else { return }
+        NotificationCenter.default.post(
+            name: .pdfApplyAnnotation,
+            object: PDFAnnotationCommand(url: url, kind: kind)
+        )
     }
 }

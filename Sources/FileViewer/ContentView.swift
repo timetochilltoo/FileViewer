@@ -56,6 +56,10 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .toggleSidebar)) { _ in
             sidebarVisible.toggle()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .pdfAnnotationDidChange)) { notification in
+            guard let url = notification.object as? URL else { return }
+            model.markPDFAnnotationsChanged(for: url)
+        }
     }
 
     private var toolbar: some View {
@@ -246,6 +250,10 @@ struct ContentView: View {
             if case .pdf = model.document {
                 Text("Page \(model.pdfPage) of \(max(model.pdfPageCount, 1))")
                     .foregroundStyle(.secondary)
+                if model.canSavePDF {
+                    Text("Unsaved PDF annotations")
+                        .foregroundStyle(.orange)
+                }
             }
         }
         .font(.caption)
@@ -338,7 +346,47 @@ struct PDFToolbar: View {
                 Image(systemName: "arrow.up.left.and.down.right.magnifyingglass")
             }
             .help("Fit Page")
+
+            Divider()
+                .frame(height: 18)
+
+            Button {
+                postAnnotation(.highlight)
+            } label: {
+                Image(systemName: "highlighter")
+            }
+            .help("Highlight Selected PDF Text")
+
+            Button {
+                postAnnotation(.underline)
+            } label: {
+                Image(systemName: "underline")
+            }
+            .help("Underline Selected PDF Text")
+
+            Button {
+                postAnnotation(.strikeout)
+            } label: {
+                Image(systemName: "strikethrough")
+            }
+            .help("Strike Through Selected PDF Text")
+
+            Button {
+                model.savePDFAnnotations()
+            } label: {
+                Image(systemName: "square.and.arrow.down")
+            }
+            .disabled(!model.canSavePDF)
+            .help("Save PDF Annotations")
         }
+    }
+
+    private func postAnnotation(_ kind: PDFAnnotationKind) {
+        guard let url = model.selectedPDFURL else { return }
+        NotificationCenter.default.post(
+            name: .pdfApplyAnnotation,
+            object: PDFAnnotationCommand(url: url, kind: kind)
+        )
     }
 }
 
@@ -424,6 +472,8 @@ extension Notification.Name {
     static let pdfFitPage = Notification.Name("FileViewer.pdfFitPage")
     static let pdfSearch = Notification.Name("FileViewer.pdfSearch")
     static let pdfSyncCurrentState = Notification.Name("FileViewer.pdfSyncCurrentState")
+    static let pdfApplyAnnotation = Notification.Name("FileViewer.pdfApplyAnnotation")
+    static let pdfAnnotationDidChange = Notification.Name("FileViewer.pdfAnnotationDidChange")
     static let markdownSyncCurrentState = Notification.Name("FileViewer.markdownSyncCurrentState")
     static let toggleSidebar = Notification.Name("FileViewer.toggleSidebar")
 }

@@ -143,6 +143,25 @@ struct PDFOutlineEntry: Identifiable, Equatable {
     let page: Int?
 }
 
+enum PDFAnnotationKind: String, CaseIterable, Equatable {
+    case highlight
+    case underline
+    case strikeout
+
+    var title: String {
+        switch self {
+        case .highlight: "Highlight"
+        case .underline: "Underline"
+        case .strikeout: "Strikeout"
+        }
+    }
+}
+
+struct PDFAnnotationCommand {
+    let url: URL
+    let kind: PDFAnnotationKind
+}
+
 enum ViewerDocument: Equatable {
     case markdown(MarkdownDocument)
     case pdf(PDFViewerDocument)
@@ -182,6 +201,7 @@ struct DocumentTab: Identifiable, Equatable {
     var pdfPage: Int
     var pdfPageCount: Int
     var pdfScale: CGFloat
+    var pdfHasUnsavedAnnotations: Bool
 
     init(document: ViewerDocument) {
         id = UUID()
@@ -200,6 +220,7 @@ struct DocumentTab: Identifiable, Equatable {
             pdfPageCount = 0
         }
         pdfScale = 1.0
+        pdfHasUnsavedAnnotations = false
     }
 
     init(document: ViewerDocument, pdfPage: Int, pdfScale: CGFloat) {
@@ -487,6 +508,11 @@ final class AppModel: ObservableObject {
         return document.url == nil || document.hasUnsavedChanges
     }
 
+    var canSavePDF: Bool {
+        guard isPDFDocument else { return false }
+        return selectedTab?.pdfHasUnsavedAnnotations == true
+    }
+
     var isMarkdownDocument: Bool {
         if case .markdown = document { return true }
         return false
@@ -499,6 +525,11 @@ final class AppModel: ObservableObject {
 
     var canPrintDocument: Bool {
         document != nil
+    }
+
+    var selectedPDFURL: URL? {
+        guard case .pdf(let pdf) = document else { return nil }
+        return pdf.url
     }
 
     func newMarkdownDocument() {
@@ -598,18 +629,28 @@ final class AppModel: ObservableObject {
 
     private func canCloseTab(at index: Int) -> Bool {
         guard tabs.indices.contains(index) else { return true }
-        guard case .markdown(let markdown) = tabs[index].document,
-              markdown.hasUnsavedChanges else {
-            return true
-        }
 
-        switch closeConfirmation(for: markdown) {
-        case .save:
-            return saveMarkdownTab(at: index)
-        case .discard:
+        switch tabs[index].document {
+        case .markdown(let markdown) where markdown.hasUnsavedChanges:
+            switch closeConfirmation(for: markdown) {
+            case .save:
+                return saveMarkdownTab(at: index)
+            case .discard:
+                return true
+            case .cancel:
+                return false
+            }
+        case .pdf(let pdf) where tabs[index].pdfHasUnsavedAnnotations:
+            switch closeConfirmation(forPDFNamed: pdf.url.lastPathComponent) {
+            case .save:
+                return savePDFTab(at: index)
+            case .discard:
+                return true
+            case .cancel:
+                return false
+            }
+        default:
             return true
-        case .cancel:
-            return false
         }
     }
 
@@ -660,6 +701,25 @@ final class AppModel: ObservableObject {
         let alert = NSAlert()
         alert.messageText = "Save changes to “\(markdown.name)” before closing?"
         alert.informativeText = "If you don’t save, your changes will be lost."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Don’t Save")
+        alert.addButton(withTitle: "Cancel")
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            return .save
+        case .alertSecondButtonReturn:
+            return .discard
+        default:
+            return .cancel
+        }
+    }
+
+    private func closeConfirmation(forPDFNamed name: String) -> CloseConfirmationAction {
+        let alert = NSAlert()
+        alert.messageText = "Save PDF annotations to “\(name)” before closing?"
+        alert.informativeText = "If you don’t save, your PDF markups will be lost."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Save")
         alert.addButton(withTitle: "Don’t Save")
@@ -735,6 +795,48 @@ final class AppModel: ObservableObject {
         let alert = NSAlert()
         alert.messageText = "Could not save “\(markdown.name)”"
         alert.informativeText = "The document was not closed, so your unsaved changes are still open."
+        alert.alertStyle = .critical
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
+    func markPDFAnnotationsChanged(for url: URL) {
+        guard let index = tabs.firstIndex(where: { tab in
+            guard case .pdf(let pdf) = tab.document else { return false }
+            return pdf.url == url
+        }) else { return }
+        objectWillChange.send()
+        tabs[index].pdfHasUnsavedAnnotations = true
+        statusMessage = "PDF annotation added. Save to keep it."
+    }
+
+    func savePDFAnnotations() {
+        guard let index = selectedTabIndex else { return }
+        _ = savePDFTab(at: index)
+    }
+
+    private func savePDFTab(at index: Int) -> Bool {
+        guard tabs.indices.contains(index),
+              case .pdf(let pdf) = tabs[index].document else {
+            return true
+        }
+
+        guard pdf.document.write(to: pdf.url) else {
+            statusMessage = "Could not save PDF annotations."
+            showPDFSaveFailedAlert(for: pdf.url.lastPathComponent)
+            return false
+        }
+
+        objectWillChange.send()
+        tabs[index].pdfHasUnsavedAnnotations = false
+        statusMessage = "Saved PDF annotations."
+        return true
+    }
+
+    private func showPDFSaveFailedAlert(for name: String) {
+        let alert = NSAlert()
+        alert.messageText = "Could not save “\(name)”"
+        alert.informativeText = "The PDF was not closed, so your unsaved annotations are still open."
         alert.alertStyle = .critical
         alert.addButton(withTitle: "OK")
         alert.runModal()
