@@ -214,6 +214,13 @@ struct FileViewerCommands: Commands {
 
             Divider()
 
+            Button("Reset Annotation Color to Yellow") {
+                activeModel?.resetPDFAnnotationColor()
+            }
+            .disabled(activeModel?.isPDFDocument != true)
+
+            Divider()
+
             Button("Remove Markup from Selection") {
                 guard let url = activeModel?.selectedPDFURL else { return }
                 NotificationCenter.default.post(name: .pdfRemoveAnnotationsInSelection, object: url)
@@ -278,7 +285,7 @@ struct FileViewerCommands: Commands {
         guard let url = activeModel?.selectedPDFURL else { return }
         NotificationCenter.default.post(
             name: .pdfApplyAnnotation,
-            object: PDFAnnotationCommand(url: url, kind: kind)
+            object: PDFAnnotationCommand(url: url, kind: kind, color: activeModel?.pdfAnnotationNSColor ?? .systemYellow)
         )
     }
 }

@@ -371,6 +371,18 @@ struct PDFToolbar: View {
             }
             .help("Strike Through Selected PDF Text")
 
+            ColorPicker("Annotation Color", selection: $model.pdfAnnotationColor, supportsOpacity: false)
+                .labelsHidden()
+                .frame(width: 32)
+                .help("Choose PDF Annotation Color")
+
+            Button {
+                model.resetPDFAnnotationColor()
+            } label: {
+                Image(systemName: "arrow.counterclockwise.circle")
+            }
+            .help("Reset Annotation Color to Yellow")
+
             Button {
                 guard let url = model.selectedPDFURL else { return }
                 NotificationCenter.default.post(name: .pdfRemoveAnnotationsInSelection, object: url)
@@ -440,7 +452,7 @@ struct PDFToolbar: View {
         guard let url = model.selectedPDFURL else { return }
         NotificationCenter.default.post(
             name: .pdfApplyAnnotation,
-            object: PDFAnnotationCommand(url: url, kind: kind)
+            object: PDFAnnotationCommand(url: url, kind: kind, color: model.pdfAnnotationNSColor)
         )
     }
 }

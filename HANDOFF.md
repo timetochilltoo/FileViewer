@@ -490,32 +490,39 @@ PDF annotation v1:
 - User flow:
   1. Open a PDF.
   2. Select text in the PDF view.
-  3. Click Highlight, Underline, or Strikeout in the PDF toolbar, or use the PDF menu.
-  4. The selected text receives a real PDFKit annotation.
-  5. The tab/window is marked as having unsaved PDF annotations.
-  6. Click the PDF Save button or use Command-S to embed the annotation in the PDF file.
-  7. To remove v1 text markup, select the marked text and use Remove Markup from Selection / the eraser toolbar button.
-  8. To add a sticky note, click Add Sticky Note, enter the note text, then save the PDF.
-  9. To add visible page text, click Add Text Box, enter the text, then save the PDF.
-  10. To move a sticky note or text box, turn on Move Annotation mode, drag the annotation, then save the PDF.
-  11. To edit a sticky note or text box, turn on Edit Annotation mode, click the annotation, update the text, then save the PDF.
-  12. To delete a sticky note or text box, turn on Delete Annotation mode, click the annotation, confirm, then save the PDF.
+  3. Optionally choose an annotation color from the PDF toolbar color picker.
+  4. Click Highlight, Underline, or Strikeout in the PDF toolbar, or use the PDF menu.
+  5. The selected text receives a real PDFKit annotation.
+  6. The tab/window is marked as having unsaved PDF annotations.
+  7. Click the PDF Save button or use Command-S to embed the annotation in the PDF file.
+  8. To remove v1 text markup, select the marked text and use Remove Markup from Selection / the eraser toolbar button.
+  9. To add a sticky note, click Add Sticky Note, enter the note text, then save the PDF.
+  10. To add visible page text, click Add Text Box, enter the text, then save the PDF.
+  11. To move a sticky note or text box, turn on Move Annotation mode, drag the annotation, then save the PDF.
+  12. To edit a sticky note or text box, turn on Edit Annotation mode, click the annotation, update the text, then save the PDF.
+  13. To delete a sticky note or text box, turn on Delete Annotation mode, click the annotation, confirm, then save the PDF.
 - Supported annotation types:
   - highlight: `PDFAnnotationSubtype.highlight`
   - underline: `PDFAnnotationSubtype.underline`
   - strikeout: `PDFAnnotationSubtype.strikeOut`
 - Implementation details:
   - `PDFAnnotationKind` and `PDFAnnotationCommand` live in `DocumentModel.swift`.
-  - `PDFToolbar.postAnnotation(_:)` posts `.pdfApplyAnnotation` with the selected PDF URL and annotation kind.
+  - `AppModel.pdfAnnotationColor` stores the SwiftUI color selected in the toolbar. `AppModel.pdfAnnotationNSColor` bridges it to `NSColor` for PDFKit.
+  - `PDFToolbar.postAnnotation(_:)` posts `.pdfApplyAnnotation` with the selected PDF URL, annotation kind, and current annotation color.
+  - The PDF toolbar color picker affects newly-created annotations only. It does not recolor existing annotations in-place.
+  - `AppModel.resetPDFAnnotationColor()` resets the annotation color to yellow and is exposed from the toolbar reset button and PDF menu.
   - `PDFKitView.Coordinator.applyAnnotation(_:)` checks that `command.url == parent.documentURL` before modifying the PDF. This protects multi-window use.
   - Annotation bounds come from `PDFSelection.selectionsByLine()` and `bounds(for:)`, so multi-line selected text becomes one annotation per selected line/page.
+  - Text markup applies the selected color with alpha adjusted by type: highlight uses 55% opacity, underline/strikeout use 85%.
   - `PDFKitView.Coordinator.removeAnnotationsInSelection(_:)` removes only text-markup annotations whose bounds intersect the selected text bounds.
   - The remove command is intentionally scoped to `highlight`, `underline`, and `strikeOut` annotation types. It does not try to delete arbitrary notes/shapes yet.
   - Eraser limitation: it removes the whole overlapping annotation. If 10 words were highlighted as one annotation and the user selects 2 words inside it, the whole 10-word markup is removed. This is acceptable for v1; partial erasing would require creating smaller annotations or splitting annotation geometry.
   - `PDFKitView.Coordinator.addStickyNote(_:)` asks for note text with an `NSAlert` and creates a `.text` PDF annotation.
   - Sticky note placement: if text is selected, the note is placed near the selected text bounds; otherwise it is placed near the center of the current visible page area.
+  - Sticky notes use the selected annotation color with high opacity.
   - `PDFKitView.Coordinator.addTextBox(_:)` asks for text with an `NSAlert` and creates a `.freeText` PDF annotation.
   - Text box placement: if text is selected, the box is placed below the selected text; otherwise it is placed near the center of the current visible page area.
+  - Text boxes use the selected annotation color as a translucent background.
   - 2026-07-01 fix: sticky note/text box creation now clamps the annotation rectangle inside the PDF page bounds. Before this, adding a text box below selected text near the bottom of a page could create it off-page, making it look like the user needed to retry several times.
   - `MovableAnnotationPDFView` subclasses `PDFView` to support sticky-note and free-text-box dragging when `isNoteMoveModeEnabled` is true. Normal PDF mouse handling is left alone when the mode is off.
   - `AppModel.isPDFNoteMoveModeEnabled` stores the mode. It is toggled from the toolbar hand button or PDF > Move Annotation Mode, and disabled when switching away from PDF content. The internal name still says “Note” for historical reasons.
@@ -533,6 +540,7 @@ PDF annotation v1:
   - Text boxes can be added, moved, edited, and deleted, but there is no resize UI yet.
   - Sticky notes can be added, moved, edited, and deleted.
   - No shape annotations yet.
+  - Existing annotation recoloring is not implemented yet. Choose the color before creating the annotation.
   - Text markup is still erased through selected text overlap, not direct object-click deletion.
   - No undo/redo for annotations yet.
   - Normal Save still writes back to the current PDF file. Use Save Annotated Copy As before marking important source PDFs if you want to preserve the original untouched.
@@ -863,6 +871,7 @@ Implemented:
 - highlight selected text
 - underline selected text
 - strike through selected text
+- choose the color for newly-created annotations
 - remove highlight/underline/strikeout markup from selected text
 - add sticky note comments
 - add visible text box annotations
@@ -880,7 +889,7 @@ Not implemented yet:
 - text box resizing UI
 - richer sticky-note styling UI
 - rectangle/ellipse/line/arrow shapes
-- color picker
+- recolor existing annotations
 - resizing annotations
 - undo/redo
 - annotation summary/sidebar
@@ -962,7 +971,7 @@ Recommended order:
    - richer sticky-note styling polish
    - freehand ink
    - shapes
-   - color controls
+   - recolor existing annotations
    - undo/redo
 2. Improve Markdown preview rendering if Patrick relies heavily on richer tables/checklists.
 3. Add remaining Markdown formatting polish:

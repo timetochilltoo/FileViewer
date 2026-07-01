@@ -222,6 +222,7 @@ Implemented v1 on branch `feature/pdf-annotation`:
 - Highlight selected text.
 - Underline selected text.
 - Strike through selected text.
+- Choose the color used for newly-created annotations.
 - Remove highlight/underline/strikeout markup from selected text.
 - Add sticky note comments.
 - Add text boxes.
@@ -245,7 +246,7 @@ Recommended:
 - Filter annotations by type.
 - Export annotation summary.
 - Author name and timestamp for annotations.
-- Color picker and stroke width controls.
+- Recolor existing annotations and add stroke width controls.
 
 ## 6.5 PDF Page Operations
 

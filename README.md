@@ -46,6 +46,7 @@ Current MVP build includes:
   - highlight selected PDF text
   - underline selected PDF text
   - strike through selected PDF text
+  - choose the color used for newly-created PDF annotations
   - remove highlight/underline/strikeout markup from selected PDF text
   - add sticky note comments to the current PDF page
   - add visible text box annotations

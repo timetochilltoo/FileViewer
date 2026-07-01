@@ -161,6 +161,7 @@ enum PDFAnnotationKind: String, CaseIterable, Equatable {
 struct PDFAnnotationCommand {
     let url: URL
     let kind: PDFAnnotationKind
+    let color: NSColor
 }
 
 enum ViewerDocument: Equatable {
@@ -311,6 +312,7 @@ final class AppModel: ObservableObject {
     @Published var isPDFNoteMoveModeEnabled = false
     @Published var isPDFAnnotationDeleteModeEnabled = false
     @Published var isPDFAnnotationEditModeEnabled = false
+    @Published var pdfAnnotationColor = Color.yellow
 
     private let recentsKey = "FileViewer.recents"
     private let markdownModeKey = "FileViewer.markdownMode"
@@ -318,6 +320,15 @@ final class AppModel: ObservableObject {
     private static let pdfStateKey = "FileViewer.pdf.lastStates"
     private static let markdownStateKey = "FileViewer.markdown.lastStates"
     private weak var lastActiveMarkdownTextView: NSTextView?
+
+    var pdfAnnotationNSColor: NSColor {
+        NSColor(pdfAnnotationColor)
+    }
+
+    func resetPDFAnnotationColor() {
+        pdfAnnotationColor = .yellow
+        statusMessage = "PDF annotation color reset to yellow."
+    }
     private weak var lastActiveMarkdownPreviewTextView: NSTextView?
     private var lastActiveMarkdownSelectionKind: MarkdownSelectionKind = .source
     private var isSavingSessionSnapshot = false

@@ -41,6 +41,10 @@ struct PDFWorkspace: View {
             isAnnotationEditModeEnabled: Binding(
                 get: { model.isPDFAnnotationEditModeEnabled },
                 set: { model.isPDFAnnotationEditModeEnabled = $0 }
+            ),
+            annotationColor: Binding(
+                get: { model.pdfAnnotationNSColor },
+                set: { model.pdfAnnotationColor = Color(nsColor: $0) }
             )
         )
         .background(Color(nsColor: .underPageBackgroundColor))
@@ -59,6 +63,7 @@ struct PDFKitView: NSViewRepresentable {
     @Binding var isNoteMoveModeEnabled: Bool
     @Binding var isAnnotationDeleteModeEnabled: Bool
     @Binding var isAnnotationEditModeEnabled: Bool
+    @Binding var annotationColor: NSColor
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -77,9 +82,9 @@ struct PDFKitView: NSViewRepresentable {
         view.onAnnotationDeleted = { [weak coordinator = context.coordinator] in
             coordinator?.markAnnotationChanged()
         }
-        view.onAnnotationEdited = { [weak coordinator = context.coordinator] in
-            coordinator?.markAnnotationChanged()
-        }
+            view.onAnnotationEdited = { [weak coordinator = context.coordinator] in
+                coordinator?.markAnnotationChanged()
+            }
         context.coordinator.pdfView = view
         context.coordinator.installObservers()
         DispatchQueue.main.async {
@@ -103,6 +108,7 @@ struct PDFKitView: NSViewRepresentable {
             movableView.isNoteMoveModeEnabled = isNoteMoveModeEnabled
             movableView.isAnnotationDeleteModeEnabled = isAnnotationDeleteModeEnabled
             movableView.isAnnotationEditModeEnabled = isAnnotationEditModeEnabled
+            movableView.annotationColor = annotationColor
         }
         context.coordinator.applyRestoredPageAndScale()
         context.coordinator.applySearch(searchText)
@@ -208,7 +214,7 @@ struct PDFKitView: NSViewRepresentable {
             guard let command = notification.object as? PDFAnnotationCommand,
                   command.url == parent.documentURL else { return }
             guard let selection = pdfView?.currentSelection,
-                  addAnnotation(command.kind, to: selection) else {
+                  addAnnotation(command.kind, color: command.color, to: selection) else {
                 NSSound.beep()
                 return
             }
@@ -340,7 +346,7 @@ struct PDFKitView: NSViewRepresentable {
             parent.scale = view.scaleFactor
         }
 
-        @MainActor private func addAnnotation(_ kind: PDFAnnotationKind, to selection: PDFSelection) -> Bool {
+        @MainActor private func addAnnotation(_ kind: PDFAnnotationKind, color: NSColor, to selection: PDFSelection) -> Bool {
             let lineSelections = selection.selectionsByLine()
             let selections = lineSelections.isEmpty ? [selection] : lineSelections
             var addedAnnotation = false
@@ -354,7 +360,7 @@ struct PDFKitView: NSViewRepresentable {
                         forType: kind.pdfAnnotationSubtype,
                         withProperties: nil
                     )
-                    annotation.color = kind.annotationColor
+                    annotation.color = color.forPDFAnnotation(kind: kind)
                     page.addAnnotation(annotation)
                     addedAnnotation = true
                 }
@@ -377,7 +383,7 @@ struct PDFKitView: NSViewRepresentable {
                 withProperties: nil
             )
             annotation.contents = text
-            annotation.color = NSColor.systemYellow
+            annotation.color = parent.annotationColor.forPDFStickyNote()
             page.addAnnotation(annotation)
             return true
         }
@@ -398,7 +404,7 @@ struct PDFKitView: NSViewRepresentable {
             annotation.contents = text
             annotation.font = .systemFont(ofSize: 13)
             annotation.fontColor = .labelColor
-            annotation.color = NSColor.systemYellow.withAlphaComponent(0.25)
+            annotation.color = parent.annotationColor.forPDFTextBox()
             let border = PDFBorder()
             border.lineWidth = 1
             annotation.border = border
@@ -524,6 +530,7 @@ private final class MovableAnnotationPDFView: PDFView {
     var isNoteMoveModeEnabled = false
     var isAnnotationDeleteModeEnabled = false
     var isAnnotationEditModeEnabled = false
+    var annotationColor = NSColor.systemYellow
     var onAnnotationMoved: (() -> Void)?
     var onAnnotationDeleted: (() -> Void)?
     var onAnnotationEdited: (() -> Void)?
@@ -685,23 +692,31 @@ private extension PDFAnnotation {
 }
 
 
+private extension NSColor {
+    func forPDFAnnotation(kind: PDFAnnotationKind) -> NSColor {
+        switch kind {
+        case .highlight:
+            withAlphaComponent(0.55)
+        case .underline, .strikeout:
+            withAlphaComponent(0.85)
+        }
+    }
+
+    func forPDFStickyNote() -> NSColor {
+        withAlphaComponent(0.95)
+    }
+
+    func forPDFTextBox() -> NSColor {
+        withAlphaComponent(0.25)
+    }
+}
+
 private extension PDFAnnotationKind {
     var pdfAnnotationSubtype: PDFAnnotationSubtype {
         switch self {
         case .highlight: .highlight
         case .underline: .underline
         case .strikeout: .strikeOut
-        }
-    }
-
-    var annotationColor: NSColor {
-        switch self {
-        case .highlight:
-            NSColor.systemYellow.withAlphaComponent(0.55)
-        case .underline:
-            NSColor.systemBlue.withAlphaComponent(0.85)
-        case .strikeout:
-            NSColor.systemRed.withAlphaComponent(0.85)
         }
     }
 }
