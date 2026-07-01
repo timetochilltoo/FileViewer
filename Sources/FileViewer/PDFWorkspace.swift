@@ -193,7 +193,9 @@ struct PDFKitView: NSViewRepresentable {
                 NSSound.beep()
                 return
             }
+            let selectedPages = selection.pages
             pdfView?.setCurrentSelection(nil, animate: false)
+            selectedPages.forEach { $0.displaysAnnotations = true }
             pdfView?.needsDisplay = true
             NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
         }
@@ -310,6 +312,16 @@ struct PDFKitView: NSViewRepresentable {
                 }
             }
 
+            if !removedAnnotation {
+                for (page, _) in boundsByPage {
+                    let markupAnnotations = page.annotations.filter(\.isFileViewerTextMarkup)
+                    guard markupAnnotations.count == 1,
+                          let annotation = markupAnnotations.first else { continue }
+                    page.removeAnnotation(annotation)
+                    removedAnnotation = true
+                }
+            }
+
             return removedAnnotation
         }
 
@@ -341,14 +353,9 @@ struct PDFKitView: NSViewRepresentable {
 
 private extension PDFAnnotation {
     var isFileViewerTextMarkup: Bool {
-        switch type {
-        case PDFAnnotationSubtype.highlight.rawValue,
-             PDFAnnotationSubtype.underline.rawValue,
-             PDFAnnotationSubtype.strikeOut.rawValue:
-            true
-        default:
-            false
-        }
+        guard let type else { return false }
+        let normalizedType = type.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
+        return ["highlight", "underline", "strikeout"].contains(normalizedType)
     }
 }
 
