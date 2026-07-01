@@ -358,8 +358,12 @@ struct PDFKitView: NSViewRepresentable {
             guard let view = pdfView,
                   let page = view.currentSelection?.pages.first ?? view.currentPage else { return false }
             let point = stickyNotePoint(on: page)
+            let bounds = clamped(
+                CGRect(x: point.x, y: point.y, width: 28, height: 28),
+                to: page.bounds(for: view.displayBox)
+            )
             let annotation = PDFAnnotation(
-                bounds: CGRect(x: point.x, y: point.y, width: 28, height: 28),
+                bounds: bounds,
                 forType: .text,
                 withProperties: nil
             )
@@ -373,8 +377,12 @@ struct PDFKitView: NSViewRepresentable {
             guard let view = pdfView,
                   let page = view.currentSelection?.pages.first ?? view.currentPage else { return false }
             let point = textBoxPoint(on: page)
+            let bounds = clamped(
+                CGRect(x: point.x, y: point.y, width: 220, height: 64),
+                to: page.bounds(for: view.displayBox)
+            )
             let annotation = PDFAnnotation(
-                bounds: CGRect(x: point.x, y: point.y, width: 220, height: 64),
+                bounds: bounds,
                 forType: .freeText,
                 withProperties: nil
             )
@@ -433,10 +441,20 @@ struct PDFKitView: NSViewRepresentable {
             let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
             textField.placeholderString = "Text"
             alert.accessoryView = textField
+            alert.window.initialFirstResponder = textField
 
             guard alert.runModal() == .alertFirstButtonReturn else { return nil }
             let text = textField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             return text.isEmpty ? nil : text
+        }
+
+        @MainActor private func clamped(_ bounds: CGRect, to pageBounds: CGRect) -> CGRect {
+            let margin: CGFloat = 8
+            let safePageBounds = pageBounds.insetBy(dx: margin, dy: margin)
+            var adjusted = bounds
+            adjusted.origin.x = min(max(adjusted.origin.x, safePageBounds.minX), safePageBounds.maxX - adjusted.width)
+            adjusted.origin.y = min(max(adjusted.origin.y, safePageBounds.minY), safePageBounds.maxY - adjusted.height)
+            return adjusted
         }
 
         @MainActor private func removeAnnotations(overlapping selection: PDFSelection) -> Bool {

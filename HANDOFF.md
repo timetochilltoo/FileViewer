@@ -515,6 +515,7 @@ PDF annotation v1:
   - Sticky note placement: if text is selected, the note is placed near the selected text bounds; otherwise it is placed near the center of the current visible page area.
   - `PDFKitView.Coordinator.addTextBox(_:)` asks for text with an `NSAlert` and creates a `.freeText` PDF annotation.
   - Text box placement: if text is selected, the box is placed below the selected text; otherwise it is placed near the center of the current visible page area.
+  - 2026-07-01 fix: sticky note/text box creation now clamps the annotation rectangle inside the PDF page bounds. Before this, adding a text box below selected text near the bottom of a page could create it off-page, making it look like the user needed to retry several times.
   - `MovableAnnotationPDFView` subclasses `PDFView` to support sticky-note and free-text-box dragging when `isNoteMoveModeEnabled` is true. Normal PDF mouse handling is left alone when the mode is off.
   - `AppModel.isPDFNoteMoveModeEnabled` stores the mode. It is toggled from the toolbar hand button or PDF > Move Annotation Mode, and disabled when switching away from PDF content. The internal name still says “Note” for historical reasons.
   - `AppModel.isPDFAnnotationDeleteModeEnabled` stores Delete Annotation mode. Turning it on turns off Move Annotation mode.
