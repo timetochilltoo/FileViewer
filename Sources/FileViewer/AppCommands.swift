@@ -241,6 +241,12 @@ struct FileViewerCommands: Commands {
             .keyboardShortcut("m", modifiers: [.command, .shift])
             .disabled(activeModel?.isPDFDocument != true)
 
+            Button("Edit Annotation Mode") {
+                activeModel?.togglePDFAnnotationEditMode()
+            }
+            .keyboardShortcut("e", modifiers: [.command, .shift])
+            .disabled(activeModel?.isPDFDocument != true)
+
             Button("Delete Annotation Mode") {
                 activeModel?.togglePDFAnnotationDeleteMode()
             }

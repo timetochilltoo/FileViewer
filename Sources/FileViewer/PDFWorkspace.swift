@@ -37,6 +37,10 @@ struct PDFWorkspace: View {
             isAnnotationDeleteModeEnabled: Binding(
                 get: { model.isPDFAnnotationDeleteModeEnabled },
                 set: { model.isPDFAnnotationDeleteModeEnabled = $0 }
+            ),
+            isAnnotationEditModeEnabled: Binding(
+                get: { model.isPDFAnnotationEditModeEnabled },
+                set: { model.isPDFAnnotationEditModeEnabled = $0 }
             )
         )
         .background(Color(nsColor: .underPageBackgroundColor))
@@ -54,6 +58,7 @@ struct PDFKitView: NSViewRepresentable {
     @Binding var searchMatchCount: Int
     @Binding var isNoteMoveModeEnabled: Bool
     @Binding var isAnnotationDeleteModeEnabled: Bool
+    @Binding var isAnnotationEditModeEnabled: Bool
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -70,6 +75,9 @@ struct PDFKitView: NSViewRepresentable {
             coordinator?.markAnnotationChanged()
         }
         view.onAnnotationDeleted = { [weak coordinator = context.coordinator] in
+            coordinator?.markAnnotationChanged()
+        }
+        view.onAnnotationEdited = { [weak coordinator = context.coordinator] in
             coordinator?.markAnnotationChanged()
         }
         context.coordinator.pdfView = view
@@ -94,6 +102,7 @@ struct PDFKitView: NSViewRepresentable {
         if let movableView = view as? MovableAnnotationPDFView {
             movableView.isNoteMoveModeEnabled = isNoteMoveModeEnabled
             movableView.isAnnotationDeleteModeEnabled = isAnnotationDeleteModeEnabled
+            movableView.isAnnotationEditModeEnabled = isAnnotationEditModeEnabled
         }
         context.coordinator.applyRestoredPageAndScale()
         context.coordinator.applySearch(searchText)
@@ -514,13 +523,27 @@ struct PDFKitView: NSViewRepresentable {
 private final class MovableAnnotationPDFView: PDFView {
     var isNoteMoveModeEnabled = false
     var isAnnotationDeleteModeEnabled = false
+    var isAnnotationEditModeEnabled = false
     var onAnnotationMoved: (() -> Void)?
     var onAnnotationDeleted: (() -> Void)?
+    var onAnnotationEdited: (() -> Void)?
     private weak var draggedAnnotation: PDFAnnotation?
     private weak var draggedPage: PDFPage?
     private var dragOffset = CGPoint.zero
 
     override func mouseDown(with event: NSEvent) {
+        if isAnnotationEditModeEnabled {
+            guard let hit = movableAnnotationHit(for: event) else {
+                NSSound.beep()
+                return
+            }
+            guard let newText = promptForAnnotationText(annotation: hit.annotation) else { return }
+            hit.annotation.contents = newText
+            needsDisplay = true
+            onAnnotationEdited?()
+            return
+        }
+
         if isAnnotationDeleteModeEnabled {
             guard let hit = movableAnnotationHit(for: event) else {
                 NSSound.beep()
@@ -605,6 +628,25 @@ private final class MovableAnnotationPDFView: PDFView {
         alert.addButton(withTitle: "Delete")
         alert.addButton(withTitle: "Cancel")
         return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    private func promptForAnnotationText(annotation: PDFAnnotation) -> String? {
+        let alert = NSAlert()
+        alert.messageText = annotation.isStickyNote ? "Edit Sticky Note" : "Edit Text Box"
+        alert.informativeText = "Update the annotation text."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Update")
+        alert.addButton(withTitle: "Cancel")
+
+        let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+        textField.stringValue = annotation.contents ?? ""
+        textField.placeholderString = "Text"
+        alert.accessoryView = textField
+        alert.window.initialFirstResponder = textField
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+        let text = textField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text
     }
 }
 

@@ -226,6 +226,7 @@ Implemented v1 on branch `feature/pdf-annotation`:
 - Add sticky note comments.
 - Add text boxes.
 - Move sticky note icons and text boxes with a dedicated Move Annotation mode.
+- Edit sticky note and text box text with a dedicated Edit Annotation mode.
 - Delete sticky note and text box annotations with a dedicated Delete Annotation mode.
 - Save embedded annotations back to the PDF file.
 - Save an annotated PDF copy without overwriting the original.
@@ -235,7 +236,7 @@ Still required after v1:
 
 - Draw freehand ink.
 - Add rectangle, ellipse, line, and arrow shapes.
-- Select, move, and edit annotations.
+- Resize annotations.
 - Undo and redo annotation actions.
 
 Recommended:

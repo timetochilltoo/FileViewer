@@ -310,6 +310,7 @@ final class AppModel: ObservableObject {
     @Published var recents: [RecentDocument] = []
     @Published var isPDFNoteMoveModeEnabled = false
     @Published var isPDFAnnotationDeleteModeEnabled = false
+    @Published var isPDFAnnotationEditModeEnabled = false
 
     private let recentsKey = "FileViewer.recents"
     private let markdownModeKey = "FileViewer.markdownMode"
@@ -850,6 +851,7 @@ final class AppModel: ObservableObject {
         isPDFNoteMoveModeEnabled.toggle()
         if isPDFNoteMoveModeEnabled {
             isPDFAnnotationDeleteModeEnabled = false
+            isPDFAnnotationEditModeEnabled = false
         }
         statusMessage = isPDFNoteMoveModeEnabled
             ? "Move Annotation mode on. Drag a sticky note or text box to reposition it."
@@ -861,10 +863,23 @@ final class AppModel: ObservableObject {
         isPDFAnnotationDeleteModeEnabled.toggle()
         if isPDFAnnotationDeleteModeEnabled {
             isPDFNoteMoveModeEnabled = false
+            isPDFAnnotationEditModeEnabled = false
         }
         statusMessage = isPDFAnnotationDeleteModeEnabled
             ? "Delete Annotation mode on. Click a sticky note or text box to remove it."
             : "Delete Annotation mode off."
+    }
+
+    func togglePDFAnnotationEditMode() {
+        guard isPDFDocument else { return }
+        isPDFAnnotationEditModeEnabled.toggle()
+        if isPDFAnnotationEditModeEnabled {
+            isPDFNoteMoveModeEnabled = false
+            isPDFAnnotationDeleteModeEnabled = false
+        }
+        statusMessage = isPDFAnnotationEditModeEnabled
+            ? "Edit Annotation mode on. Click a sticky note or text box to edit it."
+            : "Edit Annotation mode off."
     }
 
     private func savePDFTab(at index: Int) -> Bool {
@@ -1765,12 +1780,14 @@ final class AppModel: ObservableObject {
         case .markdown:
             isPDFNoteMoveModeEnabled = false
             isPDFAnnotationDeleteModeEnabled = false
+            isPDFAnnotationEditModeEnabled = false
             sidebarMode = .contents
         case .pdf:
             sidebarMode = .pages
         case nil:
             isPDFNoteMoveModeEnabled = false
             isPDFAnnotationDeleteModeEnabled = false
+            isPDFAnnotationEditModeEnabled = false
             sidebarMode = .recent
         }
     }
