@@ -372,6 +372,14 @@ struct PDFToolbar: View {
             .help("Strike Through Selected PDF Text")
 
             Button {
+                guard let url = model.selectedPDFURL else { return }
+                NotificationCenter.default.post(name: .pdfRemoveAnnotationsInSelection, object: url)
+            } label: {
+                Image(systemName: "eraser")
+            }
+            .help("Remove Markup from Selected PDF Text")
+
+            Button {
                 model.savePDFAnnotations()
             } label: {
                 Image(systemName: "square.and.arrow.down")
@@ -480,6 +488,7 @@ extension Notification.Name {
     static let pdfSearch = Notification.Name("FileViewer.pdfSearch")
     static let pdfSyncCurrentState = Notification.Name("FileViewer.pdfSyncCurrentState")
     static let pdfApplyAnnotation = Notification.Name("FileViewer.pdfApplyAnnotation")
+    static let pdfRemoveAnnotationsInSelection = Notification.Name("FileViewer.pdfRemoveAnnotationsInSelection")
     static let pdfAnnotationDidChange = Notification.Name("FileViewer.pdfAnnotationDidChange")
     static let markdownSyncCurrentState = Notification.Name("FileViewer.markdownSyncCurrentState")
     static let toggleSidebar = Notification.Name("FileViewer.toggleSidebar")

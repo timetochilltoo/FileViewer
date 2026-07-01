@@ -222,6 +222,7 @@ Implemented v1 on branch `feature/pdf-annotation`:
 - Highlight selected text.
 - Underline selected text.
 - Strike through selected text.
+- Remove highlight/underline/strikeout markup from selected text.
 - Save embedded annotations back to the PDF file.
 - Save an annotated PDF copy without overwriting the original.
 - Warn before closing a PDF tab/window with unsaved annotations.
@@ -232,7 +233,7 @@ Still required after v1:
 - Add sticky note comments.
 - Draw freehand ink.
 - Add rectangle, ellipse, line, and arrow shapes.
-- Select, move, edit, and delete annotations.
+- Select, move, and edit annotations.
 - Undo and redo annotation actions.
 
 Recommended:

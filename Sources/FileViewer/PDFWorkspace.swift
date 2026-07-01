@@ -103,6 +103,7 @@ struct PDFKitView: NSViewRepresentable {
             NotificationCenter.default.addObserver(self, selector: #selector(fitPage), name: .pdfFitPage, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(syncCurrentState), name: .pdfSyncCurrentState, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(applyAnnotation(_:)), name: .pdfApplyAnnotation, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(removeAnnotationsInSelection(_:)), name: .pdfRemoveAnnotationsInSelection, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(pageChanged), name: Notification.Name.PDFViewPageChanged, object: pdfView)
         }
 
@@ -177,6 +178,18 @@ struct PDFKitView: NSViewRepresentable {
                   command.url == parent.documentURL else { return }
             guard let selection = pdfView?.currentSelection,
                   addAnnotation(command.kind, to: selection) else {
+                NSSound.beep()
+                return
+            }
+            pdfView?.setCurrentSelection(nil, animate: false)
+            NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
+        }
+
+        @MainActor @objc private func removeAnnotationsInSelection(_ notification: Notification) {
+            guard let url = notification.object as? URL,
+                  url == parent.documentURL else { return }
+            guard let selection = pdfView?.currentSelection,
+                  removeAnnotations(overlapping: selection) else {
                 NSSound.beep()
                 return
             }
@@ -281,8 +294,42 @@ struct PDFKitView: NSViewRepresentable {
             return addedAnnotation
         }
 
+        @MainActor private func removeAnnotations(overlapping selection: PDFSelection) -> Bool {
+            let lineSelections = selection.selectionsByLine()
+            let selections = lineSelections.isEmpty ? [selection] : lineSelections
+            var removedAnnotation = false
+
+            for lineSelection in selections {
+                for page in lineSelection.pages {
+                    let selectedBounds = lineSelection.bounds(for: page).insetBy(dx: -2, dy: -2)
+                    guard selectedBounds.width > 0, selectedBounds.height > 0 else { continue }
+                    for annotation in page.annotations where annotation.isFileViewerTextMarkup {
+                        if annotation.bounds.intersects(selectedBounds) {
+                            page.removeAnnotation(annotation)
+                            removedAnnotation = true
+                        }
+                    }
+                }
+            }
+
+            return removedAnnotation
+        }
+
         deinit {
             NotificationCenter.default.removeObserver(self)
+        }
+    }
+}
+
+private extension PDFAnnotation {
+    var isFileViewerTextMarkup: Bool {
+        switch type {
+        case PDFAnnotationSubtype.highlight.rawValue,
+             PDFAnnotationSubtype.underline.rawValue,
+             PDFAnnotationSubtype.strikeOut.rawValue:
+            true
+        default:
+            false
         }
     }
 }

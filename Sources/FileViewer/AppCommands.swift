@@ -211,6 +211,15 @@ struct FileViewerCommands: Commands {
 
             Divider()
 
+            Button("Remove Markup from Selection") {
+                guard let url = model?.selectedPDFURL else { return }
+                NotificationCenter.default.post(name: .pdfRemoveAnnotationsInSelection, object: url)
+            }
+            .keyboardShortcut(.delete, modifiers: [.command, .shift])
+            .disabled(model?.isPDFDocument != true)
+
+            Divider()
+
             Button("Save PDF Annotations") {
                 model?.savePDFAnnotations()
             }

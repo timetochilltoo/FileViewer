@@ -494,6 +494,7 @@ PDF annotation v1:
   4. The selected text receives a real PDFKit annotation.
   5. The tab/window is marked as having unsaved PDF annotations.
   6. Click the PDF Save button or use Command-S to embed the annotation in the PDF file.
+  7. To remove v1 text markup, select the marked text and use Remove Markup from Selection / the eraser toolbar button.
 - Supported annotation types:
   - highlight: `PDFAnnotationSubtype.highlight`
   - underline: `PDFAnnotationSubtype.underline`
@@ -503,6 +504,8 @@ PDF annotation v1:
   - `PDFToolbar.postAnnotation(_:)` posts `.pdfApplyAnnotation` with the selected PDF URL and annotation kind.
   - `PDFKitView.Coordinator.applyAnnotation(_:)` checks that `command.url == parent.documentURL` before modifying the PDF. This protects multi-window use.
   - Annotation bounds come from `PDFSelection.selectionsByLine()` and `bounds(for:)`, so multi-line selected text becomes one annotation per selected line/page.
+  - `PDFKitView.Coordinator.removeAnnotationsInSelection(_:)` removes only text-markup annotations whose bounds intersect the selected text bounds.
+  - The remove command is intentionally scoped to `highlight`, `underline`, and `strikeOut` annotation types. It does not try to delete arbitrary notes/shapes yet.
   - After a successful annotation, `PDFKitView` posts `.pdfAnnotationDidChange` with the PDF URL.
   - `ContentView` receives `.pdfAnnotationDidChange` and calls `model.markPDFAnnotationsChanged(for:)`.
   - `DocumentTab.pdfHasUnsavedAnnotations` drives the orange unsaved status, enabled PDF Save button, Command-S behavior, and close warning.
@@ -512,7 +515,7 @@ PDF annotation v1:
   - No freehand ink yet.
   - No text boxes or sticky notes yet.
   - No shape annotations yet.
-  - No annotation selection/move/delete UI yet.
+  - No direct annotation selection/move/delete UI yet. V1 can remove text markup by selecting the marked text area.
   - No undo/redo for annotations yet.
   - Normal Save still writes back to the current PDF file. Use Save Annotated Copy As before marking important source PDFs if you want to preserve the original untouched.
   - The current implementation depends on PDF text selection. Scanned-image PDFs without OCR text cannot be highlighted this way.
@@ -840,6 +843,7 @@ Implemented:
 - highlight selected text
 - underline selected text
 - strike through selected text
+- remove highlight/underline/strikeout markup from selected text
 - mark PDF tab/window as dirty after annotation
 - save annotations back into the PDF file
 - save an annotated copy through Save Annotated Copy As
@@ -852,7 +856,7 @@ Not implemented yet:
 - sticky note/comment annotation
 - rectangle/ellipse/line/arrow shapes
 - color picker
-- deleting existing annotations
+- direct object-style annotation deletion
 - moving/resizing annotations
 - undo/redo
 - annotation summary/sidebar
@@ -930,7 +934,7 @@ Patrick is newer to Markdown and wants the app to teach/assist him. The Help gui
 Recommended order:
 
 1. Continue PDF annotation:
-   - delete selected annotations
+   - direct annotation selection/delete
    - text box / sticky note
    - freehand ink
    - shapes

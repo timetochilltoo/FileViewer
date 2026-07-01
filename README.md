@@ -46,6 +46,7 @@ Current MVP build includes:
   - highlight selected PDF text
   - underline selected PDF text
   - strike through selected PDF text
+  - remove highlight/underline/strikeout markup from selected PDF text
   - save embedded PDF annotations back to the PDF file
   - save an annotated PDF copy with Save Annotated Copy As / Command-Shift-S
   - warn before closing a PDF tab/window with unsaved annotations
