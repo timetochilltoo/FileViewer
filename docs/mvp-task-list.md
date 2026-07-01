@@ -344,8 +344,8 @@ Acceptance criteria:
 Next implementation work:
 
 - Continue PDF annotation beyond v1:
-  - improve text box editing/resizing/deleting
-  - improve sticky note editing/deleting
+  - improve text box editing/resizing
+  - improve sticky note editing
   - freehand ink
   - shapes
   - direct annotation selection/move/undo

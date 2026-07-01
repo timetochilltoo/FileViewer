@@ -404,6 +404,14 @@ struct PDFToolbar: View {
             .help(model.isPDFNoteMoveModeEnabled ? "Move Annotation Mode On" : "Move Sticky Note or Text Box")
 
             Button {
+                model.togglePDFAnnotationDeleteMode()
+            } label: {
+                Image(systemName: "trash")
+                    .foregroundStyle(model.isPDFAnnotationDeleteModeEnabled ? Color.red : Color.primary)
+            }
+            .help(model.isPDFAnnotationDeleteModeEnabled ? "Delete Annotation Mode On" : "Delete Sticky Note or Text Box")
+
+            Button {
                 model.savePDFAnnotations()
             } label: {
                 Image(systemName: "square.and.arrow.down")

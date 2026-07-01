@@ -33,6 +33,10 @@ struct PDFWorkspace: View {
             isNoteMoveModeEnabled: Binding(
                 get: { model.isPDFNoteMoveModeEnabled },
                 set: { model.isPDFNoteMoveModeEnabled = $0 }
+            ),
+            isAnnotationDeleteModeEnabled: Binding(
+                get: { model.isPDFAnnotationDeleteModeEnabled },
+                set: { model.isPDFAnnotationDeleteModeEnabled = $0 }
             )
         )
         .background(Color(nsColor: .underPageBackgroundColor))
@@ -49,6 +53,7 @@ struct PDFKitView: NSViewRepresentable {
     @Binding var searchMatchIndex: Int
     @Binding var searchMatchCount: Int
     @Binding var isNoteMoveModeEnabled: Bool
+    @Binding var isAnnotationDeleteModeEnabled: Bool
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -62,6 +67,9 @@ struct PDFKitView: NSViewRepresentable {
         view.displayDirection = .vertical
         view.backgroundColor = .underPageBackgroundColor
         view.onAnnotationMoved = { [weak coordinator = context.coordinator] in
+            coordinator?.markAnnotationChanged()
+        }
+        view.onAnnotationDeleted = { [weak coordinator = context.coordinator] in
             coordinator?.markAnnotationChanged()
         }
         context.coordinator.pdfView = view
@@ -85,6 +93,7 @@ struct PDFKitView: NSViewRepresentable {
         context.coordinator.parent = self
         if let movableView = view as? MovableAnnotationPDFView {
             movableView.isNoteMoveModeEnabled = isNoteMoveModeEnabled
+            movableView.isAnnotationDeleteModeEnabled = isAnnotationDeleteModeEnabled
         }
         context.coordinator.applyRestoredPageAndScale()
         context.coordinator.applySearch(searchText)
@@ -486,12 +495,26 @@ struct PDFKitView: NSViewRepresentable {
 
 private final class MovableAnnotationPDFView: PDFView {
     var isNoteMoveModeEnabled = false
+    var isAnnotationDeleteModeEnabled = false
     var onAnnotationMoved: (() -> Void)?
+    var onAnnotationDeleted: (() -> Void)?
     private weak var draggedAnnotation: PDFAnnotation?
     private weak var draggedPage: PDFPage?
     private var dragOffset = CGPoint.zero
 
     override func mouseDown(with event: NSEvent) {
+        if isAnnotationDeleteModeEnabled {
+            guard let hit = movableAnnotationHit(for: event) else {
+                NSSound.beep()
+                return
+            }
+            guard confirmDelete(annotation: hit.annotation) else { return }
+            hit.page.removeAnnotation(hit.annotation)
+            needsDisplay = true
+            onAnnotationDeleted?()
+            return
+        }
+
         guard isNoteMoveModeEnabled,
               let hit = movableAnnotationHit(for: event) else {
             super.mouseDown(with: event)
@@ -555,6 +578,16 @@ private final class MovableAnnotationPDFView: PDFView {
         adjusted.origin.y = min(max(adjusted.origin.y, pageBounds.minY), pageBounds.maxY - adjusted.height)
         return adjusted
     }
+
+    private func confirmDelete(annotation: PDFAnnotation) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "Delete PDF Annotation?"
+        alert.informativeText = annotation.deleteConfirmationText
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
+    }
 }
 
 private extension PDFAnnotation {
@@ -578,6 +611,16 @@ private extension PDFAnnotation {
 
     var isMovableFileViewerAnnotation: Bool {
         isStickyNote || isFreeTextBox
+    }
+
+    var deleteConfirmationText: String {
+        if isStickyNote {
+            return "This will remove the sticky note from the PDF."
+        }
+        if isFreeTextBox {
+            return "This will remove the text box from the PDF."
+        }
+        return "This will remove the annotation from the PDF."
     }
 }
 

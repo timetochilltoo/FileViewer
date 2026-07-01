@@ -50,6 +50,7 @@ Current MVP build includes:
   - add sticky note comments to the current PDF page
   - add visible text box annotations
   - move sticky note icons and text boxes with Move Annotation mode
+  - delete sticky notes and text boxes with Delete Annotation mode
   - save embedded PDF annotations back to the PDF file
   - save an annotated PDF copy with Save Annotated Copy As / Command-Shift-S
   - warn before closing a PDF tab/window with unsaved annotations
