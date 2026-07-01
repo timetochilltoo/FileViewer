@@ -808,7 +808,7 @@ final class AppModel: ObservableObject {
         }) else { return }
         objectWillChange.send()
         tabs[index].pdfHasUnsavedAnnotations = true
-        statusMessage = "PDF annotation added. Save to keep it."
+        statusMessage = "PDF annotations changed. Save to keep them."
     }
 
     func savePDFAnnotations() {

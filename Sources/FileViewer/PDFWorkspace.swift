@@ -194,6 +194,7 @@ struct PDFKitView: NSViewRepresentable {
                 return
             }
             pdfView?.setCurrentSelection(nil, animate: false)
+            pdfView?.needsDisplay = true
             NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
         }
 
@@ -295,24 +296,41 @@ struct PDFKitView: NSViewRepresentable {
         }
 
         @MainActor private func removeAnnotations(overlapping selection: PDFSelection) -> Bool {
-            let lineSelections = selection.selectionsByLine()
-            let selections = lineSelections.isEmpty ? [selection] : lineSelections
+            let boundsByPage = selectedBoundsByPage(for: selection)
             var removedAnnotation = false
 
-            for lineSelection in selections {
-                for page in lineSelection.pages {
-                    let selectedBounds = lineSelection.bounds(for: page).insetBy(dx: -2, dy: -2)
-                    guard selectedBounds.width > 0, selectedBounds.height > 0 else { continue }
-                    for annotation in page.annotations where annotation.isFileViewerTextMarkup {
-                        if annotation.bounds.intersects(selectedBounds) {
-                            page.removeAnnotation(annotation)
-                            removedAnnotation = true
-                        }
+            for (page, selectedBounds) in boundsByPage {
+                let expandedSelection = selectedBounds.insetBy(dx: -8, dy: -8)
+                for annotation in page.annotations where annotation.isFileViewerTextMarkup {
+                    let expandedAnnotation = annotation.bounds.insetBy(dx: -8, dy: -8)
+                    if expandedAnnotation.intersects(expandedSelection) {
+                        page.removeAnnotation(annotation)
+                        removedAnnotation = true
                     }
                 }
             }
 
             return removedAnnotation
+        }
+
+        @MainActor private func selectedBoundsByPage(for selection: PDFSelection) -> [(PDFPage, CGRect)] {
+            var boundsByPage: [(PDFPage, CGRect)] = []
+            let lineSelections = selection.selectionsByLine()
+            let selections = lineSelections.isEmpty ? [selection] : [selection] + lineSelections
+
+            for partialSelection in selections {
+                for page in partialSelection.pages {
+                    let bounds = partialSelection.bounds(for: page)
+                    guard bounds.width > 0, bounds.height > 0 else { continue }
+                    if let index = boundsByPage.firstIndex(where: { $0.0 === page }) {
+                        boundsByPage[index].1 = boundsByPage[index].1.union(bounds)
+                    } else {
+                        boundsByPage.append((page, bounds))
+                    }
+                }
+            }
+
+            return boundsByPage
         }
 
         deinit {
