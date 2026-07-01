@@ -39,10 +39,14 @@ struct FileViewerCommands: Commands {
             .disabled(model?.canSaveMarkdown != true && model?.canSavePDF != true)
 
             Button("Save As...") {
-                model?.saveMarkdownAs()
+                if model?.isPDFDocument == true {
+                    model?.savePDFAnnotatedCopyAs()
+                } else {
+                    model?.saveMarkdownAs()
+                }
             }
             .keyboardShortcut("s", modifiers: [.command, .shift])
-            .disabled(model?.isMarkdownDocument != true)
+            .disabled(model?.isMarkdownDocument != true && model?.isPDFDocument != true)
         }
 
         CommandGroup(replacing: .printItem) {
@@ -211,6 +215,11 @@ struct FileViewerCommands: Commands {
                 model?.savePDFAnnotations()
             }
             .disabled(model?.canSavePDF != true)
+
+            Button("Save Annotated Copy As...") {
+                model?.savePDFAnnotatedCopyAs()
+            }
+            .disabled(model?.isPDFDocument != true)
         }
 
         CommandGroup(replacing: .help) {

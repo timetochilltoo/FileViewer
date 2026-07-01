@@ -378,6 +378,13 @@ struct PDFToolbar: View {
             }
             .disabled(!model.canSavePDF)
             .help("Save PDF Annotations")
+
+            Button {
+                model.savePDFAnnotatedCopyAs()
+            } label: {
+                Image(systemName: "doc.badge.plus")
+            }
+            .help("Save Annotated Copy As")
         }
     }
 

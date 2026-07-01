@@ -507,13 +507,14 @@ PDF annotation v1:
   - `ContentView` receives `.pdfAnnotationDidChange` and calls `model.markPDFAnnotationsChanged(for:)`.
   - `DocumentTab.pdfHasUnsavedAnnotations` drives the orange unsaved status, enabled PDF Save button, Command-S behavior, and close warning.
   - `AppModel.savePDFAnnotations()` / `savePDFTab(at:)` writes through `PDFDocument.write(to:)`.
+  - `AppModel.savePDFAnnotatedCopyAs()` presents an `NSSavePanel`, defaults the filename to `<original> annotated.pdf`, writes the same `PDFDocument` to the chosen URL, then switches the current tab to that new PDF URL. After this, normal Save writes to the annotated copy rather than the original.
 - Known limitations:
   - No freehand ink yet.
   - No text boxes or sticky notes yet.
   - No shape annotations yet.
   - No annotation selection/move/delete UI yet.
   - No undo/redo for annotations yet.
-  - Save currently writes back to the original PDF. A later “Save Annotated Copy As...” option would be safer for important source PDFs.
+  - Normal Save still writes back to the current PDF file. Use Save Annotated Copy As before marking important source PDFs if you want to preserve the original untouched.
   - The current implementation depends on PDF text selection. Scanned-image PDFs without OCR text cannot be highlighted this way.
 
 ### `SidebarView.swift`
@@ -671,6 +672,7 @@ Recent commits on `main`:
 - 2026-07-01 — PDF annotation v1 on branch `feature/pdf-annotation`
   - Added selection-based PDF text annotations: Highlight, Underline, and Strikeout.
   - Added a PDF Save button and wired Command-S so annotated PDFs can be saved back to the original file.
+  - Added Save Annotated Copy As / Command-Shift-S for PDFs. This writes a new PDF and switches the active tab to the copy.
   - Added close confirmation for PDFs with unsaved annotations.
   - Annotation commands are routed with a `PDFAnnotationCommand(url:kind:)` payload, so a toolbar/menu action targets the active PDF URL instead of blindly applying to every open PDF window.
   - This is intentionally not freehand drawing, shape annotation, or full annotation management yet.
@@ -840,6 +842,7 @@ Implemented:
 - strike through selected text
 - mark PDF tab/window as dirty after annotation
 - save annotations back into the PDF file
+- save an annotated copy through Save Annotated Copy As
 - close warning for unsaved PDF annotations
 
 Not implemented yet:
@@ -852,12 +855,11 @@ Not implemented yet:
 - deleting existing annotations
 - moving/resizing annotations
 - undo/redo
-- Save As annotated copy
 - annotation summary/sidebar
 
 Important caution:
 
-Because v1 saves into the original PDF, test on copies for valuable PDFs until “Save Annotated Copy As...” exists.
+Normal Save writes into the current PDF file. Use Save Annotated Copy As first when you want to protect an original PDF.
 
 ### 6.10 App lifecycle and document model
 
@@ -928,7 +930,6 @@ Patrick is newer to Markdown and wants the app to teach/assist him. The Help gui
 Recommended order:
 
 1. Continue PDF annotation:
-   - Save Annotated Copy As
    - delete selected annotations
    - text box / sticky note
    - freehand ink

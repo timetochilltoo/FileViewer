@@ -1,6 +1,7 @@
 import Foundation
 import PDFKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 enum DocumentKind: String, Codable, CaseIterable {
     case markdown
@@ -813,6 +814,33 @@ final class AppModel: ObservableObject {
     func savePDFAnnotations() {
         guard let index = selectedTabIndex else { return }
         _ = savePDFTab(at: index)
+    }
+
+    func savePDFAnnotatedCopyAs() {
+        guard let index = selectedTabIndex,
+              tabs.indices.contains(index),
+              case .pdf(let pdf) = tabs[index].document else { return }
+
+        let panel = NSSavePanel()
+        let baseName = pdf.url.deletingPathExtension().lastPathComponent
+        panel.nameFieldStringValue = "\(baseName) annotated.pdf"
+        panel.allowedContentTypes = [.pdf]
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        guard pdf.document.write(to: url) else {
+            statusMessage = "Could not save annotated PDF copy."
+            showPDFSaveFailedAlert(for: url.lastPathComponent)
+            return
+        }
+
+        objectWillChange.send()
+        tabs[index].document = .pdf(PDFViewerDocument(url: url, document: pdf.document))
+        tabs[index].pdfHasUnsavedAnnotations = false
+        addRecent(name: url.lastPathComponent, kind: .pdf, url: url)
+        savePDFStateIfNeeded(for: tabs[index])
+        saveCurrentSession()
+        statusMessage = "Saved annotated PDF copy."
     }
 
     private func savePDFTab(at index: Int) -> Bool {
