@@ -141,6 +141,7 @@ struct PDFKitView: NSViewRepresentable {
             NotificationCenter.default.addObserver(self, selector: #selector(removeAnnotationsInSelection(_:)), name: .pdfRemoveAnnotationsInSelection, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(addStickyNote(_:)), name: .pdfAddStickyNote, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(addTextBox(_:)), name: .pdfAddTextBox, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(addShapeAnnotation(_:)), name: .pdfAddShapeAnnotation, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(pageChanged), name: Notification.Name.PDFViewPageChanged, object: pdfView)
         }
 
@@ -261,6 +262,16 @@ struct PDFKitView: NSViewRepresentable {
                     confirmTitle: "Add Text"
                   ),
                   addTextBox(text: text) else {
+                return
+            }
+            pdfView?.needsDisplay = true
+            NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
+        }
+
+        @MainActor @objc private func addShapeAnnotation(_ notification: Notification) {
+            guard let command = notification.object as? PDFShapeAnnotationCommand,
+                  command.url == parent.documentURL,
+                  addShape(command.kind, color: command.color) else {
                 return
             }
             pdfView?.needsDisplay = true
@@ -412,6 +423,24 @@ struct PDFKitView: NSViewRepresentable {
             return true
         }
 
+        @MainActor private func addShape(_ kind: PDFShapeAnnotationKind, color: NSColor) -> Bool {
+            guard let view = pdfView,
+                  let page = view.currentSelection?.pages.first ?? view.currentPage else { return false }
+            let bounds = clamped(shapeBounds(on: page), to: page.bounds(for: view.displayBox))
+            let annotation = PDFAnnotation(
+                bounds: bounds,
+                forType: kind.pdfAnnotationSubtype,
+                withProperties: nil
+            )
+            annotation.color = color.forPDFShapeBorder()
+            annotation.interiorColor = color.forPDFShapeFill()
+            let border = PDFBorder()
+            border.lineWidth = 2
+            annotation.border = border
+            page.addAnnotation(annotation)
+            return true
+        }
+
         @MainActor private func stickyNotePoint(on page: PDFPage) -> CGPoint {
             if let selection = pdfView?.currentSelection {
                 let bounds = selection.bounds(for: page)
@@ -443,6 +472,23 @@ struct PDFKitView: NSViewRepresentable {
             let viewCenter = CGPoint(x: view.bounds.midX, y: view.bounds.midY)
             let pagePoint = view.convert(viewCenter, to: page)
             return CGPoint(x: pagePoint.x - 110, y: pagePoint.y - 32)
+        }
+
+        @MainActor private func shapeBounds(on page: PDFPage) -> CGRect {
+            if let selection = pdfView?.currentSelection {
+                let bounds = selection.bounds(for: page).insetBy(dx: -8, dy: -8)
+                if bounds.width > 0, bounds.height > 0 {
+                    return bounds
+                }
+            }
+
+            guard let view = pdfView else {
+                let pageBounds = page.bounds(for: .cropBox)
+                return CGRect(x: pageBounds.midX - 90, y: pageBounds.midY - 45, width: 180, height: 90)
+            }
+            let viewCenter = CGPoint(x: view.bounds.midX, y: view.bounds.midY)
+            let pagePoint = view.convert(viewCenter, to: page)
+            return CGRect(x: pagePoint.x - 90, y: pagePoint.y - 45, width: 180, height: 90)
         }
 
         @MainActor private func promptForPDFText(title: String, message: String, confirmTitle: String) -> String? {
@@ -541,6 +587,10 @@ private final class MovableAnnotationPDFView: PDFView {
     override func mouseDown(with event: NSEvent) {
         if isAnnotationEditModeEnabled {
             guard let hit = movableAnnotationHit(for: event) else {
+                NSSound.beep()
+                return
+            }
+            guard hit.annotation.isEditableTextFileViewerAnnotation else {
                 NSSound.beep()
                 return
             }
@@ -676,8 +726,18 @@ private extension PDFAnnotation {
         return normalizedType == "freetext"
     }
 
-    var isMovableFileViewerAnnotation: Bool {
+    var isShapeAnnotation: Bool {
+        guard let type else { return false }
+        let normalizedType = type.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
+        return ["square", "circle"].contains(normalizedType)
+    }
+
+    var isEditableTextFileViewerAnnotation: Bool {
         isStickyNote || isFreeTextBox
+    }
+
+    var isMovableFileViewerAnnotation: Bool {
+        isStickyNote || isFreeTextBox || isShapeAnnotation
     }
 
     var deleteConfirmationText: String {
@@ -686,6 +746,9 @@ private extension PDFAnnotation {
         }
         if isFreeTextBox {
             return "This will remove the text box from the PDF."
+        }
+        if isShapeAnnotation {
+            return "This will remove the shape from the PDF."
         }
         return "This will remove the annotation from the PDF."
     }
@@ -709,6 +772,14 @@ private extension NSColor {
     func forPDFTextBox() -> NSColor {
         withAlphaComponent(0.25)
     }
+
+    func forPDFShapeBorder() -> NSColor {
+        withAlphaComponent(0.9)
+    }
+
+    func forPDFShapeFill() -> NSColor {
+        withAlphaComponent(0.12)
+    }
 }
 
 private extension PDFAnnotationKind {
@@ -717,6 +788,15 @@ private extension PDFAnnotationKind {
         case .highlight: .highlight
         case .underline: .underline
         case .strikeout: .strikeOut
+        }
+    }
+}
+
+private extension PDFShapeAnnotationKind {
+    var pdfAnnotationSubtype: PDFAnnotationSubtype {
+        switch self {
+        case .rectangle: .square
+        case .oval: .circle
         }
     }
 }

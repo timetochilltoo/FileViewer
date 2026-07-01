@@ -226,6 +226,7 @@ Implemented v1 on branch `feature/pdf-annotation`:
 - Remove highlight/underline/strikeout markup from selected text.
 - Add sticky note comments.
 - Add text boxes.
+- Add rectangle and oval shape annotations.
 - Move sticky note icons and text boxes with a dedicated Move Annotation mode.
 - Edit sticky note and text box text with a dedicated Edit Annotation mode.
 - Delete sticky note and text box annotations with a dedicated Delete Annotation mode.
@@ -236,7 +237,8 @@ Implemented v1 on branch `feature/pdf-annotation`:
 Still required after v1:
 
 - Draw freehand ink.
-- Add rectangle, ellipse, line, and arrow shapes.
+- Add line and arrow shapes.
+- Resize shape annotations.
 - Resize annotations.
 - Undo and redo annotation actions.
 

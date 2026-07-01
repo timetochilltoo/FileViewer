@@ -164,6 +164,24 @@ struct PDFAnnotationCommand {
     let color: NSColor
 }
 
+enum PDFShapeAnnotationKind: String, CaseIterable, Equatable {
+    case rectangle
+    case oval
+
+    var title: String {
+        switch self {
+        case .rectangle: "Rectangle"
+        case .oval: "Oval"
+        }
+    }
+}
+
+struct PDFShapeAnnotationCommand {
+    let url: URL
+    let kind: PDFShapeAnnotationKind
+    let color: NSColor
+}
+
 enum ViewerDocument: Equatable {
     case markdown(MarkdownDocument)
     case pdf(PDFViewerDocument)

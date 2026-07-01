@@ -408,6 +408,20 @@ struct PDFToolbar: View {
             .help("Add Text Box")
 
             Button {
+                postShape(.rectangle)
+            } label: {
+                Image(systemName: "rectangle")
+            }
+            .help("Add Rectangle")
+
+            Button {
+                postShape(.oval)
+            } label: {
+                Image(systemName: "oval")
+            }
+            .help("Add Oval")
+
+            Button {
                 model.togglePDFNoteMoveMode()
             } label: {
                 Image(systemName: "hand.draw")
@@ -453,6 +467,14 @@ struct PDFToolbar: View {
         NotificationCenter.default.post(
             name: .pdfApplyAnnotation,
             object: PDFAnnotationCommand(url: url, kind: kind, color: model.pdfAnnotationNSColor)
+        )
+    }
+
+    private func postShape(_ kind: PDFShapeAnnotationKind) {
+        guard let url = model.selectedPDFURL else { return }
+        NotificationCenter.default.post(
+            name: .pdfAddShapeAnnotation,
+            object: PDFShapeAnnotationCommand(url: url, kind: kind, color: model.pdfAnnotationNSColor)
         )
     }
 }
@@ -543,6 +565,7 @@ extension Notification.Name {
     static let pdfRemoveAnnotationsInSelection = Notification.Name("FileViewer.pdfRemoveAnnotationsInSelection")
     static let pdfAddStickyNote = Notification.Name("FileViewer.pdfAddStickyNote")
     static let pdfAddTextBox = Notification.Name("FileViewer.pdfAddTextBox")
+    static let pdfAddShapeAnnotation = Notification.Name("FileViewer.pdfAddShapeAnnotation")
     static let pdfAnnotationDidChange = Notification.Name("FileViewer.pdfAnnotationDidChange")
     static let markdownSyncCurrentState = Notification.Name("FileViewer.markdownSyncCurrentState")
     static let toggleSidebar = Notification.Name("FileViewer.toggleSidebar")

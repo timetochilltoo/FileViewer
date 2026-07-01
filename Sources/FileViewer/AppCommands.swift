@@ -242,6 +242,16 @@ struct FileViewerCommands: Commands {
             .keyboardShortcut("t", modifiers: [.command, .shift])
             .disabled(activeModel?.isPDFDocument != true)
 
+            Button("Add Rectangle") {
+                postPDFShape(.rectangle)
+            }
+            .disabled(activeModel?.isPDFDocument != true)
+
+            Button("Add Oval") {
+                postPDFShape(.oval)
+            }
+            .disabled(activeModel?.isPDFDocument != true)
+
             Button("Move Annotation Mode") {
                 activeModel?.togglePDFNoteMoveMode()
             }
@@ -286,6 +296,14 @@ struct FileViewerCommands: Commands {
         NotificationCenter.default.post(
             name: .pdfApplyAnnotation,
             object: PDFAnnotationCommand(url: url, kind: kind, color: activeModel?.pdfAnnotationNSColor ?? .systemYellow)
+        )
+    }
+
+    private func postPDFShape(_ kind: PDFShapeAnnotationKind) {
+        guard let url = activeModel?.selectedPDFURL else { return }
+        NotificationCenter.default.post(
+            name: .pdfAddShapeAnnotation,
+            object: PDFShapeAnnotationCommand(url: url, kind: kind, color: activeModel?.pdfAnnotationNSColor ?? .systemYellow)
         )
     }
 }
