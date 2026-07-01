@@ -388,6 +388,14 @@ struct PDFToolbar: View {
             .help("Add Sticky Note")
 
             Button {
+                model.togglePDFNoteMoveMode()
+            } label: {
+                Image(systemName: "hand.draw")
+                    .foregroundStyle(model.isPDFNoteMoveModeEnabled ? Color.accentColor : Color.primary)
+            }
+            .help(model.isPDFNoteMoveModeEnabled ? "Move Note Mode On" : "Move Sticky Note")
+
+            Button {
                 model.savePDFAnnotations()
             } label: {
                 Image(systemName: "square.and.arrow.down")

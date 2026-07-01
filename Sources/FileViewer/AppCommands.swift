@@ -225,6 +225,12 @@ struct FileViewerCommands: Commands {
             .keyboardShortcut("n", modifiers: [.command, .shift])
             .disabled(model?.isPDFDocument != true)
 
+            Button("Move Sticky Note Mode") {
+                model?.togglePDFNoteMoveMode()
+            }
+            .keyboardShortcut("m", modifiers: [.command, .shift])
+            .disabled(model?.isPDFDocument != true)
+
             Divider()
 
             Button("Save PDF Annotations") {

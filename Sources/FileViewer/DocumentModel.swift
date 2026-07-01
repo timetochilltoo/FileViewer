@@ -308,6 +308,7 @@ final class AppModel: ObservableObject {
     @Published var markdownMode: MarkdownMode = .split
     @Published var statusMessage = ""
     @Published var recents: [RecentDocument] = []
+    @Published var isPDFNoteMoveModeEnabled = false
 
     private let recentsKey = "FileViewer.recents"
     private let markdownModeKey = "FileViewer.markdownMode"
@@ -841,6 +842,14 @@ final class AppModel: ObservableObject {
         savePDFStateIfNeeded(for: tabs[index])
         saveCurrentSession()
         statusMessage = "Saved annotated PDF copy."
+    }
+
+    func togglePDFNoteMoveMode() {
+        guard isPDFDocument else { return }
+        isPDFNoteMoveModeEnabled.toggle()
+        statusMessage = isPDFNoteMoveModeEnabled
+            ? "Move Note mode on. Drag a sticky note to reposition it."
+            : "Move Note mode off."
     }
 
     private func savePDFTab(at index: Int) -> Bool {
@@ -1739,10 +1748,12 @@ final class AppModel: ObservableObject {
     private func updateSidebarForSelectedDocument() {
         switch document {
         case .markdown:
+            isPDFNoteMoveModeEnabled = false
             sidebarMode = .contents
         case .pdf:
             sidebarMode = .pages
         case nil:
+            isPDFNoteMoveModeEnabled = false
             sidebarMode = .recent
         }
     }

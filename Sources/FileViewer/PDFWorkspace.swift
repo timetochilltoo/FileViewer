@@ -29,6 +29,10 @@ struct PDFWorkspace: View {
             searchMatchCount: Binding(
                 get: { model.searchMatchCount },
                 set: { model.searchMatchCount = $0 }
+            ),
+            isNoteMoveModeEnabled: Binding(
+                get: { model.isPDFNoteMoveModeEnabled },
+                set: { model.isPDFNoteMoveModeEnabled = $0 }
             )
         )
         .background(Color(nsColor: .underPageBackgroundColor))
@@ -44,18 +48,22 @@ struct PDFKitView: NSViewRepresentable {
     @Binding var scale: CGFloat
     @Binding var searchMatchIndex: Int
     @Binding var searchMatchCount: Int
+    @Binding var isNoteMoveModeEnabled: Bool
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
 
     func makeNSView(context: Context) -> PDFView {
-        let view = PDFView()
+        let view = MovableAnnotationPDFView()
         view.document = document
         view.autoScales = true
         view.displayMode = .singlePageContinuous
         view.displayDirection = .vertical
         view.backgroundColor = .underPageBackgroundColor
+        view.onAnnotationMoved = { [weak coordinator = context.coordinator] in
+            coordinator?.markAnnotationChanged()
+        }
         context.coordinator.pdfView = view
         context.coordinator.installObservers()
         DispatchQueue.main.async {
@@ -75,6 +83,9 @@ struct PDFKitView: NSViewRepresentable {
         }
 
         context.coordinator.parent = self
+        if let movableView = view as? MovableAnnotationPDFView {
+            movableView.isNoteMoveModeEnabled = isNoteMoveModeEnabled
+        }
         context.coordinator.applyRestoredPageAndScale()
         context.coordinator.applySearch(searchText)
         context.coordinator.goToSearchMatch(searchMatchIndex)
@@ -208,6 +219,11 @@ struct PDFKitView: NSViewRepresentable {
                   addStickyNote(text: noteText) else {
                 return
             }
+            pdfView?.needsDisplay = true
+            NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
+        }
+
+        @MainActor func markAnnotationChanged() {
             pdfView?.needsDisplay = true
             NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
         }
@@ -411,13 +427,93 @@ struct PDFKitView: NSViewRepresentable {
     }
 }
 
+private final class MovableAnnotationPDFView: PDFView {
+    var isNoteMoveModeEnabled = false
+    var onAnnotationMoved: (() -> Void)?
+    private weak var draggedAnnotation: PDFAnnotation?
+    private weak var draggedPage: PDFPage?
+    private var dragOffset = CGPoint.zero
+
+    override func mouseDown(with event: NSEvent) {
+        guard isNoteMoveModeEnabled,
+              let hit = noteAnnotationHit(for: event) else {
+            super.mouseDown(with: event)
+            return
+        }
+
+        draggedAnnotation = hit.annotation
+        draggedPage = hit.page
+        dragOffset = CGPoint(
+            x: hit.pagePoint.x - hit.annotation.bounds.origin.x,
+            y: hit.pagePoint.y - hit.annotation.bounds.origin.y
+        )
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard isNoteMoveModeEnabled,
+              let annotation = draggedAnnotation,
+              let page = draggedPage else {
+            super.mouseDragged(with: event)
+            return
+        }
+
+        let windowPoint = convert(event.locationInWindow, from: nil)
+        let pagePoint = convert(windowPoint, to: page)
+        var newBounds = annotation.bounds
+        newBounds.origin = CGPoint(
+            x: pagePoint.x - dragOffset.x,
+            y: pagePoint.y - dragOffset.y
+        )
+        annotation.bounds = clamped(newBounds, to: page.bounds(for: displayBox))
+        needsDisplay = true
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard isNoteMoveModeEnabled,
+              draggedAnnotation != nil else {
+            super.mouseUp(with: event)
+            return
+        }
+
+        draggedAnnotation = nil
+        draggedPage = nil
+        onAnnotationMoved?()
+    }
+
+    private func noteAnnotationHit(for event: NSEvent) -> (page: PDFPage, annotation: PDFAnnotation, pagePoint: CGPoint)? {
+        let viewPoint = convert(event.locationInWindow, from: nil)
+        guard let page = page(for: viewPoint, nearest: true) else { return nil }
+        let pagePoint = convert(viewPoint, to: page)
+        for annotation in page.annotations.reversed() where annotation.isStickyNote {
+            if annotation.bounds.insetBy(dx: -8, dy: -8).contains(pagePoint) {
+                return (page, annotation, pagePoint)
+            }
+        }
+        return nil
+    }
+
+    private func clamped(_ bounds: CGRect, to pageBounds: CGRect) -> CGRect {
+        var adjusted = bounds
+        adjusted.origin.x = min(max(adjusted.origin.x, pageBounds.minX), pageBounds.maxX - adjusted.width)
+        adjusted.origin.y = min(max(adjusted.origin.y, pageBounds.minY), pageBounds.maxY - adjusted.height)
+        return adjusted
+    }
+}
+
 private extension PDFAnnotation {
     var isFileViewerTextMarkup: Bool {
         guard let type else { return false }
         let normalizedType = type.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
         return ["highlight", "underline", "strikeout"].contains(normalizedType)
     }
+
+    var isStickyNote: Bool {
+        guard let type else { return false }
+        let normalizedType = type.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
+        return normalizedType == "text"
+    }
 }
+
 
 private extension PDFAnnotationKind {
     var pdfAnnotationSubtype: PDFAnnotationSubtype {

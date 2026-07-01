@@ -496,6 +496,7 @@ PDF annotation v1:
   6. Click the PDF Save button or use Command-S to embed the annotation in the PDF file.
   7. To remove v1 text markup, select the marked text and use Remove Markup from Selection / the eraser toolbar button.
   8. To add a sticky note, click Add Sticky Note, enter the note text, then save the PDF.
+  9. To move a sticky note, turn on Move Note mode, drag the note icon, then save the PDF.
 - Supported annotation types:
   - highlight: `PDFAnnotationSubtype.highlight`
   - underline: `PDFAnnotationSubtype.underline`
@@ -510,6 +511,8 @@ PDF annotation v1:
   - Eraser limitation: it removes the whole overlapping annotation. If 10 words were highlighted as one annotation and the user selects 2 words inside it, the whole 10-word markup is removed. This is acceptable for v1; partial erasing would require creating smaller annotations or splitting annotation geometry.
   - `PDFKitView.Coordinator.addStickyNote(_:)` asks for note text with an `NSAlert` and creates a `.text` PDF annotation.
   - Sticky note placement: if text is selected, the note is placed near the selected text bounds; otherwise it is placed near the center of the current visible page area.
+  - `MovableAnnotationPDFView` subclasses `PDFView` to support sticky-note dragging when `isNoteMoveModeEnabled` is true. Normal PDF mouse handling is left alone when the mode is off.
+  - `AppModel.isPDFNoteMoveModeEnabled` stores the mode. It is toggled from the toolbar hand button or PDF > Move Sticky Note Mode, and disabled when switching away from PDF content.
   - After a successful annotation, `PDFKitView` posts `.pdfAnnotationDidChange` with the PDF URL.
   - `ContentView` receives `.pdfAnnotationDidChange` and calls `model.markPDFAnnotationsChanged(for:)`.
   - `DocumentTab.pdfHasUnsavedAnnotations` drives the orange unsaved status, enabled PDF Save button, Command-S behavior, and close warning.
@@ -850,6 +853,7 @@ Implemented:
 - strike through selected text
 - remove highlight/underline/strikeout markup from selected text
 - add sticky note comments
+- move sticky note icons with Move Note mode
 - mark PDF tab/window as dirty after annotation
 - save annotations back into the PDF file
 - save an annotated copy through Save Annotated Copy As
