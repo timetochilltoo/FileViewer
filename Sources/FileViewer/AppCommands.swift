@@ -13,48 +13,51 @@ extension FocusedValues {
 
 struct FileViewerCommands: Commands {
     @FocusedValue(\.fileViewerModel) private var model
+    private var activeModel: AppModel? {
+        model ?? FileViewerWindowRegistry.shared.activeModel
+    }
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
             Button("New Markdown Document") {
-                model?.newMarkdownDocument()
+                activeModel?.newMarkdownDocument()
             }
             .keyboardShortcut("n", modifiers: .command)
 
             Button("Open...") {
-                model?.openWithPanel()
+                activeModel?.openWithPanel()
             }
             .keyboardShortcut("o", modifiers: .command)
         }
 
         CommandGroup(after: .saveItem) {
             Button("Save") {
-                if model?.isPDFDocument == true {
-                    model?.savePDFAnnotations()
+                if activeModel?.isPDFDocument == true {
+                    activeModel?.savePDFAnnotations()
                 } else {
-                    model?.saveMarkdown()
+                    activeModel?.saveMarkdown()
                 }
             }
             .keyboardShortcut("s", modifiers: .command)
-            .disabled(model?.canSaveMarkdown != true && model?.canSavePDF != true)
+            .disabled(activeModel?.canSaveMarkdown != true && activeModel?.canSavePDF != true)
 
             Button("Save As...") {
-                if model?.isPDFDocument == true {
-                    model?.savePDFAnnotatedCopyAs()
+                if activeModel?.isPDFDocument == true {
+                    activeModel?.savePDFAnnotatedCopyAs()
                 } else {
-                    model?.saveMarkdownAs()
+                    activeModel?.saveMarkdownAs()
                 }
             }
             .keyboardShortcut("s", modifiers: [.command, .shift])
-            .disabled(model?.isMarkdownDocument != true && model?.isPDFDocument != true)
+            .disabled(activeModel?.isMarkdownDocument != true && activeModel?.isPDFDocument != true)
         }
 
         CommandGroup(replacing: .printItem) {
             Button("Print...") {
-                model?.printDocument()
+                activeModel?.printDocument()
             }
             .keyboardShortcut("p", modifiers: .command)
-            .disabled(model?.canPrintDocument != true)
+            .disabled(activeModel?.canPrintDocument != true)
         }
 
         CommandMenu("Display") {
@@ -66,22 +69,22 @@ struct FileViewerCommands: Commands {
             Divider()
 
             Button("Markdown Preview") {
-                model?.setMarkdownMode(.preview)
+                activeModel?.setMarkdownMode(.preview)
             }
             .keyboardShortcut("1", modifiers: .command)
-            .disabled(model?.isMarkdownDocument != true)
+            .disabled(activeModel?.isMarkdownDocument != true)
 
             Button("Markdown Source") {
-                model?.setMarkdownMode(.source)
+                activeModel?.setMarkdownMode(.source)
             }
             .keyboardShortcut("2", modifiers: .command)
-            .disabled(model?.isMarkdownDocument != true)
+            .disabled(activeModel?.isMarkdownDocument != true)
 
             Button("Markdown Split") {
-                model?.setMarkdownMode(.split)
+                activeModel?.setMarkdownMode(.split)
             }
             .keyboardShortcut("3", modifiers: .command)
-            .disabled(model?.isMarkdownDocument != true)
+            .disabled(activeModel?.isMarkdownDocument != true)
 
             Divider()
 
@@ -89,25 +92,25 @@ struct FileViewerCommands: Commands {
                 NotificationCenter.default.post(name: .pdfFitPage, object: nil)
             }
             .keyboardShortcut("0", modifiers: .command)
-            .disabled(model?.isPDFDocument != true)
+            .disabled(activeModel?.isPDFDocument != true)
 
             Button("Fit Width") {
                 NotificationCenter.default.post(name: .pdfFitWidth, object: nil)
             }
             .keyboardShortcut("9", modifiers: .command)
-            .disabled(model?.isPDFDocument != true)
+            .disabled(activeModel?.isPDFDocument != true)
 
             Button("Zoom In") {
                 NotificationCenter.default.post(name: .pdfZoomIn, object: nil)
             }
             .keyboardShortcut("+", modifiers: .command)
-            .disabled(model?.isPDFDocument != true)
+            .disabled(activeModel?.isPDFDocument != true)
 
             Button("Zoom Out") {
                 NotificationCenter.default.post(name: .pdfZoomOut, object: nil)
             }
             .keyboardShortcut("-", modifiers: .command)
-            .disabled(model?.isPDFDocument != true)
+            .disabled(activeModel?.isPDFDocument != true)
         }
 
         CommandMenu("Navigate") {
@@ -115,79 +118,79 @@ struct FileViewerCommands: Commands {
                 NotificationCenter.default.post(name: .pdfPreviousPage, object: nil)
             }
             .keyboardShortcut(.leftArrow, modifiers: .command)
-            .disabled(model?.isPDFDocument != true)
+            .disabled(activeModel?.isPDFDocument != true)
 
             Button("Next Page") {
                 NotificationCenter.default.post(name: .pdfNextPage, object: nil)
             }
             .keyboardShortcut(.rightArrow, modifiers: .command)
-            .disabled(model?.isPDFDocument != true)
+            .disabled(activeModel?.isPDFDocument != true)
         }
 
         CommandMenu("Markdown") {
             Button("Bold") {
-                model?.applyMarkdownFormat(.bold)
+                activeModel?.applyMarkdownFormat(.bold)
             }
             .keyboardShortcut("b", modifiers: .command)
-            .disabled(model?.isMarkdownDocument != true)
+            .disabled(activeModel?.isMarkdownDocument != true)
 
             Button("Italic") {
-                model?.applyMarkdownFormat(.italic)
+                activeModel?.applyMarkdownFormat(.italic)
             }
             .keyboardShortcut("i", modifiers: .command)
-            .disabled(model?.isMarkdownDocument != true)
+            .disabled(activeModel?.isMarkdownDocument != true)
 
             Button("Underline") {
-                model?.applyMarkdownFormat(.underline)
+                activeModel?.applyMarkdownFormat(.underline)
             }
             .keyboardShortcut("u", modifiers: .command)
-            .disabled(model?.isMarkdownDocument != true)
+            .disabled(activeModel?.isMarkdownDocument != true)
 
             Divider()
 
             Button("Heading") {
-                model?.applyMarkdownFormat(.heading)
+                activeModel?.applyMarkdownFormat(.heading)
             }
             .keyboardShortcut("h", modifiers: [.command, .option])
-            .disabled(model?.isMarkdownDocument != true)
+            .disabled(activeModel?.isMarkdownDocument != true)
 
             Button("Bullet List") {
-                model?.applyMarkdownFormat(.bulletList)
+                activeModel?.applyMarkdownFormat(.bulletList)
             }
-            .disabled(model?.isMarkdownDocument != true)
+            .disabled(activeModel?.isMarkdownDocument != true)
 
             Button("Numbered List") {
-                model?.applyMarkdownFormat(.numberedList)
+                activeModel?.applyMarkdownFormat(.numberedList)
             }
-            .disabled(model?.isMarkdownDocument != true)
+            .disabled(activeModel?.isMarkdownDocument != true)
 
             Button("Quote") {
-                model?.applyMarkdownFormat(.quote)
+                activeModel?.applyMarkdownFormat(.quote)
             }
-            .disabled(model?.isMarkdownDocument != true)
+            .disabled(activeModel?.isMarkdownDocument != true)
 
             Button("Link") {
-                model?.applyMarkdownFormat(.link)
+                activeModel?.applyMarkdownFormat(.link)
             }
             .keyboardShortcut("k", modifiers: .command)
-            .disabled(model?.isMarkdownDocument != true)
+            .disabled(activeModel?.isMarkdownDocument != true)
 
             Button("Code") {
-                model?.applyMarkdownFormat(.code)
+                activeModel?.applyMarkdownFormat(.code)
             }
-            .disabled(model?.isMarkdownDocument != true)
+            .disabled(activeModel?.isMarkdownDocument != true)
 
             Divider()
 
             Button("Insert Table") {
-                model?.applyMarkdownFormat(.table)
+                activeModel?.applyMarkdownFormat(.table)
             }
-            .disabled(model?.isMarkdownDocument != true)
+            .disabled(activeModel?.isMarkdownDocument != true)
 
             Button("Task List") {
-                model?.applyMarkdownFormat(.taskList)
+                activeModel?.applyMarkdownFormat(.taskList)
             }
-            .disabled(model?.isMarkdownDocument != true)
+            .disabled(activeModel?.isMarkdownDocument != true)
         }
 
         CommandMenu("PDF") {
@@ -195,66 +198,66 @@ struct FileViewerCommands: Commands {
                 postPDFAnnotation(.highlight)
             }
             .keyboardShortcut("h", modifiers: [.command, .shift])
-            .disabled(model?.isPDFDocument != true)
+            .disabled(activeModel?.isPDFDocument != true)
 
             Button("Underline Selection") {
                 postPDFAnnotation(.underline)
             }
             .keyboardShortcut("u", modifiers: [.command, .shift])
-            .disabled(model?.isPDFDocument != true)
+            .disabled(activeModel?.isPDFDocument != true)
 
             Button("Strike Through Selection") {
                 postPDFAnnotation(.strikeout)
             }
             .keyboardShortcut("x", modifiers: [.command, .shift])
-            .disabled(model?.isPDFDocument != true)
+            .disabled(activeModel?.isPDFDocument != true)
 
             Divider()
 
             Button("Remove Markup from Selection") {
-                guard let url = model?.selectedPDFURL else { return }
+                guard let url = activeModel?.selectedPDFURL else { return }
                 NotificationCenter.default.post(name: .pdfRemoveAnnotationsInSelection, object: url)
             }
             .keyboardShortcut(.delete, modifiers: [.command, .shift])
-            .disabled(model?.isPDFDocument != true)
+            .disabled(activeModel?.isPDFDocument != true)
 
             Button("Add Sticky Note...") {
-                guard let url = model?.selectedPDFURL else { return }
+                guard let url = activeModel?.selectedPDFURL else { return }
                 NotificationCenter.default.post(name: .pdfAddStickyNote, object: url)
             }
             .keyboardShortcut("n", modifiers: [.command, .shift])
-            .disabled(model?.isPDFDocument != true)
+            .disabled(activeModel?.isPDFDocument != true)
 
             Button("Add Text Box...") {
-                guard let url = model?.selectedPDFURL else { return }
+                guard let url = activeModel?.selectedPDFURL else { return }
                 NotificationCenter.default.post(name: .pdfAddTextBox, object: url)
             }
             .keyboardShortcut("t", modifiers: [.command, .shift])
-            .disabled(model?.isPDFDocument != true)
+            .disabled(activeModel?.isPDFDocument != true)
 
             Button("Move Annotation Mode") {
-                model?.togglePDFNoteMoveMode()
+                activeModel?.togglePDFNoteMoveMode()
             }
             .keyboardShortcut("m", modifiers: [.command, .shift])
-            .disabled(model?.isPDFDocument != true)
+            .disabled(activeModel?.isPDFDocument != true)
 
             Button("Delete Annotation Mode") {
-                model?.togglePDFAnnotationDeleteMode()
+                activeModel?.togglePDFAnnotationDeleteMode()
             }
             .keyboardShortcut(.delete, modifiers: [.command, .option])
-            .disabled(model?.isPDFDocument != true)
+            .disabled(activeModel?.isPDFDocument != true)
 
             Divider()
 
             Button("Save PDF Annotations") {
-                model?.savePDFAnnotations()
+                activeModel?.savePDFAnnotations()
             }
-            .disabled(model?.canSavePDF != true)
+            .disabled(activeModel?.canSavePDF != true)
 
             Button("Save Annotated Copy As...") {
-                model?.savePDFAnnotatedCopyAs()
+                activeModel?.savePDFAnnotatedCopyAs()
             }
-            .disabled(model?.isPDFDocument != true)
+            .disabled(activeModel?.isPDFDocument != true)
         }
 
         CommandGroup(replacing: .help) {
@@ -266,7 +269,7 @@ struct FileViewerCommands: Commands {
     }
 
     private func postPDFAnnotation(_ kind: PDFAnnotationKind) {
-        guard let url = model?.selectedPDFURL else { return }
+        guard let url = activeModel?.selectedPDFURL else { return }
         NotificationCenter.default.post(
             name: .pdfApplyAnnotation,
             object: PDFAnnotationCommand(url: url, kind: kind)

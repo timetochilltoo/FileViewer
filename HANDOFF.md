@@ -563,6 +563,7 @@ Focused model:
 
 - Uses custom `FocusedValueKey` `FileViewerModelKey`.
 - `ContentView` sets `.focusedSceneValue(\.fileViewerModel, model)`.
+- 2026-07-02 fix: app menu commands now use `activeModel`, which falls back to `FileViewerWindowRegistry.shared.activeModel` when SwiftUI `@FocusedValue` is nil. Patrick reported that toolbar Save / Save As / Print worked, but File menu Save / Save As / Print were greyed out. The fallback uses the key window/main window to find the correct registered `AppModel`.
 
 Menus:
 
@@ -751,7 +752,8 @@ Recommended manual test:
 If toolbar works but keyboard/menu does not:
 
 - Check `FocusedValue` propagation in `ContentView`.
-- Check whether menu command can see `model?.isMarkdownDocument == true`.
+- Check whether menu command can see `activeModel?.isMarkdownDocument == true` or `activeModel?.isPDFDocument == true`.
+- Check `FileViewerWindowRegistry.activeModel`, especially if multiple windows are open.
 
 If none works:
 
