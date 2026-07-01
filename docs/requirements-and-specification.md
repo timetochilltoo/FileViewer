@@ -224,14 +224,14 @@ Implemented v1 on branch `feature/pdf-annotation`:
 - Strike through selected text.
 - Remove highlight/underline/strikeout markup from selected text.
 - Add sticky note comments.
-- Move sticky note icons with a dedicated Move Note mode.
+- Add text boxes.
+- Move sticky note icons and text boxes with a dedicated Move Annotation mode.
 - Save embedded annotations back to the PDF file.
 - Save an annotated PDF copy without overwriting the original.
 - Warn before closing a PDF tab/window with unsaved annotations.
 
 Still required after v1:
 
-- Add text boxes.
 - Draw freehand ink.
 - Add rectangle, ellipse, line, and arrow shapes.
 - Select, move, and edit annotations.

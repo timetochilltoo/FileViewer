@@ -848,8 +848,8 @@ final class AppModel: ObservableObject {
         guard isPDFDocument else { return }
         isPDFNoteMoveModeEnabled.toggle()
         statusMessage = isPDFNoteMoveModeEnabled
-            ? "Move Note mode on. Drag a sticky note to reposition it."
-            : "Move Note mode off."
+            ? "Move Annotation mode on. Drag a sticky note or text box to reposition it."
+            : "Move Annotation mode off."
     }
 
     private func savePDFTab(at index: Int) -> Bool {

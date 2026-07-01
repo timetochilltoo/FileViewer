@@ -388,12 +388,20 @@ struct PDFToolbar: View {
             .help("Add Sticky Note")
 
             Button {
+                guard let url = model.selectedPDFURL else { return }
+                NotificationCenter.default.post(name: .pdfAddTextBox, object: url)
+            } label: {
+                Image(systemName: "text.badge.plus")
+            }
+            .help("Add Text Box")
+
+            Button {
                 model.togglePDFNoteMoveMode()
             } label: {
                 Image(systemName: "hand.draw")
                     .foregroundStyle(model.isPDFNoteMoveModeEnabled ? Color.accentColor : Color.primary)
             }
-            .help(model.isPDFNoteMoveModeEnabled ? "Move Note Mode On" : "Move Sticky Note")
+            .help(model.isPDFNoteMoveModeEnabled ? "Move Annotation Mode On" : "Move Sticky Note or Text Box")
 
             Button {
                 model.savePDFAnnotations()
@@ -506,6 +514,7 @@ extension Notification.Name {
     static let pdfApplyAnnotation = Notification.Name("FileViewer.pdfApplyAnnotation")
     static let pdfRemoveAnnotationsInSelection = Notification.Name("FileViewer.pdfRemoveAnnotationsInSelection")
     static let pdfAddStickyNote = Notification.Name("FileViewer.pdfAddStickyNote")
+    static let pdfAddTextBox = Notification.Name("FileViewer.pdfAddTextBox")
     static let pdfAnnotationDidChange = Notification.Name("FileViewer.pdfAnnotationDidChange")
     static let markdownSyncCurrentState = Notification.Name("FileViewer.markdownSyncCurrentState")
     static let toggleSidebar = Notification.Name("FileViewer.toggleSidebar")

@@ -496,7 +496,8 @@ PDF annotation v1:
   6. Click the PDF Save button or use Command-S to embed the annotation in the PDF file.
   7. To remove v1 text markup, select the marked text and use Remove Markup from Selection / the eraser toolbar button.
   8. To add a sticky note, click Add Sticky Note, enter the note text, then save the PDF.
-  9. To move a sticky note, turn on Move Note mode, drag the note icon, then save the PDF.
+  9. To add visible page text, click Add Text Box, enter the text, then save the PDF.
+  10. To move a sticky note or text box, turn on Move Annotation mode, drag the annotation, then save the PDF.
 - Supported annotation types:
   - highlight: `PDFAnnotationSubtype.highlight`
   - underline: `PDFAnnotationSubtype.underline`
@@ -511,8 +512,10 @@ PDF annotation v1:
   - Eraser limitation: it removes the whole overlapping annotation. If 10 words were highlighted as one annotation and the user selects 2 words inside it, the whole 10-word markup is removed. This is acceptable for v1; partial erasing would require creating smaller annotations or splitting annotation geometry.
   - `PDFKitView.Coordinator.addStickyNote(_:)` asks for note text with an `NSAlert` and creates a `.text` PDF annotation.
   - Sticky note placement: if text is selected, the note is placed near the selected text bounds; otherwise it is placed near the center of the current visible page area.
-  - `MovableAnnotationPDFView` subclasses `PDFView` to support sticky-note dragging when `isNoteMoveModeEnabled` is true. Normal PDF mouse handling is left alone when the mode is off.
-  - `AppModel.isPDFNoteMoveModeEnabled` stores the mode. It is toggled from the toolbar hand button or PDF > Move Sticky Note Mode, and disabled when switching away from PDF content.
+  - `PDFKitView.Coordinator.addTextBox(_:)` asks for text with an `NSAlert` and creates a `.freeText` PDF annotation.
+  - Text box placement: if text is selected, the box is placed below the selected text; otherwise it is placed near the center of the current visible page area.
+  - `MovableAnnotationPDFView` subclasses `PDFView` to support sticky-note and free-text-box dragging when `isNoteMoveModeEnabled` is true. Normal PDF mouse handling is left alone when the mode is off.
+  - `AppModel.isPDFNoteMoveModeEnabled` stores the mode. It is toggled from the toolbar hand button or PDF > Move Annotation Mode, and disabled when switching away from PDF content. The internal name still says “Note” for historical reasons.
   - After a successful annotation, `PDFKitView` posts `.pdfAnnotationDidChange` with the PDF URL.
   - `ContentView` receives `.pdfAnnotationDidChange` and calls `model.markPDFAnnotationsChanged(for:)`.
   - `DocumentTab.pdfHasUnsavedAnnotations` drives the orange unsaved status, enabled PDF Save button, Command-S behavior, and close warning.
@@ -520,7 +523,7 @@ PDF annotation v1:
   - `AppModel.savePDFAnnotatedCopyAs()` presents an `NSSavePanel`, defaults the filename to `<original> annotated.pdf`, writes the same `PDFDocument` to the chosen URL, then switches the current tab to that new PDF URL. After this, normal Save writes to the annotated copy rather than the original.
 - Known limitations:
   - No freehand ink yet.
-  - No text boxes yet.
+  - Text boxes can be added and moved, but there is no custom edit/resize/delete UI yet.
   - Sticky notes can be added, but there is no custom editing/deleting UI yet; PDFKit/default viewer behavior may still expose note contents depending on system behavior.
   - No shape annotations yet.
   - No direct annotation selection/move/delete UI yet. V1 can remove text markup by selecting the marked text area.
@@ -853,7 +856,8 @@ Implemented:
 - strike through selected text
 - remove highlight/underline/strikeout markup from selected text
 - add sticky note comments
-- move sticky note icons with Move Note mode
+- add visible text box annotations
+- move sticky note icons and text boxes with Move Annotation mode
 - mark PDF tab/window as dirty after annotation
 - save annotations back into the PDF file
 - save an annotated copy through Save Annotated Copy As
@@ -862,7 +866,7 @@ Implemented:
 Not implemented yet:
 
 - pen/freehand drawing
-- text box annotation
+- richer text box editing/resizing/deleting UI
 - richer sticky-note editing/deleting UI
 - rectangle/ellipse/line/arrow shapes
 - color picker
@@ -945,7 +949,7 @@ Recommended order:
 
 1. Continue PDF annotation:
    - direct annotation selection/delete
-   - text box
+   - text box editing/resizing/deleting polish
    - sticky-note editing/deleting polish
    - freehand ink
    - shapes

@@ -225,7 +225,14 @@ struct FileViewerCommands: Commands {
             .keyboardShortcut("n", modifiers: [.command, .shift])
             .disabled(model?.isPDFDocument != true)
 
-            Button("Move Sticky Note Mode") {
+            Button("Add Text Box...") {
+                guard let url = model?.selectedPDFURL else { return }
+                NotificationCenter.default.post(name: .pdfAddTextBox, object: url)
+            }
+            .keyboardShortcut("t", modifiers: [.command, .shift])
+            .disabled(model?.isPDFDocument != true)
+
+            Button("Move Annotation Mode") {
                 model?.togglePDFNoteMoveMode()
             }
             .keyboardShortcut("m", modifiers: [.command, .shift])

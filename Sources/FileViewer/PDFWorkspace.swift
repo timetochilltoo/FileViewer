@@ -116,6 +116,7 @@ struct PDFKitView: NSViewRepresentable {
             NotificationCenter.default.addObserver(self, selector: #selector(applyAnnotation(_:)), name: .pdfApplyAnnotation, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(removeAnnotationsInSelection(_:)), name: .pdfRemoveAnnotationsInSelection, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(addStickyNote(_:)), name: .pdfAddStickyNote, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(addTextBox(_:)), name: .pdfAddTextBox, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(pageChanged), name: Notification.Name.PDFViewPageChanged, object: pdfView)
         }
 
@@ -215,8 +216,27 @@ struct PDFKitView: NSViewRepresentable {
         @MainActor @objc private func addStickyNote(_ notification: Notification) {
             guard let url = notification.object as? URL,
                   url == parent.documentURL,
-                  let noteText = promptForStickyNoteText(),
+                  let noteText = promptForPDFText(
+                    title: "Add Sticky Note",
+                    message: "Enter the note text to attach to this PDF page.",
+                    confirmTitle: "Add Note"
+                  ),
                   addStickyNote(text: noteText) else {
+                return
+            }
+            pdfView?.needsDisplay = true
+            NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
+        }
+
+        @MainActor @objc private func addTextBox(_ notification: Notification) {
+            guard let url = notification.object as? URL,
+                  url == parent.documentURL,
+                  let text = promptForPDFText(
+                    title: "Add Text Box",
+                    message: "Enter the text to show directly on this PDF page.",
+                    confirmTitle: "Add Text"
+                  ),
+                  addTextBox(text: text) else {
                 return
             }
             pdfView?.needsDisplay = true
@@ -340,6 +360,26 @@ struct PDFKitView: NSViewRepresentable {
             return true
         }
 
+        @MainActor private func addTextBox(text: String) -> Bool {
+            guard let view = pdfView,
+                  let page = view.currentSelection?.pages.first ?? view.currentPage else { return false }
+            let point = textBoxPoint(on: page)
+            let annotation = PDFAnnotation(
+                bounds: CGRect(x: point.x, y: point.y, width: 220, height: 64),
+                forType: .freeText,
+                withProperties: nil
+            )
+            annotation.contents = text
+            annotation.font = .systemFont(ofSize: 13)
+            annotation.fontColor = .labelColor
+            annotation.color = NSColor.systemYellow.withAlphaComponent(0.25)
+            let border = PDFBorder()
+            border.lineWidth = 1
+            annotation.border = border
+            page.addAnnotation(annotation)
+            return true
+        }
+
         @MainActor private func stickyNotePoint(on page: PDFPage) -> CGPoint {
             if let selection = pdfView?.currentSelection {
                 let bounds = selection.bounds(for: page)
@@ -356,16 +396,33 @@ struct PDFKitView: NSViewRepresentable {
             return view.convert(viewCenter, to: page)
         }
 
-        @MainActor private func promptForStickyNoteText() -> String? {
+        @MainActor private func textBoxPoint(on page: PDFPage) -> CGPoint {
+            if let selection = pdfView?.currentSelection {
+                let bounds = selection.bounds(for: page)
+                if bounds.width > 0, bounds.height > 0 {
+                    return CGPoint(x: bounds.minX, y: bounds.minY - 76)
+                }
+            }
+
+            guard let view = pdfView else {
+                let pageBounds = page.bounds(for: .cropBox)
+                return CGPoint(x: pageBounds.midX - 110, y: pageBounds.midY - 32)
+            }
+            let viewCenter = CGPoint(x: view.bounds.midX, y: view.bounds.midY)
+            let pagePoint = view.convert(viewCenter, to: page)
+            return CGPoint(x: pagePoint.x - 110, y: pagePoint.y - 32)
+        }
+
+        @MainActor private func promptForPDFText(title: String, message: String, confirmTitle: String) -> String? {
             let alert = NSAlert()
-            alert.messageText = "Add Sticky Note"
-            alert.informativeText = "Enter the note text to attach to this PDF page."
+            alert.messageText = title
+            alert.informativeText = message
             alert.alertStyle = .informational
-            alert.addButton(withTitle: "Add Note")
+            alert.addButton(withTitle: confirmTitle)
             alert.addButton(withTitle: "Cancel")
 
             let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
-            textField.placeholderString = "Note text"
+            textField.placeholderString = "Text"
             alert.accessoryView = textField
 
             guard alert.runModal() == .alertFirstButtonReturn else { return nil }
@@ -436,7 +493,7 @@ private final class MovableAnnotationPDFView: PDFView {
 
     override func mouseDown(with event: NSEvent) {
         guard isNoteMoveModeEnabled,
-              let hit = noteAnnotationHit(for: event) else {
+              let hit = movableAnnotationHit(for: event) else {
             super.mouseDown(with: event)
             return
         }
@@ -480,11 +537,11 @@ private final class MovableAnnotationPDFView: PDFView {
         onAnnotationMoved?()
     }
 
-    private func noteAnnotationHit(for event: NSEvent) -> (page: PDFPage, annotation: PDFAnnotation, pagePoint: CGPoint)? {
+    private func movableAnnotationHit(for event: NSEvent) -> (page: PDFPage, annotation: PDFAnnotation, pagePoint: CGPoint)? {
         let viewPoint = convert(event.locationInWindow, from: nil)
         guard let page = page(for: viewPoint, nearest: true) else { return nil }
         let pagePoint = convert(viewPoint, to: page)
-        for annotation in page.annotations.reversed() where annotation.isStickyNote {
+        for annotation in page.annotations.reversed() where annotation.isMovableFileViewerAnnotation {
             if annotation.bounds.insetBy(dx: -8, dy: -8).contains(pagePoint) {
                 return (page, annotation, pagePoint)
             }
@@ -511,6 +568,16 @@ private extension PDFAnnotation {
         guard let type else { return false }
         let normalizedType = type.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
         return normalizedType == "text"
+    }
+
+    var isFreeTextBox: Bool {
+        guard let type else { return false }
+        let normalizedType = type.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
+        return normalizedType == "freetext"
+    }
+
+    var isMovableFileViewerAnnotation: Bool {
+        isStickyNote || isFreeTextBox
     }
 }
 
