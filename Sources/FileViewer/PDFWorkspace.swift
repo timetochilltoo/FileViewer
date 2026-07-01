@@ -104,6 +104,7 @@ struct PDFKitView: NSViewRepresentable {
             NotificationCenter.default.addObserver(self, selector: #selector(syncCurrentState), name: .pdfSyncCurrentState, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(applyAnnotation(_:)), name: .pdfApplyAnnotation, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(removeAnnotationsInSelection(_:)), name: .pdfRemoveAnnotationsInSelection, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(addStickyNote(_:)), name: .pdfAddStickyNote, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(pageChanged), name: Notification.Name.PDFViewPageChanged, object: pdfView)
         }
 
@@ -196,6 +197,17 @@ struct PDFKitView: NSViewRepresentable {
             let selectedPages = selection.pages
             pdfView?.setCurrentSelection(nil, animate: false)
             selectedPages.forEach { $0.displaysAnnotations = true }
+            pdfView?.needsDisplay = true
+            NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
+        }
+
+        @MainActor @objc private func addStickyNote(_ notification: Notification) {
+            guard let url = notification.object as? URL,
+                  url == parent.documentURL,
+                  let noteText = promptForStickyNoteText(),
+                  addStickyNote(text: noteText) else {
+                return
+            }
             pdfView?.needsDisplay = true
             NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
         }
@@ -295,6 +307,54 @@ struct PDFKitView: NSViewRepresentable {
             }
 
             return addedAnnotation
+        }
+
+        @MainActor private func addStickyNote(text: String) -> Bool {
+            guard let view = pdfView,
+                  let page = view.currentSelection?.pages.first ?? view.currentPage else { return false }
+            let point = stickyNotePoint(on: page)
+            let annotation = PDFAnnotation(
+                bounds: CGRect(x: point.x, y: point.y, width: 28, height: 28),
+                forType: .text,
+                withProperties: nil
+            )
+            annotation.contents = text
+            annotation.color = NSColor.systemYellow
+            page.addAnnotation(annotation)
+            return true
+        }
+
+        @MainActor private func stickyNotePoint(on page: PDFPage) -> CGPoint {
+            if let selection = pdfView?.currentSelection {
+                let bounds = selection.bounds(for: page)
+                if bounds.width > 0, bounds.height > 0 {
+                    return CGPoint(x: bounds.maxX + 8, y: bounds.maxY + 8)
+                }
+            }
+
+            guard let view = pdfView else {
+                let pageBounds = page.bounds(for: .cropBox)
+                return CGPoint(x: pageBounds.midX, y: pageBounds.midY)
+            }
+            let viewCenter = CGPoint(x: view.bounds.midX, y: view.bounds.midY)
+            return view.convert(viewCenter, to: page)
+        }
+
+        @MainActor private func promptForStickyNoteText() -> String? {
+            let alert = NSAlert()
+            alert.messageText = "Add Sticky Note"
+            alert.informativeText = "Enter the note text to attach to this PDF page."
+            alert.alertStyle = .informational
+            alert.addButton(withTitle: "Add Note")
+            alert.addButton(withTitle: "Cancel")
+
+            let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+            textField.placeholderString = "Note text"
+            alert.accessoryView = textField
+
+            guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+            let text = textField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            return text.isEmpty ? nil : text
         }
 
         @MainActor private func removeAnnotations(overlapping selection: PDFSelection) -> Bool {

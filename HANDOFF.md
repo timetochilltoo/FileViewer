@@ -495,6 +495,7 @@ PDF annotation v1:
   5. The tab/window is marked as having unsaved PDF annotations.
   6. Click the PDF Save button or use Command-S to embed the annotation in the PDF file.
   7. To remove v1 text markup, select the marked text and use Remove Markup from Selection / the eraser toolbar button.
+  8. To add a sticky note, click Add Sticky Note, enter the note text, then save the PDF.
 - Supported annotation types:
   - highlight: `PDFAnnotationSubtype.highlight`
   - underline: `PDFAnnotationSubtype.underline`
@@ -506,6 +507,9 @@ PDF annotation v1:
   - Annotation bounds come from `PDFSelection.selectionsByLine()` and `bounds(for:)`, so multi-line selected text becomes one annotation per selected line/page.
   - `PDFKitView.Coordinator.removeAnnotationsInSelection(_:)` removes only text-markup annotations whose bounds intersect the selected text bounds.
   - The remove command is intentionally scoped to `highlight`, `underline`, and `strikeOut` annotation types. It does not try to delete arbitrary notes/shapes yet.
+  - Eraser limitation: it removes the whole overlapping annotation. If 10 words were highlighted as one annotation and the user selects 2 words inside it, the whole 10-word markup is removed. This is acceptable for v1; partial erasing would require creating smaller annotations or splitting annotation geometry.
+  - `PDFKitView.Coordinator.addStickyNote(_:)` asks for note text with an `NSAlert` and creates a `.text` PDF annotation.
+  - Sticky note placement: if text is selected, the note is placed near the selected text bounds; otherwise it is placed near the center of the current visible page area.
   - After a successful annotation, `PDFKitView` posts `.pdfAnnotationDidChange` with the PDF URL.
   - `ContentView` receives `.pdfAnnotationDidChange` and calls `model.markPDFAnnotationsChanged(for:)`.
   - `DocumentTab.pdfHasUnsavedAnnotations` drives the orange unsaved status, enabled PDF Save button, Command-S behavior, and close warning.
@@ -513,7 +517,8 @@ PDF annotation v1:
   - `AppModel.savePDFAnnotatedCopyAs()` presents an `NSSavePanel`, defaults the filename to `<original> annotated.pdf`, writes the same `PDFDocument` to the chosen URL, then switches the current tab to that new PDF URL. After this, normal Save writes to the annotated copy rather than the original.
 - Known limitations:
   - No freehand ink yet.
-  - No text boxes or sticky notes yet.
+  - No text boxes yet.
+  - Sticky notes can be added, but there is no custom editing/deleting UI yet; PDFKit/default viewer behavior may still expose note contents depending on system behavior.
   - No shape annotations yet.
   - No direct annotation selection/move/delete UI yet. V1 can remove text markup by selecting the marked text area.
   - No undo/redo for annotations yet.
@@ -844,6 +849,7 @@ Implemented:
 - underline selected text
 - strike through selected text
 - remove highlight/underline/strikeout markup from selected text
+- add sticky note comments
 - mark PDF tab/window as dirty after annotation
 - save annotations back into the PDF file
 - save an annotated copy through Save Annotated Copy As
@@ -853,7 +859,7 @@ Not implemented yet:
 
 - pen/freehand drawing
 - text box annotation
-- sticky note/comment annotation
+- richer sticky-note editing/deleting UI
 - rectangle/ellipse/line/arrow shapes
 - color picker
 - direct object-style annotation deletion
@@ -935,7 +941,8 @@ Recommended order:
 
 1. Continue PDF annotation:
    - direct annotation selection/delete
-   - text box / sticky note
+   - text box
+   - sticky-note editing/deleting polish
    - freehand ink
    - shapes
    - color controls

@@ -380,6 +380,14 @@ struct PDFToolbar: View {
             .help("Remove Markup from Selected PDF Text")
 
             Button {
+                guard let url = model.selectedPDFURL else { return }
+                NotificationCenter.default.post(name: .pdfAddStickyNote, object: url)
+            } label: {
+                Image(systemName: "note.text.badge.plus")
+            }
+            .help("Add Sticky Note")
+
+            Button {
                 model.savePDFAnnotations()
             } label: {
                 Image(systemName: "square.and.arrow.down")
@@ -489,6 +497,7 @@ extension Notification.Name {
     static let pdfSyncCurrentState = Notification.Name("FileViewer.pdfSyncCurrentState")
     static let pdfApplyAnnotation = Notification.Name("FileViewer.pdfApplyAnnotation")
     static let pdfRemoveAnnotationsInSelection = Notification.Name("FileViewer.pdfRemoveAnnotationsInSelection")
+    static let pdfAddStickyNote = Notification.Name("FileViewer.pdfAddStickyNote")
     static let pdfAnnotationDidChange = Notification.Name("FileViewer.pdfAnnotationDidChange")
     static let markdownSyncCurrentState = Notification.Name("FileViewer.markdownSyncCurrentState")
     static let toggleSidebar = Notification.Name("FileViewer.toggleSidebar")

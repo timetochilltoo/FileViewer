@@ -218,6 +218,13 @@ struct FileViewerCommands: Commands {
             .keyboardShortcut(.delete, modifiers: [.command, .shift])
             .disabled(model?.isPDFDocument != true)
 
+            Button("Add Sticky Note...") {
+                guard let url = model?.selectedPDFURL else { return }
+                NotificationCenter.default.post(name: .pdfAddStickyNote, object: url)
+            }
+            .keyboardShortcut("n", modifiers: [.command, .shift])
+            .disabled(model?.isPDFDocument != true)
+
             Divider()
 
             Button("Save PDF Annotations") {
