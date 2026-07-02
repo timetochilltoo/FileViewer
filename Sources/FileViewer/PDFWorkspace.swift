@@ -602,12 +602,22 @@ private final class MovableAnnotationPDFView: PDFView {
     private weak var draggedPage: PDFPage?
     private var dragOffset = CGPoint.zero
     private var draggedLineEndpoint: LineEndpoint?
+    private var draggedResizeHandle: ResizeHandle?
     private var lineStartPoint: CGPoint?
     private weak var lineDrawingPage: PDFPage?
 
     private enum LineEndpoint {
         case start
         case end
+    }
+
+    private struct ResizeHandle: OptionSet {
+        let rawValue: Int
+
+        static let minX = ResizeHandle(rawValue: 1 << 0)
+        static let maxX = ResizeHandle(rawValue: 1 << 1)
+        static let minY = ResizeHandle(rawValue: 1 << 2)
+        static let maxY = ResizeHandle(rawValue: 1 << 3)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -659,6 +669,7 @@ private final class MovableAnnotationPDFView: PDFView {
         draggedAnnotation = hit.annotation
         draggedPage = hit.page
         draggedLineEndpoint = lineEndpointHit(for: hit.annotation, at: hit.pagePoint)
+        draggedResizeHandle = resizeHandleHit(for: hit.annotation, at: hit.pagePoint)
         dragOffset = CGPoint(
             x: hit.pagePoint.x - hit.annotation.bounds.origin.x,
             y: hit.pagePoint.y - hit.annotation.bounds.origin.y
@@ -681,6 +692,17 @@ private final class MovableAnnotationPDFView: PDFView {
         let pagePoint = clamped(convert(windowPoint, to: page), to: page.bounds(for: displayBox))
         if let endpoint = draggedLineEndpoint, annotation.isLineAnnotation {
             updateLineEndpoint(endpoint, annotation: annotation, page: page, pagePoint: pagePoint)
+            needsDisplay = true
+            return
+        }
+
+        if let handle = draggedResizeHandle, annotation.isResizableShapeAnnotation {
+            annotation.bounds = resizedBounds(
+                annotation.bounds,
+                handle: handle,
+                pagePoint: pagePoint,
+                pageBounds: page.bounds(for: displayBox)
+            )
             needsDisplay = true
             return
         }
@@ -726,6 +748,7 @@ private final class MovableAnnotationPDFView: PDFView {
         draggedAnnotation = nil
         draggedPage = nil
         draggedLineEndpoint = nil
+        draggedResizeHandle = nil
         onAnnotationMoved?()
     }
 
@@ -770,6 +793,53 @@ private final class MovableAnnotationPDFView: PDFView {
             return .end
         }
         return nil
+    }
+
+    private func resizeHandleHit(for annotation: PDFAnnotation, at pagePoint: CGPoint) -> ResizeHandle? {
+        guard annotation.isResizableShapeAnnotation else { return nil }
+        let bounds = annotation.bounds
+        let threshold = max(10, 16 / max(scaleFactor, 0.25))
+        var handle: ResizeHandle = []
+
+        if abs(pagePoint.x - bounds.minX) <= threshold {
+            handle.insert(.minX)
+        } else if abs(pagePoint.x - bounds.maxX) <= threshold {
+            handle.insert(.maxX)
+        }
+
+        if abs(pagePoint.y - bounds.minY) <= threshold {
+            handle.insert(.minY)
+        } else if abs(pagePoint.y - bounds.maxY) <= threshold {
+            handle.insert(.maxY)
+        }
+
+        return handle.isEmpty ? nil : handle
+    }
+
+    private func resizedBounds(_ currentBounds: CGRect, handle: ResizeHandle, pagePoint: CGPoint, pageBounds: CGRect) -> CGRect {
+        let minimumSize: CGFloat = 12
+        var minX = currentBounds.minX
+        var maxX = currentBounds.maxX
+        var minY = currentBounds.minY
+        var maxY = currentBounds.maxY
+
+        if handle.contains(.minX) {
+            minX = min(pagePoint.x, maxX - minimumSize)
+        }
+        if handle.contains(.maxX) {
+            maxX = max(pagePoint.x, minX + minimumSize)
+        }
+        if handle.contains(.minY) {
+            minY = min(pagePoint.y, maxY - minimumSize)
+        }
+        if handle.contains(.maxY) {
+            maxY = max(pagePoint.y, minY + minimumSize)
+        }
+
+        return clamped(
+            CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY),
+            to: pageBounds
+        )
     }
 
     private func absoluteLineStartPoint(for annotation: PDFAnnotation) -> CGPoint {
@@ -891,6 +961,12 @@ private extension PDFAnnotation {
         guard let type else { return false }
         let normalizedType = type.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
         return normalizedType == "line"
+    }
+
+    var isResizableShapeAnnotation: Bool {
+        guard let type else { return false }
+        let normalizedType = type.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
+        return ["square", "circle"].contains(normalizedType)
     }
 
     var isEditableTextFileViewerAnnotation: Bool {

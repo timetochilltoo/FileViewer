@@ -536,6 +536,7 @@ PDF annotation v1:
   - Shapes use the selected annotation color as a strong border plus a light transparent fill, so marked table cells or document areas remain readable.
   - `MovableAnnotationPDFView` subclasses `PDFView` to support sticky-note, free-text-box, rectangle, oval, line, and arrow dragging when `isNoteMoveModeEnabled` is true. Normal PDF mouse handling is left alone when the mode is off.
   - Line/arrow endpoint adjustment is also handled in Move Annotation mode. If the click is close to a line annotation's start or end point, the drag moves only that endpoint. If the click is on the body/bounds instead, the whole line/arrow moves.
+  - Rectangle/oval resizing is also handled in Move Annotation mode. If the click is close to a rectangle/oval edge or corner, the drag resizes that side/corner. If the click is inside the shape but not near an edge, the whole shape moves.
   - `AppModel.isPDFNoteMoveModeEnabled` stores the mode. It is toggled from the toolbar hand button or PDF > Move Annotation Mode, and disabled when switching away from PDF content. The internal name still says “Note” for historical reasons.
   - `AppModel.isPDFAnnotationEditModeEnabled` stores Edit Annotation mode. Turning it on turns off Move and Delete modes. It is toggled from the toolbar pencil button or PDF > Edit Annotation Mode.
   - Edit Annotation mode is handled in `MovableAnnotationPDFView.mouseDown(with:)` before delete/move logic. It only targets `.text` sticky notes and `.freeText` text boxes, opens a small text-entry alert seeded with the existing annotation contents, updates `annotation.contents`, redraws the PDF view, and posts the dirty-state callback.
@@ -552,7 +553,7 @@ PDF annotation v1:
   - Sticky notes can be added, moved, edited, and deleted.
   - Rectangle, oval, line, and arrow shapes are implemented.
   - Existing annotation recoloring is not implemented yet. Choose the color before creating the annotation.
-  - Rectangle/oval resize handles are not implemented yet. Lines/arrows can be drawn in any direction initially and their endpoints can be adjusted later in Move Annotation mode.
+  - Rectangle/oval edge/corner resizing and line/arrow endpoint adjustment are implemented in Move Annotation mode.
   - Text markup is still erased through selected text overlap, not direct object-click deletion.
   - No undo/redo for annotations yet.
   - Normal Save still writes back to the current PDF file. Use Save Annotated Copy As before marking important source PDFs if you want to preserve the original untouched.
@@ -855,6 +856,12 @@ Missing:
 - clearing search highlights more predictably
 - search result sidebar/list
 
+Known bug reported by Patrick on 2026-07-02:
+
+- Search can keep pulling the document back to the active match after the user scrolls away to keep reading. Example: search for `chapter 17.1`, the app jumps to the correct match, then manual scrolling may jump back to that same match.
+- Clearing the search field can sometimes jump back to the top of the document/page unexpectedly. Patrick said this is intermittent, not every time.
+- This is not urgent and should be fixed after the current PDF annotation work. Likely cause to inspect later: `PDFKitView.updateNSView` repeatedly calls `applySearch(searchText)` and `goToSearchMatch(searchMatchIndex)` during SwiftUI refreshes, so the selected search match may be re-applied even after the user manually scrolls.
+
 ### 6.8 PDF outline support is basic
 
 Implemented in `SidebarView.contentsList` and `AppModel.extractPDFOutline(from:)`.
@@ -901,9 +908,8 @@ Not implemented yet:
 - pen/freehand drawing
 - text box resizing UI
 - richer sticky-note styling UI
-- rectangle/oval resize handles
 - recolor existing annotations
-- resizing annotations
+- visible resize handles
 - undo/redo
 - annotation summary/sidebar
 
@@ -983,7 +989,7 @@ Recommended order:
    - text box resizing polish
    - richer sticky-note styling polish
    - freehand ink
-   - rectangle/oval resizing
+   - visible resize handles
    - recolor existing annotations
    - undo/redo
 2. Improve Markdown preview rendering if Patrick relies heavily on richer tables/checklists.

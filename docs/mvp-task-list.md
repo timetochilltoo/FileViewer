@@ -347,7 +347,7 @@ Next implementation work:
   - improve text box resizing
   - improve sticky note styling
   - freehand ink
-  - rectangle/oval resizing
+  - visible resize handles
   - recolor existing annotations
   - annotation undo
 - Improve Markdown preview fidelity for richer GitHub-flavored tables, local images, and task-list polish if needed later.

@@ -237,8 +237,7 @@ Implemented v1 on branch `feature/pdf-annotation`:
 Still required after v1:
 
 - Draw freehand ink.
-- Resize rectangle/oval annotations.
-- Resize annotations.
+- Add visible resize handles for shape annotations.
 - Undo and redo annotation actions.
 
 Recommended:
