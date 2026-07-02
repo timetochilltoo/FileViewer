@@ -46,6 +46,10 @@ struct PDFWorkspace: View {
                 get: { model.isPDFAnnotationRecolorModeEnabled },
                 set: { model.isPDFAnnotationRecolorModeEnabled = $0 }
             ),
+            isInkDrawingModeEnabled: Binding(
+                get: { model.isPDFInkDrawingModeEnabled },
+                set: { model.isPDFInkDrawingModeEnabled = $0 }
+            ),
             lineDrawingMode: Binding(
                 get: { model.pdfLineDrawingMode },
                 set: { model.pdfLineDrawingMode = $0 }
@@ -72,6 +76,7 @@ struct PDFKitView: NSViewRepresentable {
     @Binding var isAnnotationDeleteModeEnabled: Bool
     @Binding var isAnnotationEditModeEnabled: Bool
     @Binding var isAnnotationRecolorModeEnabled: Bool
+    @Binding var isInkDrawingModeEnabled: Bool
     @Binding var lineDrawingMode: PDFShapeAnnotationKind?
     @Binding var annotationColor: NSColor
 
@@ -119,6 +124,7 @@ struct PDFKitView: NSViewRepresentable {
             movableView.isAnnotationDeleteModeEnabled = isAnnotationDeleteModeEnabled
             movableView.isAnnotationEditModeEnabled = isAnnotationEditModeEnabled
             movableView.isAnnotationRecolorModeEnabled = isAnnotationRecolorModeEnabled
+            movableView.isInkDrawingModeEnabled = isInkDrawingModeEnabled
             movableView.lineDrawingMode = lineDrawingMode
             movableView.annotationColor = annotationColor
             let lineModeBinding = $lineDrawingMode
@@ -599,6 +605,7 @@ private final class MovableAnnotationPDFView: PDFView {
     var isAnnotationDeleteModeEnabled = false
     var isAnnotationEditModeEnabled = false
     var isAnnotationRecolorModeEnabled = false
+    var isInkDrawingModeEnabled = false
     var lineDrawingMode: PDFShapeAnnotationKind?
     var annotationColor = NSColor.systemYellow
     var onAnnotationMoved: (() -> Void)?
@@ -612,6 +619,8 @@ private final class MovableAnnotationPDFView: PDFView {
     private var draggedResizeHandle: ResizeHandle?
     private var lineStartPoint: CGPoint?
     private weak var lineDrawingPage: PDFPage?
+    private var inkPoints: [CGPoint] = []
+    private weak var inkDrawingPage: PDFPage?
 
     private enum LineEndpoint {
         case start
@@ -628,6 +637,17 @@ private final class MovableAnnotationPDFView: PDFView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        if isInkDrawingModeEnabled {
+            let viewPoint = convert(event.locationInWindow, from: nil)
+            guard let page = page(for: viewPoint, nearest: true) else {
+                NSSound.beep()
+                return
+            }
+            inkDrawingPage = page
+            inkPoints = [clamped(convert(viewPoint, to: page), to: page.bounds(for: displayBox))]
+            return
+        }
+
         if let mode = lineDrawingMode, mode.isLineBased {
             let viewPoint = convert(event.locationInWindow, from: nil)
             guard let page = page(for: viewPoint, nearest: true) else {
@@ -695,6 +715,19 @@ private final class MovableAnnotationPDFView: PDFView {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        if isInkDrawingModeEnabled,
+           let page = inkDrawingPage,
+           !inkPoints.isEmpty {
+            let viewPoint = convert(event.locationInWindow, from: nil)
+            let pagePoint = clamped(convert(viewPoint, to: page), to: page.bounds(for: displayBox))
+            if let last = inkPoints.last,
+               hypot(pagePoint.x - last.x, pagePoint.y - last.y) < 1 {
+                return
+            }
+            inkPoints.append(pagePoint)
+            return
+        }
+
         if lineStartPoint != nil, lineDrawingMode?.isLineBased == true {
             return
         }
@@ -735,6 +768,30 @@ private final class MovableAnnotationPDFView: PDFView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if isInkDrawingModeEnabled,
+           let page = inkDrawingPage {
+            defer {
+                inkPoints = []
+                inkDrawingPage = nil
+            }
+
+            let viewPoint = convert(event.locationInWindow, from: nil)
+            let pagePoint = clamped(convert(viewPoint, to: page), to: page.bounds(for: displayBox))
+            if let last = inkPoints.last,
+               hypot(pagePoint.x - last.x, pagePoint.y - last.y) >= 1 {
+                inkPoints.append(pagePoint)
+            }
+
+            guard inkPoints.count >= 2 else {
+                NSSound.beep()
+                return
+            }
+            addInkAnnotation(page: page, points: inkPoints)
+            needsDisplay = true
+            onAnnotationEdited?()
+            return
+        }
+
         if let mode = lineDrawingMode,
            let startPoint = lineStartPoint,
            let page = lineDrawingPage {
@@ -903,6 +960,41 @@ private final class MovableAnnotationPDFView: PDFView {
         page.addAnnotation(annotation)
     }
 
+    private func addInkAnnotation(page: PDFPage, points: [CGPoint]) {
+        let strokePadding: CGFloat = 4
+        let pageBounds = page.bounds(for: displayBox)
+        var rawBounds = points.reduce(CGRect.null) { partialResult, point in
+            partialResult.union(CGRect(origin: point, size: .zero))
+        }
+        rawBounds = rawBounds.insetBy(dx: -strokePadding, dy: -strokePadding)
+        let bounds = clamped(rawBounds, to: pageBounds)
+
+        let path = NSBezierPath()
+        path.lineWidth = 2
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
+        for (index, point) in points.enumerated() {
+            let relativePoint = CGPoint(x: point.x - bounds.minX, y: point.y - bounds.minY)
+            if index == 0 {
+                path.move(to: relativePoint)
+            } else {
+                path.line(to: relativePoint)
+            }
+        }
+
+        let annotation = PDFAnnotation(
+            bounds: bounds,
+            forType: .ink,
+            withProperties: nil
+        )
+        annotation.color = annotationColor.forPDFShapeBorder()
+        let border = PDFBorder()
+        border.lineWidth = 2
+        annotation.border = border
+        annotation.add(path)
+        page.addAnnotation(annotation)
+    }
+
     private func setLineAnnotation(_ annotation: PDFAnnotation, page: PDFPage, startPoint: CGPoint, endPoint: CGPoint) {
         var minX = min(startPoint.x, endPoint.x)
         var minY = min(startPoint.y, endPoint.y)
@@ -976,7 +1068,7 @@ private extension PDFAnnotation {
     var isShapeAnnotation: Bool {
         guard let type else { return false }
         let normalizedType = type.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
-        return ["square", "circle", "line"].contains(normalizedType)
+        return ["square", "circle", "line", "ink"].contains(normalizedType)
     }
 
     var isLineAnnotation: Bool {
@@ -989,6 +1081,12 @@ private extension PDFAnnotation {
         guard let type else { return false }
         let normalizedType = type.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
         return ["freetext", "square", "circle"].contains(normalizedType)
+    }
+
+    var isInkAnnotation: Bool {
+        guard let type else { return false }
+        let normalizedType = type.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
+        return normalizedType == "ink"
     }
 
     var isRecolorableFileViewerAnnotation: Bool {
@@ -1015,6 +1113,10 @@ private extension PDFAnnotation {
         if isLineAnnotation {
             self.color = color.forPDFShapeBorder()
             self.interiorColor = color.forPDFShapeBorder()
+            return
+        }
+        if isInkAnnotation {
+            self.color = color.forPDFShapeBorder()
             return
         }
         if isShapeAnnotation {

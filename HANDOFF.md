@@ -500,9 +500,10 @@ PDF annotation v1:
   10. To add visible page text, click Add Text Box, enter the text, then save the PDF.
   11. To add a rectangle or oval, click the matching toolbar button, then save the PDF.
   12. To add a line or arrow, click Line or Arrow, drag on the PDF from start to end, then save the PDF.
-  13. To move a sticky note, text box, rectangle, oval, line, or arrow, turn on Move Annotation mode, drag the annotation, then save the PDF.
-  14. To edit a sticky note or text box, turn on Edit Annotation mode, click the annotation, update the text, then save the PDF.
-  15. To delete a sticky note, text box, rectangle, oval, line, or arrow, turn on Delete Annotation mode, click the annotation, confirm, then save the PDF.
+  13. To draw freehand ink, click Pen Drawing Mode, drag on the PDF, release to create the ink annotation, then save the PDF.
+  14. To move a sticky note, text box, rectangle, oval, line, arrow, or ink annotation, turn on Move Annotation mode, drag the annotation, then save the PDF.
+  15. To edit a sticky note or text box, turn on Edit Annotation mode, click the annotation, update the text, then save the PDF.
+  16. To delete a sticky note, text box, rectangle, oval, line, arrow, or ink annotation, turn on Delete Annotation mode, click the annotation, confirm, then save the PDF.
 - Supported annotation types:
   - highlight: `PDFAnnotationSubtype.highlight`
   - underline: `PDFAnnotationSubtype.underline`
@@ -532,6 +533,10 @@ PDF annotation v1:
   - Line/arrow toolbar buttons call `AppModel.beginPDFLineDrawingMode(_:)`, which stores `.line` or `.arrow` in `AppModel.pdfLineDrawingMode`, turns off move/delete/edit modes, and tells the user to drag on the PDF.
   - `PDFKitView` passes `pdfLineDrawingMode` into `MovableAnnotationPDFView`. The custom PDF view intercepts mouse down/up while the mode is active, converts the drag start/end to PDF page coordinates, creates a `.line` annotation, marks the PDF dirty, and clears the drawing mode after release.
   - Arrow annotations are PDFKit line annotations with `endLineStyle = .closedArrow`; plain lines use no line ending.
+  - Pen Drawing Mode is stored in `AppModel.isPDFInkDrawingModeEnabled`. Turning it on turns off move, delete, edit, recolor, and line/arrow drawing modes.
+  - `PDFKitView` passes `isPDFInkDrawingModeEnabled` into `MovableAnnotationPDFView`. The custom PDF view captures mouse drag points in PDF page coordinates, creates a real PDFKit `.ink` annotation on mouse release, marks the PDF dirty, and keeps the ink as a normal embedded PDF annotation.
+  - Ink annotations use the selected annotation color as their stroke color and a 2-point rounded path. Existing v1 Move, Delete, and Recolor modes can target ink annotations.
+  - Current ink limitation: the stroke appears after mouse release. There is not yet a live preview while dragging.
   - Rectangle/oval placement: if PDF text is selected, the shape is placed around the selected bounds with padding. Otherwise it is placed near the center of the visible page. Current v1 rectangle/oval shapes have a fixed default size when no selection is available.
   - Line/arrow placement: the user now drags from start point to end point. This replaced the earlier fixed diagonal line/arrow behavior.
   - Shapes use the selected annotation color as a strong border plus a light transparent fill, so marked table cells or document areas remain readable.
@@ -550,10 +555,10 @@ PDF annotation v1:
   - `AppModel.savePDFAnnotations()` / `savePDFTab(at:)` writes through `PDFDocument.write(to:)`.
   - `AppModel.savePDFAnnotatedCopyAs()` presents an `NSSavePanel`, defaults the filename to `<original> annotated.pdf`, writes the same `PDFDocument` to the chosen URL, then switches the current tab to that new PDF URL. After this, normal Save writes to the annotated copy rather than the original.
 - Known limitations:
-  - No freehand ink yet.
+  - Freehand ink is implemented, but does not show a live stroke preview while dragging. The ink appears after mouse release.
   - Text boxes can be added, moved, resized, edited, recolored, and deleted.
   - Sticky notes can be added, moved, edited, and deleted.
-  - Rectangle, oval, line, and arrow shapes are implemented.
+  - Rectangle, oval, line, arrow, and freehand ink shapes are implemented.
   - Existing annotation recoloring, text box resizing, rectangle/oval edge/corner resizing, and line/arrow endpoint adjustment are implemented.
   - Text markup is still erased through selected text overlap, not direct object-click deletion.
   - No undo/redo for annotations yet.
@@ -884,7 +889,7 @@ Known limitations:
 
 ### 6.9 PDF annotation v1 limitations
 
-PDF annotation v1 is selection-based and intentionally conservative.
+PDF annotation v1 is intentionally conservative. Text markup is selection-based; notes, text boxes, shapes, and pen ink are object/page-based.
 
 Implemented:
 
@@ -896,6 +901,7 @@ Implemented:
 - add sticky note comments
 - add visible text box annotations
 - add rectangle, oval, line, and arrow shape annotations
+- draw freehand ink annotations
 - move sticky note icons and text boxes with Move Annotation mode
 - edit sticky note and text box text with Edit Annotation mode
 - delete sticky notes and text boxes with Delete Annotation mode
@@ -906,7 +912,7 @@ Implemented:
 
 Not implemented yet:
 
-- pen/freehand drawing
+- live pen-stroke preview while dragging
 - richer sticky-note styling UI
 - visible resize handles
 - undo/redo
@@ -986,7 +992,7 @@ Recommended order:
 
 1. Continue PDF annotation:
    - richer sticky-note styling polish
-   - freehand ink
+   - live pen preview while drawing
    - visible resize handles
    - undo/redo
 2. Improve Markdown preview rendering if Patrick relies heavily on richer tables/checklists.

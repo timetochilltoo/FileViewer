@@ -52,6 +52,7 @@ Current MVP build includes:
   - add sticky note comments to the current PDF page
   - add visible text box annotations
   - add rectangle, oval, line, and arrow shape annotations
+  - draw freehand ink annotations
   - move sticky note icons and text boxes with Move Annotation mode
   - resize text boxes with Move Annotation mode
   - resize rectangle and oval annotations with Move Annotation mode

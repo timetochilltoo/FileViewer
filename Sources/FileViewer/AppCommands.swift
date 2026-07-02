@@ -267,6 +267,11 @@ struct FileViewerCommands: Commands {
             }
             .disabled(activeModel?.isPDFDocument != true)
 
+            Button("Pen Drawing Mode") {
+                activeModel?.togglePDFInkDrawingMode()
+            }
+            .disabled(activeModel?.isPDFDocument != true)
+
             Button("Move Annotation Mode") {
                 activeModel?.togglePDFNoteMoveMode()
             }

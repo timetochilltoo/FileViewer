@@ -229,6 +229,7 @@ Implemented v1 on branch `feature/pdf-annotation`:
 - Add text boxes.
 - Resize text boxes.
 - Add rectangle, oval, line, and arrow shape annotations.
+- Draw freehand ink annotations.
 - Move sticky note icons and text boxes with a dedicated Move Annotation mode.
 - Edit sticky note and text box text with a dedicated Edit Annotation mode.
 - Delete sticky note and text box annotations with a dedicated Delete Annotation mode.
@@ -238,7 +239,7 @@ Implemented v1 on branch `feature/pdf-annotation`:
 
 Still required after v1:
 
-- Draw freehand ink.
+- Show a live preview while drawing freehand ink.
 - Add visible resize handles for shape annotations.
 - Undo and redo annotation actions.
 

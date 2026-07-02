@@ -399,6 +399,7 @@ struct PDFToolbar: View {
             Button {
                 model.pdfLineDrawingMode = nil
                 model.isPDFAnnotationRecolorModeEnabled = false
+                model.isPDFInkDrawingModeEnabled = false
                 guard let url = model.selectedPDFURL else { return }
                 NotificationCenter.default.post(name: .pdfRemoveAnnotationsInSelection, object: url)
             } label: {
@@ -409,6 +410,7 @@ struct PDFToolbar: View {
             Button {
                 model.pdfLineDrawingMode = nil
                 model.isPDFAnnotationRecolorModeEnabled = false
+                model.isPDFInkDrawingModeEnabled = false
                 guard let url = model.selectedPDFURL else { return }
                 NotificationCenter.default.post(name: .pdfAddStickyNote, object: url)
             } label: {
@@ -419,6 +421,7 @@ struct PDFToolbar: View {
             Button {
                 model.pdfLineDrawingMode = nil
                 model.isPDFAnnotationRecolorModeEnabled = false
+                model.isPDFInkDrawingModeEnabled = false
                 guard let url = model.selectedPDFURL else { return }
                 NotificationCenter.default.post(name: .pdfAddTextBox, object: url)
             } label: {
@@ -455,6 +458,14 @@ struct PDFToolbar: View {
                     .foregroundStyle(model.pdfLineDrawingMode == .arrow ? Color.accentColor : Color.primary)
             }
             .help(model.pdfLineDrawingMode == .arrow ? "Arrow Drawing Mode On" : "Draw Arrow")
+
+            Button {
+                model.togglePDFInkDrawingMode()
+            } label: {
+                Image(systemName: "pencil.tip")
+                    .foregroundStyle(model.isPDFInkDrawingModeEnabled ? Color.accentColor : Color.primary)
+            }
+            .help(model.isPDFInkDrawingModeEnabled ? "Pen Drawing Mode On" : "Draw Freehand Ink")
 
             Button {
                 model.togglePDFNoteMoveMode()
@@ -500,6 +511,7 @@ struct PDFToolbar: View {
     private func postAnnotation(_ kind: PDFAnnotationKind) {
         model.pdfLineDrawingMode = nil
         model.isPDFAnnotationRecolorModeEnabled = false
+        model.isPDFInkDrawingModeEnabled = false
         guard let url = model.selectedPDFURL else { return }
         NotificationCenter.default.post(
             name: .pdfApplyAnnotation,
@@ -510,6 +522,7 @@ struct PDFToolbar: View {
     private func postShape(_ kind: PDFShapeAnnotationKind) {
         model.pdfLineDrawingMode = nil
         model.isPDFAnnotationRecolorModeEnabled = false
+        model.isPDFInkDrawingModeEnabled = false
         guard let url = model.selectedPDFURL else { return }
         NotificationCenter.default.post(
             name: .pdfAddShapeAnnotation,

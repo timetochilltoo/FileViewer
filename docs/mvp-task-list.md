@@ -345,7 +345,7 @@ Next implementation work:
 
 - Continue PDF annotation beyond v1:
   - improve sticky note styling
-  - freehand ink
+  - live preview while drawing freehand ink
   - visible resize handles
   - annotation undo
 - Improve Markdown preview fidelity for richer GitHub-flavored tables, local images, and task-list polish if needed later.
