@@ -498,10 +498,10 @@ PDF annotation v1:
   8. To remove v1 text markup, select the marked text and use Remove Markup from Selection / the eraser toolbar button.
   9. To add a sticky note, click Add Sticky Note, enter the note text, then save the PDF.
   10. To add visible page text, click Add Text Box, enter the text, then save the PDF.
-  11. To add a rectangle or oval, click the Rectangle or Oval toolbar button, then save the PDF.
-  12. To move a sticky note, text box, rectangle, or oval, turn on Move Annotation mode, drag the annotation, then save the PDF.
+  11. To add a rectangle, oval, line, or arrow, click the matching toolbar button, then save the PDF.
+  12. To move a sticky note, text box, rectangle, oval, line, or arrow, turn on Move Annotation mode, drag the annotation, then save the PDF.
   13. To edit a sticky note or text box, turn on Edit Annotation mode, click the annotation, update the text, then save the PDF.
-  14. To delete a sticky note, text box, rectangle, or oval, turn on Delete Annotation mode, click the annotation, confirm, then save the PDF.
+  14. To delete a sticky note, text box, rectangle, oval, line, or arrow, turn on Delete Annotation mode, click the annotation, confirm, then save the PDF.
 - Supported annotation types:
   - highlight: `PDFAnnotationSubtype.highlight`
   - underline: `PDFAnnotationSubtype.underline`
@@ -526,15 +526,16 @@ PDF annotation v1:
   - Text boxes use the selected annotation color as a translucent background.
   - 2026-07-01 fix: sticky note/text box creation now clamps the annotation rectangle inside the PDF page bounds. Before this, adding a text box below selected text near the bottom of a page could create it off-page, making it look like the user needed to retry several times.
   - `PDFShapeAnnotationKind` and `PDFShapeAnnotationCommand` live in `DocumentModel.swift`.
-  - Rectangle/oval shape creation posts `.pdfAddShapeAnnotation`. The coordinator creates real PDFKit `.square` or `.circle` annotations.
+  - Rectangle/oval/line/arrow shape creation posts `.pdfAddShapeAnnotation`. The coordinator creates real PDFKit `.square`, `.circle`, or `.line` annotations.
+  - Arrow annotations are PDFKit line annotations with `endLineStyle = .closedArrow`; plain lines use no line ending.
   - Shape placement: if PDF text is selected, the shape is placed around the selected bounds with padding. Otherwise it is placed near the center of the visible page. Current v1 shapes have a fixed default size when no selection is available.
   - Shapes use the selected annotation color as a strong border plus a light transparent fill, so marked table cells or document areas remain readable.
-  - `MovableAnnotationPDFView` subclasses `PDFView` to support sticky-note, free-text-box, rectangle, and oval dragging when `isNoteMoveModeEnabled` is true. Normal PDF mouse handling is left alone when the mode is off.
+  - `MovableAnnotationPDFView` subclasses `PDFView` to support sticky-note, free-text-box, rectangle, oval, line, and arrow dragging when `isNoteMoveModeEnabled` is true. Normal PDF mouse handling is left alone when the mode is off.
   - `AppModel.isPDFNoteMoveModeEnabled` stores the mode. It is toggled from the toolbar hand button or PDF > Move Annotation Mode, and disabled when switching away from PDF content. The internal name still says “Note” for historical reasons.
   - `AppModel.isPDFAnnotationEditModeEnabled` stores Edit Annotation mode. Turning it on turns off Move and Delete modes. It is toggled from the toolbar pencil button or PDF > Edit Annotation Mode.
   - Edit Annotation mode is handled in `MovableAnnotationPDFView.mouseDown(with:)` before delete/move logic. It only targets `.text` sticky notes and `.freeText` text boxes, opens a small text-entry alert seeded with the existing annotation contents, updates `annotation.contents`, redraws the PDF view, and posts the dirty-state callback.
   - `AppModel.isPDFAnnotationDeleteModeEnabled` stores Delete Annotation mode. Turning it on turns off Move and Edit modes.
-  - Delete Annotation mode is handled in `MovableAnnotationPDFView.mouseDown(with:)`. It targets `.text` sticky notes, `.freeText` text boxes, `.square` rectangles, and `.circle` ovals, shows a confirmation alert, removes the annotation from its page, and posts the same dirty-state callback used by moves.
+  - Delete Annotation mode is handled in `MovableAnnotationPDFView.mouseDown(with:)`. It targets `.text` sticky notes, `.freeText` text boxes, `.square` rectangles, `.circle` ovals, and `.line` line/arrow annotations, shows a confirmation alert, removes the annotation from its page, and posts the same dirty-state callback used by moves.
   - After a successful annotation, `PDFKitView` posts `.pdfAnnotationDidChange` with the PDF URL.
   - `ContentView` receives `.pdfAnnotationDidChange` and calls `model.markPDFAnnotationsChanged(for:)`.
   - `DocumentTab.pdfHasUnsavedAnnotations` drives the orange unsaved status, enabled PDF Save button, Command-S behavior, and close warning.
@@ -544,9 +545,9 @@ PDF annotation v1:
   - No freehand ink yet.
   - Text boxes can be added, moved, edited, and deleted, but there is no resize UI yet.
   - Sticky notes can be added, moved, edited, and deleted.
-  - Rectangle and oval shapes are implemented. Lines/arrows are not implemented yet.
+  - Rectangle, oval, line, and arrow shapes are implemented.
   - Existing annotation recoloring is not implemented yet. Choose the color before creating the annotation.
-  - Shape resize handles are not implemented yet. Use selection before creating a shape if you want the initial shape to wrap selected text/table content.
+  - Shape resize/endpoint handles are not implemented yet. Use selection before creating a shape if you want the initial shape to wrap selected text/table content.
   - Text markup is still erased through selected text overlap, not direct object-click deletion.
   - No undo/redo for annotations yet.
   - Normal Save still writes back to the current PDF file. Use Save Annotated Copy As before marking important source PDFs if you want to preserve the original untouched.
@@ -881,7 +882,7 @@ Implemented:
 - remove highlight/underline/strikeout markup from selected text
 - add sticky note comments
 - add visible text box annotations
-- add rectangle and oval shape annotations
+- add rectangle, oval, line, and arrow shape annotations
 - move sticky note icons and text boxes with Move Annotation mode
 - edit sticky note and text box text with Edit Annotation mode
 - delete sticky notes and text boxes with Delete Annotation mode
@@ -895,8 +896,7 @@ Not implemented yet:
 - pen/freehand drawing
 - text box resizing UI
 - richer sticky-note styling UI
-- line/arrow shapes
-- shape resize handles
+- shape resize/endpoint handles
 - recolor existing annotations
 - resizing annotations
 - undo/redo
@@ -978,8 +978,7 @@ Recommended order:
    - text box resizing polish
    - richer sticky-note styling polish
    - freehand ink
-   - line/arrow shapes
-   - shape resizing
+   - shape resizing / line endpoint dragging
    - recolor existing annotations
    - undo/redo
 2. Improve Markdown preview rendering if Patrick relies heavily on richer tables/checklists.

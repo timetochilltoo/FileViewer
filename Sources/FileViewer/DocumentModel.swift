@@ -167,11 +167,15 @@ struct PDFAnnotationCommand {
 enum PDFShapeAnnotationKind: String, CaseIterable, Equatable {
     case rectangle
     case oval
+    case line
+    case arrow
 
     var title: String {
         switch self {
         case .rectangle: "Rectangle"
         case .oval: "Oval"
+        case .line: "Line"
+        case .arrow: "Arrow"
         }
     }
 }

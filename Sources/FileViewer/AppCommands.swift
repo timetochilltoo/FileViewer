@@ -252,6 +252,16 @@ struct FileViewerCommands: Commands {
             }
             .disabled(activeModel?.isPDFDocument != true)
 
+            Button("Add Line") {
+                postPDFShape(.line)
+            }
+            .disabled(activeModel?.isPDFDocument != true)
+
+            Button("Add Arrow") {
+                postPDFShape(.arrow)
+            }
+            .disabled(activeModel?.isPDFDocument != true)
+
             Button("Move Annotation Mode") {
                 activeModel?.togglePDFNoteMoveMode()
             }

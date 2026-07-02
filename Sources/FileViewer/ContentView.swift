@@ -422,6 +422,20 @@ struct PDFToolbar: View {
             .help("Add Oval")
 
             Button {
+                postShape(.line)
+            } label: {
+                Image(systemName: "line.diagonal")
+            }
+            .help("Add Line")
+
+            Button {
+                postShape(.arrow)
+            } label: {
+                Image(systemName: "arrow.up.right")
+            }
+            .help("Add Arrow")
+
+            Button {
                 model.togglePDFNoteMoveMode()
             } label: {
                 Image(systemName: "hand.draw")

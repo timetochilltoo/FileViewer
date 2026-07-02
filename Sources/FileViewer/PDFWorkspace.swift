@@ -437,6 +437,12 @@ struct PDFKitView: NSViewRepresentable {
             let border = PDFBorder()
             border.lineWidth = 2
             annotation.border = border
+            if kind.isLineBased {
+                annotation.startPoint = CGPoint(x: 0, y: 0)
+                annotation.endPoint = CGPoint(x: bounds.width, y: bounds.height)
+                annotation.startLineStyle = .none
+                annotation.endLineStyle = kind == .arrow ? .closedArrow : .none
+            }
             page.addAnnotation(annotation)
             return true
         }
@@ -729,7 +735,7 @@ private extension PDFAnnotation {
     var isShapeAnnotation: Bool {
         guard let type else { return false }
         let normalizedType = type.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
-        return ["square", "circle"].contains(normalizedType)
+        return ["square", "circle", "line"].contains(normalizedType)
     }
 
     var isEditableTextFileViewerAnnotation: Bool {
@@ -797,7 +803,12 @@ private extension PDFShapeAnnotationKind {
         switch self {
         case .rectangle: .square
         case .oval: .circle
+        case .line, .arrow: .line
         }
+    }
+
+    var isLineBased: Bool {
+        self == .line || self == .arrow
     }
 }
 

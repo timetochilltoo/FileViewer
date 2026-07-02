@@ -347,8 +347,7 @@ Next implementation work:
   - improve text box resizing
   - improve sticky note styling
   - freehand ink
-  - line/arrow shapes
-  - shape resizing
+  - shape resizing / line endpoint dragging
   - recolor existing annotations
   - annotation undo
 - Improve Markdown preview fidelity for richer GitHub-flavored tables, local images, and task-list polish if needed later.
