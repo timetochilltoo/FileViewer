@@ -601,8 +601,14 @@ private final class MovableAnnotationPDFView: PDFView {
     private weak var draggedAnnotation: PDFAnnotation?
     private weak var draggedPage: PDFPage?
     private var dragOffset = CGPoint.zero
+    private var draggedLineEndpoint: LineEndpoint?
     private var lineStartPoint: CGPoint?
     private weak var lineDrawingPage: PDFPage?
+
+    private enum LineEndpoint {
+        case start
+        case end
+    }
 
     override func mouseDown(with event: NSEvent) {
         if let mode = lineDrawingMode, mode.isLineBased {
@@ -652,6 +658,7 @@ private final class MovableAnnotationPDFView: PDFView {
 
         draggedAnnotation = hit.annotation
         draggedPage = hit.page
+        draggedLineEndpoint = lineEndpointHit(for: hit.annotation, at: hit.pagePoint)
         dragOffset = CGPoint(
             x: hit.pagePoint.x - hit.annotation.bounds.origin.x,
             y: hit.pagePoint.y - hit.annotation.bounds.origin.y
@@ -671,7 +678,13 @@ private final class MovableAnnotationPDFView: PDFView {
         }
 
         let windowPoint = convert(event.locationInWindow, from: nil)
-        let pagePoint = convert(windowPoint, to: page)
+        let pagePoint = clamped(convert(windowPoint, to: page), to: page.bounds(for: displayBox))
+        if let endpoint = draggedLineEndpoint, annotation.isLineAnnotation {
+            updateLineEndpoint(endpoint, annotation: annotation, page: page, pagePoint: pagePoint)
+            needsDisplay = true
+            return
+        }
+
         var newBounds = annotation.bounds
         newBounds.origin = CGPoint(
             x: pagePoint.x - dragOffset.x,
@@ -712,6 +725,7 @@ private final class MovableAnnotationPDFView: PDFView {
 
         draggedAnnotation = nil
         draggedPage = nil
+        draggedLineEndpoint = nil
         onAnnotationMoved?()
     }
 
@@ -741,7 +755,63 @@ private final class MovableAnnotationPDFView: PDFView {
         )
     }
 
+    private func lineEndpointHit(for annotation: PDFAnnotation, at pagePoint: CGPoint) -> LineEndpoint? {
+        guard annotation.isLineAnnotation else { return nil }
+        let start = absoluteLineStartPoint(for: annotation)
+        let end = absoluteLineEndPoint(for: annotation)
+        let threshold = max(10, 16 / max(scaleFactor, 0.25))
+        let startDistance = hypot(pagePoint.x - start.x, pagePoint.y - start.y)
+        let endDistance = hypot(pagePoint.x - end.x, pagePoint.y - end.y)
+
+        if startDistance <= threshold, startDistance <= endDistance {
+            return .start
+        }
+        if endDistance <= threshold {
+            return .end
+        }
+        return nil
+    }
+
+    private func absoluteLineStartPoint(for annotation: PDFAnnotation) -> CGPoint {
+        CGPoint(
+            x: annotation.bounds.minX + annotation.startPoint.x,
+            y: annotation.bounds.minY + annotation.startPoint.y
+        )
+    }
+
+    private func absoluteLineEndPoint(for annotation: PDFAnnotation) -> CGPoint {
+        CGPoint(
+            x: annotation.bounds.minX + annotation.endPoint.x,
+            y: annotation.bounds.minY + annotation.endPoint.y
+        )
+    }
+
+    private func updateLineEndpoint(_ endpoint: LineEndpoint, annotation: PDFAnnotation, page: PDFPage, pagePoint: CGPoint) {
+        let currentStart = absoluteLineStartPoint(for: annotation)
+        let currentEnd = absoluteLineEndPoint(for: annotation)
+        let newStart = endpoint == .start ? pagePoint : currentStart
+        let newEnd = endpoint == .end ? pagePoint : currentEnd
+        setLineAnnotation(annotation, page: page, startPoint: newStart, endPoint: newEnd)
+    }
+
     private func addLineAnnotation(kind: PDFShapeAnnotationKind, page: PDFPage, startPoint: CGPoint, endPoint: CGPoint) {
+        let annotation = PDFAnnotation(
+            bounds: .zero,
+            forType: .line,
+            withProperties: nil
+        )
+        annotation.color = annotationColor.forPDFShapeBorder()
+        annotation.interiorColor = annotationColor.forPDFShapeBorder()
+        let border = PDFBorder()
+        border.lineWidth = 2
+        annotation.border = border
+        annotation.startLineStyle = .none
+        annotation.endLineStyle = kind == .arrow ? .closedArrow : .none
+        setLineAnnotation(annotation, page: page, startPoint: startPoint, endPoint: endPoint)
+        page.addAnnotation(annotation)
+    }
+
+    private func setLineAnnotation(_ annotation: PDFAnnotation, page: PDFPage, startPoint: CGPoint, endPoint: CGPoint) {
         var minX = min(startPoint.x, endPoint.x)
         var minY = min(startPoint.y, endPoint.y)
         var width = abs(endPoint.x - startPoint.x)
@@ -757,21 +827,9 @@ private final class MovableAnnotationPDFView: PDFView {
         }
 
         let bounds = CGRect(x: minX, y: minY, width: width, height: height)
-        let annotation = PDFAnnotation(
-            bounds: bounds,
-            forType: .line,
-            withProperties: nil
-        )
-        annotation.color = annotationColor.forPDFShapeBorder()
-        annotation.interiorColor = annotationColor.forPDFShapeBorder()
-        let border = PDFBorder()
-        border.lineWidth = 2
-        annotation.border = border
+        annotation.bounds = clamped(bounds, to: page.bounds(for: displayBox))
         annotation.startPoint = CGPoint(x: startPoint.x - bounds.minX, y: startPoint.y - bounds.minY)
         annotation.endPoint = CGPoint(x: endPoint.x - bounds.minX, y: endPoint.y - bounds.minY)
-        annotation.startLineStyle = .none
-        annotation.endLineStyle = kind == .arrow ? .closedArrow : .none
-        page.addAnnotation(annotation)
     }
 
     private func confirmDelete(annotation: PDFAnnotation) -> Bool {
@@ -827,6 +885,12 @@ private extension PDFAnnotation {
         guard let type else { return false }
         let normalizedType = type.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
         return ["square", "circle", "line"].contains(normalizedType)
+    }
+
+    var isLineAnnotation: Bool {
+        guard let type else { return false }
+        let normalizedType = type.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
+        return normalizedType == "line"
     }
 
     var isEditableTextFileViewerAnnotation: Bool {
