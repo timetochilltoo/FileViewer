@@ -387,7 +387,12 @@ struct PDFToolbar: View {
                 model.togglePDFAnnotationRecolorMode()
             } label: {
                 Image(systemName: "paintpalette")
-                    .foregroundStyle(model.isPDFAnnotationRecolorModeEnabled ? Color.accentColor : Color.primary)
+                    .foregroundStyle(model.isPDFAnnotationRecolorModeEnabled ? Color.white : Color.primary)
+                    .padding(5)
+                    .background(
+                        Capsule()
+                            .fill(model.isPDFAnnotationRecolorModeEnabled ? Color.accentColor : Color.clear)
+                    )
             }
             .help(model.isPDFAnnotationRecolorModeEnabled ? "Recolor Annotation Mode On" : "Recolor Existing Annotation")
 

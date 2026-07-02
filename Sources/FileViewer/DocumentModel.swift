@@ -946,7 +946,6 @@ final class AppModel: ObservableObject {
             isPDFNoteMoveModeEnabled = false
             isPDFAnnotationDeleteModeEnabled = false
             isPDFAnnotationEditModeEnabled = false
-            isPDFAnnotationRecolorModeEnabled = false
             pdfLineDrawingMode = nil
         }
         statusMessage = isPDFAnnotationRecolorModeEnabled
