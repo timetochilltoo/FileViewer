@@ -384,7 +384,16 @@ struct PDFToolbar: View {
             .help("Reset Annotation Color to Yellow")
 
             Button {
+                model.togglePDFAnnotationRecolorMode()
+            } label: {
+                Image(systemName: "paintpalette")
+                    .foregroundStyle(model.isPDFAnnotationRecolorModeEnabled ? Color.accentColor : Color.primary)
+            }
+            .help(model.isPDFAnnotationRecolorModeEnabled ? "Recolor Annotation Mode On" : "Recolor Existing Annotation")
+
+            Button {
                 model.pdfLineDrawingMode = nil
+                model.isPDFAnnotationRecolorModeEnabled = false
                 guard let url = model.selectedPDFURL else { return }
                 NotificationCenter.default.post(name: .pdfRemoveAnnotationsInSelection, object: url)
             } label: {
@@ -394,6 +403,7 @@ struct PDFToolbar: View {
 
             Button {
                 model.pdfLineDrawingMode = nil
+                model.isPDFAnnotationRecolorModeEnabled = false
                 guard let url = model.selectedPDFURL else { return }
                 NotificationCenter.default.post(name: .pdfAddStickyNote, object: url)
             } label: {
@@ -403,6 +413,7 @@ struct PDFToolbar: View {
 
             Button {
                 model.pdfLineDrawingMode = nil
+                model.isPDFAnnotationRecolorModeEnabled = false
                 guard let url = model.selectedPDFURL else { return }
                 NotificationCenter.default.post(name: .pdfAddTextBox, object: url)
             } label: {
@@ -483,6 +494,7 @@ struct PDFToolbar: View {
 
     private func postAnnotation(_ kind: PDFAnnotationKind) {
         model.pdfLineDrawingMode = nil
+        model.isPDFAnnotationRecolorModeEnabled = false
         guard let url = model.selectedPDFURL else { return }
         NotificationCenter.default.post(
             name: .pdfApplyAnnotation,
@@ -492,6 +504,7 @@ struct PDFToolbar: View {
 
     private func postShape(_ kind: PDFShapeAnnotationKind) {
         model.pdfLineDrawingMode = nil
+        model.isPDFAnnotationRecolorModeEnabled = false
         guard let url = model.selectedPDFURL else { return }
         NotificationCenter.default.post(
             name: .pdfAddShapeAnnotation,

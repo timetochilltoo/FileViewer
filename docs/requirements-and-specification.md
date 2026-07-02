@@ -223,9 +223,11 @@ Implemented v1 on branch `feature/pdf-annotation`:
 - Underline selected text.
 - Strike through selected text.
 - Choose the color used for newly-created annotations.
+- Recolor existing annotations.
 - Remove highlight/underline/strikeout markup from selected text.
 - Add sticky note comments.
 - Add text boxes.
+- Resize text boxes.
 - Add rectangle, oval, line, and arrow shape annotations.
 - Move sticky note icons and text boxes with a dedicated Move Annotation mode.
 - Edit sticky note and text box text with a dedicated Edit Annotation mode.

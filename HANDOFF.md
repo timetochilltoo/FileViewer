@@ -511,8 +511,9 @@ PDF annotation v1:
   - `PDFAnnotationKind` and `PDFAnnotationCommand` live in `DocumentModel.swift`.
   - `AppModel.pdfAnnotationColor` stores the SwiftUI color selected in the toolbar. `AppModel.pdfAnnotationNSColor` bridges it to `NSColor` for PDFKit.
   - `PDFToolbar.postAnnotation(_:)` posts `.pdfApplyAnnotation` with the selected PDF URL, annotation kind, and current annotation color.
-  - The PDF toolbar color picker affects newly-created annotations only. It does not recolor existing annotations in-place.
+  - The PDF toolbar color picker affects newly-created annotations and existing annotations recolored through Recolor Annotation mode.
   - `AppModel.resetPDFAnnotationColor()` resets the annotation color to yellow and is exposed from the toolbar reset button and PDF menu.
+  - `AppModel.isPDFAnnotationRecolorModeEnabled` stores Recolor Annotation mode. Turning it on turns off Move, Delete, Edit, and line/arrow drawing modes. It is toggled from the toolbar paint-palette button or PDF > Recolor Annotation Mode.
   - `PDFKitView.Coordinator.applyAnnotation(_:)` checks that `command.url == parent.documentURL` before modifying the PDF. This protects multi-window use.
   - Annotation bounds come from `PDFSelection.selectionsByLine()` and `bounds(for:)`, so multi-line selected text becomes one annotation per selected line/page.
   - Text markup applies the selected color with alpha adjusted by type: highlight uses 55% opacity, underline/strikeout use 85%.
@@ -536,7 +537,8 @@ PDF annotation v1:
   - Shapes use the selected annotation color as a strong border plus a light transparent fill, so marked table cells or document areas remain readable.
   - `MovableAnnotationPDFView` subclasses `PDFView` to support sticky-note, free-text-box, rectangle, oval, line, and arrow dragging when `isNoteMoveModeEnabled` is true. Normal PDF mouse handling is left alone when the mode is off.
   - Line/arrow endpoint adjustment is also handled in Move Annotation mode. If the click is close to a line annotation's start or end point, the drag moves only that endpoint. If the click is on the body/bounds instead, the whole line/arrow moves.
-  - Rectangle/oval resizing is also handled in Move Annotation mode. If the click is close to a rectangle/oval edge or corner, the drag resizes that side/corner. If the click is inside the shape but not near an edge, the whole shape moves.
+  - Text box and rectangle/oval resizing is also handled in Move Annotation mode. If the click is close to a text box/shape edge or corner, the drag resizes that side/corner. If the click is inside the annotation but not near an edge, the whole annotation moves.
+  - Recolor Annotation mode is handled in `MovableAnnotationPDFView.mouseDown(with:)`. It targets FileViewer-supported annotation types: highlight, underline, strikeout, sticky note, free text box, rectangle, oval, line, and arrow. It applies the currently selected toolbar color using type-appropriate opacity/fill rules and marks the PDF dirty.
   - `AppModel.isPDFNoteMoveModeEnabled` stores the mode. It is toggled from the toolbar hand button or PDF > Move Annotation Mode, and disabled when switching away from PDF content. The internal name still says “Note” for historical reasons.
   - `AppModel.isPDFAnnotationEditModeEnabled` stores Edit Annotation mode. Turning it on turns off Move and Delete modes. It is toggled from the toolbar pencil button or PDF > Edit Annotation Mode.
   - Edit Annotation mode is handled in `MovableAnnotationPDFView.mouseDown(with:)` before delete/move logic. It only targets `.text` sticky notes and `.freeText` text boxes, opens a small text-entry alert seeded with the existing annotation contents, updates `annotation.contents`, redraws the PDF view, and posts the dirty-state callback.
@@ -549,11 +551,10 @@ PDF annotation v1:
   - `AppModel.savePDFAnnotatedCopyAs()` presents an `NSSavePanel`, defaults the filename to `<original> annotated.pdf`, writes the same `PDFDocument` to the chosen URL, then switches the current tab to that new PDF URL. After this, normal Save writes to the annotated copy rather than the original.
 - Known limitations:
   - No freehand ink yet.
-  - Text boxes can be added, moved, edited, and deleted, but there is no resize UI yet.
+  - Text boxes can be added, moved, resized, edited, recolored, and deleted.
   - Sticky notes can be added, moved, edited, and deleted.
   - Rectangle, oval, line, and arrow shapes are implemented.
-  - Existing annotation recoloring is not implemented yet. Choose the color before creating the annotation.
-  - Rectangle/oval edge/corner resizing and line/arrow endpoint adjustment are implemented in Move Annotation mode.
+  - Existing annotation recoloring, text box resizing, rectangle/oval edge/corner resizing, and line/arrow endpoint adjustment are implemented.
   - Text markup is still erased through selected text overlap, not direct object-click deletion.
   - No undo/redo for annotations yet.
   - Normal Save still writes back to the current PDF file. Use Save Annotated Copy As before marking important source PDFs if you want to preserve the original untouched.
@@ -906,9 +907,7 @@ Implemented:
 Not implemented yet:
 
 - pen/freehand drawing
-- text box resizing UI
 - richer sticky-note styling UI
-- recolor existing annotations
 - visible resize handles
 - undo/redo
 - annotation summary/sidebar
@@ -986,11 +985,9 @@ Patrick is newer to Markdown and wants the app to teach/assist him. The Help gui
 Recommended order:
 
 1. Continue PDF annotation:
-   - text box resizing polish
    - richer sticky-note styling polish
    - freehand ink
    - visible resize handles
-   - recolor existing annotations
    - undo/redo
 2. Improve Markdown preview rendering if Patrick relies heavily on richer tables/checklists.
 3. Add remaining Markdown formatting polish:

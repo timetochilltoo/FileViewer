@@ -42,6 +42,10 @@ struct PDFWorkspace: View {
                 get: { model.isPDFAnnotationEditModeEnabled },
                 set: { model.isPDFAnnotationEditModeEnabled = $0 }
             ),
+            isAnnotationRecolorModeEnabled: Binding(
+                get: { model.isPDFAnnotationRecolorModeEnabled },
+                set: { model.isPDFAnnotationRecolorModeEnabled = $0 }
+            ),
             lineDrawingMode: Binding(
                 get: { model.pdfLineDrawingMode },
                 set: { model.pdfLineDrawingMode = $0 }
@@ -67,6 +71,7 @@ struct PDFKitView: NSViewRepresentable {
     @Binding var isNoteMoveModeEnabled: Bool
     @Binding var isAnnotationDeleteModeEnabled: Bool
     @Binding var isAnnotationEditModeEnabled: Bool
+    @Binding var isAnnotationRecolorModeEnabled: Bool
     @Binding var lineDrawingMode: PDFShapeAnnotationKind?
     @Binding var annotationColor: NSColor
 
@@ -113,6 +118,7 @@ struct PDFKitView: NSViewRepresentable {
             movableView.isNoteMoveModeEnabled = isNoteMoveModeEnabled
             movableView.isAnnotationDeleteModeEnabled = isAnnotationDeleteModeEnabled
             movableView.isAnnotationEditModeEnabled = isAnnotationEditModeEnabled
+            movableView.isAnnotationRecolorModeEnabled = isAnnotationRecolorModeEnabled
             movableView.lineDrawingMode = lineDrawingMode
             movableView.annotationColor = annotationColor
             let lineModeBinding = $lineDrawingMode
@@ -592,6 +598,7 @@ private final class MovableAnnotationPDFView: PDFView {
     var isNoteMoveModeEnabled = false
     var isAnnotationDeleteModeEnabled = false
     var isAnnotationEditModeEnabled = false
+    var isAnnotationRecolorModeEnabled = false
     var lineDrawingMode: PDFShapeAnnotationKind?
     var annotationColor = NSColor.systemYellow
     var onAnnotationMoved: (() -> Void)?
@@ -629,6 +636,17 @@ private final class MovableAnnotationPDFView: PDFView {
             }
             lineDrawingPage = page
             lineStartPoint = clamped(convert(viewPoint, to: page), to: page.bounds(for: displayBox))
+            return
+        }
+
+        if isAnnotationRecolorModeEnabled {
+            guard let hit = annotationHit(for: event, matching: { $0.isRecolorableFileViewerAnnotation }) else {
+                NSSound.beep()
+                return
+            }
+            hit.annotation.applyFileViewerColor(annotationColor)
+            needsDisplay = true
+            onAnnotationEdited?()
             return
         }
 
@@ -753,10 +771,14 @@ private final class MovableAnnotationPDFView: PDFView {
     }
 
     private func movableAnnotationHit(for event: NSEvent) -> (page: PDFPage, annotation: PDFAnnotation, pagePoint: CGPoint)? {
+        annotationHit(for: event, matching: { $0.isMovableFileViewerAnnotation })
+    }
+
+    private func annotationHit(for event: NSEvent, matching isCandidate: (PDFAnnotation) -> Bool) -> (page: PDFPage, annotation: PDFAnnotation, pagePoint: CGPoint)? {
         let viewPoint = convert(event.locationInWindow, from: nil)
         guard let page = page(for: viewPoint, nearest: true) else { return nil }
         let pagePoint = convert(viewPoint, to: page)
-        for annotation in page.annotations.reversed() where annotation.isMovableFileViewerAnnotation {
+        for annotation in page.annotations.reversed() where isCandidate(annotation) {
             if annotation.bounds.insetBy(dx: -8, dy: -8).contains(pagePoint) {
                 return (page, annotation, pagePoint)
             }
@@ -966,7 +988,11 @@ private extension PDFAnnotation {
     var isResizableShapeAnnotation: Bool {
         guard let type else { return false }
         let normalizedType = type.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
-        return ["square", "circle"].contains(normalizedType)
+        return ["freetext", "square", "circle"].contains(normalizedType)
+    }
+
+    var isRecolorableFileViewerAnnotation: Bool {
+        isFileViewerTextMarkup || isStickyNote || isFreeTextBox || isShapeAnnotation
     }
 
     var isEditableTextFileViewerAnnotation: Bool {
@@ -975,6 +1001,42 @@ private extension PDFAnnotation {
 
     var isMovableFileViewerAnnotation: Bool {
         isStickyNote || isFreeTextBox || isShapeAnnotation
+    }
+
+    func applyFileViewerColor(_ color: NSColor) {
+        if isStickyNote {
+            self.color = color.forPDFStickyNote()
+            return
+        }
+        if isFreeTextBox {
+            self.color = color.forPDFTextBox()
+            return
+        }
+        if isLineAnnotation {
+            self.color = color.forPDFShapeBorder()
+            self.interiorColor = color.forPDFShapeBorder()
+            return
+        }
+        if isShapeAnnotation {
+            self.color = color.forPDFShapeBorder()
+            self.interiorColor = color.forPDFShapeFill()
+            return
+        }
+        if normalizedFileViewerType == "highlight" {
+            self.color = color.forPDFAnnotation(kind: .highlight)
+            return
+        }
+        if normalizedFileViewerType == "underline" {
+            self.color = color.forPDFAnnotation(kind: .underline)
+            return
+        }
+        if normalizedFileViewerType == "strikeout" {
+            self.color = color.forPDFAnnotation(kind: .strikeout)
+        }
+    }
+
+    private var normalizedFileViewerType: String {
+        (type ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
     }
 
     var deleteConfirmationText: String {

@@ -219,6 +219,11 @@ struct FileViewerCommands: Commands {
             }
             .disabled(activeModel?.isPDFDocument != true)
 
+            Button("Recolor Annotation Mode") {
+                activeModel?.togglePDFAnnotationRecolorMode()
+            }
+            .disabled(activeModel?.isPDFDocument != true)
+
             Divider()
 
             Button("Remove Markup from Selection") {

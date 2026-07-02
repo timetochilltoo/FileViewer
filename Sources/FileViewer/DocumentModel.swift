@@ -338,6 +338,7 @@ final class AppModel: ObservableObject {
     @Published var isPDFNoteMoveModeEnabled = false
     @Published var isPDFAnnotationDeleteModeEnabled = false
     @Published var isPDFAnnotationEditModeEnabled = false
+    @Published var isPDFAnnotationRecolorModeEnabled = false
     @Published var pdfLineDrawingMode: PDFShapeAnnotationKind?
     @Published var pdfAnnotationColor = Color.yellow
 
@@ -890,6 +891,7 @@ final class AppModel: ObservableObject {
         if isPDFNoteMoveModeEnabled {
             isPDFAnnotationDeleteModeEnabled = false
             isPDFAnnotationEditModeEnabled = false
+            isPDFAnnotationRecolorModeEnabled = false
             pdfLineDrawingMode = nil
         }
         statusMessage = isPDFNoteMoveModeEnabled
@@ -903,6 +905,7 @@ final class AppModel: ObservableObject {
         if isPDFAnnotationDeleteModeEnabled {
             isPDFNoteMoveModeEnabled = false
             isPDFAnnotationEditModeEnabled = false
+            isPDFAnnotationRecolorModeEnabled = false
             pdfLineDrawingMode = nil
         }
         statusMessage = isPDFAnnotationDeleteModeEnabled
@@ -916,6 +919,7 @@ final class AppModel: ObservableObject {
         if isPDFAnnotationEditModeEnabled {
             isPDFNoteMoveModeEnabled = false
             isPDFAnnotationDeleteModeEnabled = false
+            isPDFAnnotationRecolorModeEnabled = false
             pdfLineDrawingMode = nil
         }
         statusMessage = isPDFAnnotationEditModeEnabled
@@ -929,9 +933,25 @@ final class AppModel: ObservableObject {
         isPDFNoteMoveModeEnabled = false
         isPDFAnnotationDeleteModeEnabled = false
         isPDFAnnotationEditModeEnabled = false
+        isPDFAnnotationRecolorModeEnabled = false
         statusMessage = kind == .arrow
             ? "Arrow mode on. Drag on the PDF to draw an arrow."
             : "Line mode on. Drag on the PDF to draw a line."
+    }
+
+    func togglePDFAnnotationRecolorMode() {
+        guard isPDFDocument else { return }
+        isPDFAnnotationRecolorModeEnabled.toggle()
+        if isPDFAnnotationRecolorModeEnabled {
+            isPDFNoteMoveModeEnabled = false
+            isPDFAnnotationDeleteModeEnabled = false
+            isPDFAnnotationEditModeEnabled = false
+            isPDFAnnotationRecolorModeEnabled = false
+            pdfLineDrawingMode = nil
+        }
+        statusMessage = isPDFAnnotationRecolorModeEnabled
+            ? "Recolor Annotation mode on. Click an annotation to apply the selected color."
+            : "Recolor Annotation mode off."
     }
 
     private func savePDFTab(at index: Int) -> Bool {
@@ -1833,6 +1853,7 @@ final class AppModel: ObservableObject {
             isPDFNoteMoveModeEnabled = false
             isPDFAnnotationDeleteModeEnabled = false
             isPDFAnnotationEditModeEnabled = false
+            isPDFAnnotationRecolorModeEnabled = false
             pdfLineDrawingMode = nil
             sidebarMode = .contents
         case .pdf:

@@ -47,11 +47,13 @@ Current MVP build includes:
   - underline selected PDF text
   - strike through selected PDF text
   - choose the color used for newly-created PDF annotations
+  - recolor existing PDF annotations
   - remove highlight/underline/strikeout markup from selected PDF text
   - add sticky note comments to the current PDF page
   - add visible text box annotations
   - add rectangle, oval, line, and arrow shape annotations
   - move sticky note icons and text boxes with Move Annotation mode
+  - resize text boxes with Move Annotation mode
   - resize rectangle and oval annotations with Move Annotation mode
   - edit sticky note and text box text with Edit Annotation mode
   - delete sticky notes and text boxes with Delete Annotation mode
