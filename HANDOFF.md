@@ -498,10 +498,11 @@ PDF annotation v1:
   8. To remove v1 text markup, select the marked text and use Remove Markup from Selection / the eraser toolbar button.
   9. To add a sticky note, click Add Sticky Note, enter the note text, then save the PDF.
   10. To add visible page text, click Add Text Box, enter the text, then save the PDF.
-  11. To add a rectangle, oval, line, or arrow, click the matching toolbar button, then save the PDF.
-  12. To move a sticky note, text box, rectangle, oval, line, or arrow, turn on Move Annotation mode, drag the annotation, then save the PDF.
-  13. To edit a sticky note or text box, turn on Edit Annotation mode, click the annotation, update the text, then save the PDF.
-  14. To delete a sticky note, text box, rectangle, oval, line, or arrow, turn on Delete Annotation mode, click the annotation, confirm, then save the PDF.
+  11. To add a rectangle or oval, click the matching toolbar button, then save the PDF.
+  12. To add a line or arrow, click Line or Arrow, drag on the PDF from start to end, then save the PDF.
+  13. To move a sticky note, text box, rectangle, oval, line, or arrow, turn on Move Annotation mode, drag the annotation, then save the PDF.
+  14. To edit a sticky note or text box, turn on Edit Annotation mode, click the annotation, update the text, then save the PDF.
+  15. To delete a sticky note, text box, rectangle, oval, line, or arrow, turn on Delete Annotation mode, click the annotation, confirm, then save the PDF.
 - Supported annotation types:
   - highlight: `PDFAnnotationSubtype.highlight`
   - underline: `PDFAnnotationSubtype.underline`
@@ -526,9 +527,12 @@ PDF annotation v1:
   - Text boxes use the selected annotation color as a translucent background.
   - 2026-07-01 fix: sticky note/text box creation now clamps the annotation rectangle inside the PDF page bounds. Before this, adding a text box below selected text near the bottom of a page could create it off-page, making it look like the user needed to retry several times.
   - `PDFShapeAnnotationKind` and `PDFShapeAnnotationCommand` live in `DocumentModel.swift`.
-  - Rectangle/oval/line/arrow shape creation posts `.pdfAddShapeAnnotation`. The coordinator creates real PDFKit `.square`, `.circle`, or `.line` annotations.
+  - Rectangle/oval shape creation posts `.pdfAddShapeAnnotation`. The coordinator creates real PDFKit `.square` or `.circle` annotations.
+  - Line/arrow toolbar buttons call `AppModel.beginPDFLineDrawingMode(_:)`, which stores `.line` or `.arrow` in `AppModel.pdfLineDrawingMode`, turns off move/delete/edit modes, and tells the user to drag on the PDF.
+  - `PDFKitView` passes `pdfLineDrawingMode` into `MovableAnnotationPDFView`. The custom PDF view intercepts mouse down/up while the mode is active, converts the drag start/end to PDF page coordinates, creates a `.line` annotation, marks the PDF dirty, and clears the drawing mode after release.
   - Arrow annotations are PDFKit line annotations with `endLineStyle = .closedArrow`; plain lines use no line ending.
-  - Shape placement: if PDF text is selected, the shape is placed around the selected bounds with padding. Otherwise it is placed near the center of the visible page. Current v1 shapes have a fixed default size when no selection is available.
+  - Rectangle/oval placement: if PDF text is selected, the shape is placed around the selected bounds with padding. Otherwise it is placed near the center of the visible page. Current v1 rectangle/oval shapes have a fixed default size when no selection is available.
+  - Line/arrow placement: the user now drags from start point to end point. This replaced the earlier fixed diagonal line/arrow behavior.
   - Shapes use the selected annotation color as a strong border plus a light transparent fill, so marked table cells or document areas remain readable.
   - `MovableAnnotationPDFView` subclasses `PDFView` to support sticky-note, free-text-box, rectangle, oval, line, and arrow dragging when `isNoteMoveModeEnabled` is true. Normal PDF mouse handling is left alone when the mode is off.
   - `AppModel.isPDFNoteMoveModeEnabled` stores the mode. It is toggled from the toolbar hand button or PDF > Move Annotation Mode, and disabled when switching away from PDF content. The internal name still says “Note” for historical reasons.
@@ -547,7 +551,7 @@ PDF annotation v1:
   - Sticky notes can be added, moved, edited, and deleted.
   - Rectangle, oval, line, and arrow shapes are implemented.
   - Existing annotation recoloring is not implemented yet. Choose the color before creating the annotation.
-  - Shape resize/endpoint handles are not implemented yet. Use selection before creating a shape if you want the initial shape to wrap selected text/table content.
+  - Shape resize/endpoint handles are not implemented yet. Lines/arrows can be drawn in any direction initially, but endpoints cannot yet be adjusted after creation.
   - Text markup is still erased through selected text overlap, not direct object-click deletion.
   - No undo/redo for annotations yet.
   - Normal Save still writes back to the current PDF file. Use Save Annotated Copy As before marking important source PDFs if you want to preserve the original untouched.

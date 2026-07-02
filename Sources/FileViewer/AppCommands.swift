@@ -253,12 +253,12 @@ struct FileViewerCommands: Commands {
             .disabled(activeModel?.isPDFDocument != true)
 
             Button("Add Line") {
-                postPDFShape(.line)
+                activeModel?.beginPDFLineDrawingMode(.line)
             }
             .disabled(activeModel?.isPDFDocument != true)
 
             Button("Add Arrow") {
-                postPDFShape(.arrow)
+                activeModel?.beginPDFLineDrawingMode(.arrow)
             }
             .disabled(activeModel?.isPDFDocument != true)
 

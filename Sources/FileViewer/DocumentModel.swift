@@ -178,6 +178,10 @@ enum PDFShapeAnnotationKind: String, CaseIterable, Equatable {
         case .arrow: "Arrow"
         }
     }
+
+    var isLineBased: Bool {
+        self == .line || self == .arrow
+    }
 }
 
 struct PDFShapeAnnotationCommand {
@@ -334,6 +338,7 @@ final class AppModel: ObservableObject {
     @Published var isPDFNoteMoveModeEnabled = false
     @Published var isPDFAnnotationDeleteModeEnabled = false
     @Published var isPDFAnnotationEditModeEnabled = false
+    @Published var pdfLineDrawingMode: PDFShapeAnnotationKind?
     @Published var pdfAnnotationColor = Color.yellow
 
     private let recentsKey = "FileViewer.recents"
@@ -885,9 +890,10 @@ final class AppModel: ObservableObject {
         if isPDFNoteMoveModeEnabled {
             isPDFAnnotationDeleteModeEnabled = false
             isPDFAnnotationEditModeEnabled = false
+            pdfLineDrawingMode = nil
         }
         statusMessage = isPDFNoteMoveModeEnabled
-            ? "Move Annotation mode on. Drag a sticky note or text box to reposition it."
+            ? "Move Annotation mode on. Drag an annotation to reposition it."
             : "Move Annotation mode off."
     }
 
@@ -897,9 +903,10 @@ final class AppModel: ObservableObject {
         if isPDFAnnotationDeleteModeEnabled {
             isPDFNoteMoveModeEnabled = false
             isPDFAnnotationEditModeEnabled = false
+            pdfLineDrawingMode = nil
         }
         statusMessage = isPDFAnnotationDeleteModeEnabled
-            ? "Delete Annotation mode on. Click a sticky note or text box to remove it."
+            ? "Delete Annotation mode on. Click an annotation to remove it."
             : "Delete Annotation mode off."
     }
 
@@ -909,10 +916,22 @@ final class AppModel: ObservableObject {
         if isPDFAnnotationEditModeEnabled {
             isPDFNoteMoveModeEnabled = false
             isPDFAnnotationDeleteModeEnabled = false
+            pdfLineDrawingMode = nil
         }
         statusMessage = isPDFAnnotationEditModeEnabled
             ? "Edit Annotation mode on. Click a sticky note or text box to edit it."
             : "Edit Annotation mode off."
+    }
+
+    func beginPDFLineDrawingMode(_ kind: PDFShapeAnnotationKind) {
+        guard isPDFDocument, kind.isLineBased else { return }
+        pdfLineDrawingMode = kind
+        isPDFNoteMoveModeEnabled = false
+        isPDFAnnotationDeleteModeEnabled = false
+        isPDFAnnotationEditModeEnabled = false
+        statusMessage = kind == .arrow
+            ? "Arrow mode on. Drag on the PDF to draw an arrow."
+            : "Line mode on. Drag on the PDF to draw a line."
     }
 
     private func savePDFTab(at index: Int) -> Bool {
@@ -1814,6 +1833,7 @@ final class AppModel: ObservableObject {
             isPDFNoteMoveModeEnabled = false
             isPDFAnnotationDeleteModeEnabled = false
             isPDFAnnotationEditModeEnabled = false
+            pdfLineDrawingMode = nil
             sidebarMode = .contents
         case .pdf:
             sidebarMode = .pages
@@ -1821,6 +1841,7 @@ final class AppModel: ObservableObject {
             isPDFNoteMoveModeEnabled = false
             isPDFAnnotationDeleteModeEnabled = false
             isPDFAnnotationEditModeEnabled = false
+            pdfLineDrawingMode = nil
             sidebarMode = .recent
         }
     }
