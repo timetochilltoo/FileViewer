@@ -272,7 +272,6 @@ struct ContentView: View {
             MarkdownWorkspace(model: model, document: markdown)
         case .pdf(let pdfDocument):
             PDFWorkspace(model: model, viewerDocument: pdfDocument)
-                .id(ObjectIdentifier(pdfDocument.document))
         case nil:
             EmptyDocumentView {
                 model.openWithPanel()
