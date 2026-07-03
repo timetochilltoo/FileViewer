@@ -127,7 +127,7 @@ struct PDFKitView: NSViewRepresentable {
             movableView.isInkDrawingModeEnabled = isInkDrawingModeEnabled
             movableView.lineDrawingMode = lineDrawingMode
             movableView.annotationColor = annotationColor
-            movableView.updateResizeHandleOverlay()
+            movableView.scheduleResizeHandleOverlayUpdate()
             let lineModeBinding = $lineDrawingMode
             movableView.onLineDrawingFinished = {
                 lineModeBinding.wrappedValue = nil
@@ -624,6 +624,7 @@ private final class MovableAnnotationPDFView: PDFView {
     private weak var inkDrawingPage: PDFPage?
     private weak var inkPreviewView: InkPreviewView?
     private weak var resizeHandleOverlayView: ResizeHandleOverlayView?
+    private var resizeHandleOverlayUpdateScheduled = false
 
     private enum LineEndpoint {
         case start
@@ -844,11 +845,6 @@ private final class MovableAnnotationPDFView: PDFView {
         updateResizeHandleOverlay()
     }
 
-    override func setFrameSize(_ newSize: NSSize) {
-        super.setFrameSize(newSize)
-        updateResizeHandleOverlay()
-    }
-
     func updateResizeHandleOverlay() {
         guard isNoteMoveModeEnabled else {
             clearResizeHandleOverlay()
@@ -857,7 +853,18 @@ private final class MovableAnnotationPDFView: PDFView {
 
         let overlay = ensureResizeHandleOverlayView()
         overlay.frame = bounds
+        overlay.isHidden = false
         overlay.needsDisplay = true
+    }
+
+    func scheduleResizeHandleOverlayUpdate() {
+        guard !resizeHandleOverlayUpdateScheduled else { return }
+        resizeHandleOverlayUpdateScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.resizeHandleOverlayUpdateScheduled = false
+            self.updateResizeHandleOverlay()
+        }
     }
 
     private func movableAnnotationHit(for event: NSEvent) -> (page: PDFPage, annotation: PDFAnnotation, pagePoint: CGPoint)? {
@@ -1055,32 +1062,33 @@ private final class MovableAnnotationPDFView: PDFView {
 
     private func ensureInkPreviewView() -> InkPreviewView {
         if let preview = inkPreviewView {
-            preview.removeFromSuperview()
-            addSubview(preview, positioned: .above, relativeTo: nil)
+            preview.isHidden = false
             return preview
         }
 
         let preview = InkPreviewView(frame: bounds)
         preview.autoresizingMask = [.width, .height]
+        preview.translatesAutoresizingMaskIntoConstraints = true
         addSubview(preview, positioned: .above, relativeTo: nil)
         inkPreviewView = preview
         return preview
     }
 
     private func clearInkPreview() {
-        inkPreviewView?.removeFromSuperview()
-        inkPreviewView = nil
+        inkPreviewView?.points = []
+        inkPreviewView?.isHidden = true
+        inkPreviewView?.needsDisplay = true
     }
 
     private func ensureResizeHandleOverlayView() -> ResizeHandleOverlayView {
         if let overlay = resizeHandleOverlayView {
-            overlay.removeFromSuperview()
-            addSubview(overlay, positioned: .above, relativeTo: nil)
+            overlay.isHidden = false
             return overlay
         }
 
         let overlay = ResizeHandleOverlayView(frame: bounds)
         overlay.autoresizingMask = [.width, .height]
+        overlay.translatesAutoresizingMaskIntoConstraints = true
         overlay.pdfView = self
         addSubview(overlay, positioned: .above, relativeTo: nil)
         resizeHandleOverlayView = overlay
@@ -1088,8 +1096,8 @@ private final class MovableAnnotationPDFView: PDFView {
     }
 
     private func clearResizeHandleOverlay() {
-        resizeHandleOverlayView?.removeFromSuperview()
-        resizeHandleOverlayView = nil
+        resizeHandleOverlayView?.isHidden = true
+        resizeHandleOverlayView?.needsDisplay = true
     }
 
     private func setLineAnnotation(_ annotation: PDFAnnotation, page: PDFPage, startPoint: CGPoint, endPoint: CGPoint) {
