@@ -103,6 +103,9 @@ struct PDFKitView: NSViewRepresentable {
             view.onAnnotationEdited = { [weak coordinator = context.coordinator] in
                 coordinator?.markAnnotationChanged()
             }
+        view.onViewStateChanged = { [weak coordinator = context.coordinator] in
+            coordinator?.syncCurrentViewState()
+        }
         context.coordinator.pdfView = view
         context.coordinator.installObservers()
         DispatchQueue.main.async {
@@ -116,9 +119,9 @@ struct PDFKitView: NSViewRepresentable {
     }
 
     func updateNSView(_ view: PDFView, context: Context) {
+        let documentChanged = view.document !== document
         if view.document !== document {
             view.document = document
-            view.autoScales = true
         }
 
         context.coordinator.parent = self
@@ -136,7 +139,9 @@ struct PDFKitView: NSViewRepresentable {
                 lineModeBinding.wrappedValue = nil
             }
         }
-        context.coordinator.applyRestoredPageAndScale()
+        if documentChanged {
+            context.coordinator.applyRestoredPageAndScale()
+        }
         context.coordinator.applySearch(searchText)
         context.coordinator.goToSearchMatch(searchMatchIndex)
     }
@@ -237,6 +242,11 @@ struct PDFKitView: NSViewRepresentable {
             syncScale()
         }
 
+        @MainActor func syncCurrentViewState() {
+            syncPage()
+            syncScale()
+        }
+
         @MainActor @objc private func applyAnnotation(_ notification: Notification) {
             guard let command = notification.object as? PDFAnnotationCommand,
                   command.url == parent.documentURL else { return }
@@ -312,10 +322,14 @@ struct PDFKitView: NSViewRepresentable {
         }
 
         @MainActor func prepareAnnotationUndoSnapshot() {
+            syncPage()
+            syncScale()
             NotificationCenter.default.post(name: .pdfAnnotationWillChange, object: parent.documentURL)
         }
 
         @MainActor func markAnnotationChanged() {
+            syncPage()
+            syncScale()
             pdfView?.needsDisplay = true
             NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
         }
@@ -628,6 +642,7 @@ private final class MovableAnnotationPDFView: PDFView {
     var onAnnotationDeleted: (() -> Void)?
     var onAnnotationEdited: (() -> Void)?
     var onLineDrawingFinished: (() -> Void)?
+    var onViewStateChanged: (() -> Void)?
     private weak var draggedAnnotation: PDFAnnotation?
     private weak var draggedPage: PDFPage?
     private var dragOffset = CGPoint.zero
@@ -870,6 +885,7 @@ private final class MovableAnnotationPDFView: PDFView {
     override func scrollWheel(with event: NSEvent) {
         super.scrollWheel(with: event)
         updateResizeHandleOverlay()
+        onViewStateChanged?()
     }
 
     func updateResizeHandleOverlay() {
