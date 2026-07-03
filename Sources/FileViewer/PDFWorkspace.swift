@@ -91,6 +91,9 @@ struct PDFKitView: NSViewRepresentable {
         view.displayMode = .singlePageContinuous
         view.displayDirection = .vertical
         view.backgroundColor = .underPageBackgroundColor
+        view.onAnnotationWillChange = { [weak coordinator = context.coordinator] in
+            coordinator?.prepareAnnotationUndoSnapshot()
+        }
         view.onAnnotationMoved = { [weak coordinator = context.coordinator] in
             coordinator?.markAnnotationChanged()
         }
@@ -238,10 +241,12 @@ struct PDFKitView: NSViewRepresentable {
             guard let command = notification.object as? PDFAnnotationCommand,
                   command.url == parent.documentURL else { return }
             guard let selection = pdfView?.currentSelection,
-                  addAnnotation(command.kind, color: command.color, to: selection) else {
+                  selection.pages.isEmpty == false else {
                 NSSound.beep()
                 return
             }
+            prepareAnnotationUndoSnapshot()
+            guard addAnnotation(command.kind, color: command.color, to: selection) else { return }
             pdfView?.setCurrentSelection(nil, animate: false)
             NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
         }
@@ -250,10 +255,12 @@ struct PDFKitView: NSViewRepresentable {
             guard let url = notification.object as? URL,
                   url == parent.documentURL else { return }
             guard let selection = pdfView?.currentSelection,
-                  removeAnnotations(overlapping: selection) else {
+                  selection.pages.isEmpty == false else {
                 NSSound.beep()
                 return
             }
+            prepareAnnotationUndoSnapshot()
+            guard removeAnnotations(overlapping: selection) else { return }
             let selectedPages = selection.pages
             pdfView?.setCurrentSelection(nil, animate: false)
             selectedPages.forEach { $0.displaysAnnotations = true }
@@ -268,10 +275,11 @@ struct PDFKitView: NSViewRepresentable {
                     title: "Add Sticky Note",
                     message: "Enter the note text to attach to this PDF page.",
                     confirmTitle: "Add Note"
-                  ),
-                  addStickyNote(text: noteText) else {
+                  ) else {
                 return
             }
+            prepareAnnotationUndoSnapshot()
+            guard addStickyNote(text: noteText) else { return }
             pdfView?.needsDisplay = true
             NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
         }
@@ -283,22 +291,28 @@ struct PDFKitView: NSViewRepresentable {
                     title: "Add Text Box",
                     message: "Enter the text to show directly on this PDF page.",
                     confirmTitle: "Add Text"
-                  ),
-                  addTextBox(text: text) else {
+                  ) else {
                 return
             }
+            prepareAnnotationUndoSnapshot()
+            guard addTextBox(text: text) else { return }
             pdfView?.needsDisplay = true
             NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
         }
 
         @MainActor @objc private func addShapeAnnotation(_ notification: Notification) {
             guard let command = notification.object as? PDFShapeAnnotationCommand,
-                  command.url == parent.documentURL,
-                  addShape(command.kind, color: command.color) else {
+                  command.url == parent.documentURL else {
                 return
             }
+            prepareAnnotationUndoSnapshot()
+            guard addShape(command.kind, color: command.color) else { return }
             pdfView?.needsDisplay = true
             NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
+        }
+
+        @MainActor func prepareAnnotationUndoSnapshot() {
+            NotificationCenter.default.post(name: .pdfAnnotationWillChange, object: parent.documentURL)
         }
 
         @MainActor func markAnnotationChanged() {
@@ -609,6 +623,7 @@ private final class MovableAnnotationPDFView: PDFView {
     var isInkDrawingModeEnabled = false
     var lineDrawingMode: PDFShapeAnnotationKind?
     var annotationColor = NSColor.systemYellow
+    var onAnnotationWillChange: (() -> Void)?
     var onAnnotationMoved: (() -> Void)?
     var onAnnotationDeleted: (() -> Void)?
     var onAnnotationEdited: (() -> Void)?
@@ -618,6 +633,7 @@ private final class MovableAnnotationPDFView: PDFView {
     private var dragOffset = CGPoint.zero
     private var draggedLineEndpoint: LineEndpoint?
     private var draggedResizeHandle: ResizeHandle?
+    private var didChangeDraggedAnnotation = false
     private var lineStartPoint: CGPoint?
     private weak var lineDrawingPage: PDFPage?
     private var inkPoints: [CGPoint] = []
@@ -669,6 +685,7 @@ private final class MovableAnnotationPDFView: PDFView {
                 NSSound.beep()
                 return
             }
+            onAnnotationWillChange?()
             hit.annotation.applyFileViewerColor(annotationColor)
             needsDisplay = true
             onAnnotationEdited?()
@@ -685,6 +702,7 @@ private final class MovableAnnotationPDFView: PDFView {
                 return
             }
             guard let newText = promptForAnnotationText(annotation: hit.annotation) else { return }
+            onAnnotationWillChange?()
             hit.annotation.contents = newText
             needsDisplay = true
             onAnnotationEdited?()
@@ -697,6 +715,7 @@ private final class MovableAnnotationPDFView: PDFView {
                 return
             }
             guard confirmDelete(annotation: hit.annotation) else { return }
+            onAnnotationWillChange?()
             hit.page.removeAnnotation(hit.annotation)
             needsDisplay = true
             onAnnotationDeleted?()
@@ -714,6 +733,7 @@ private final class MovableAnnotationPDFView: PDFView {
         draggedPage = hit.page
         draggedLineEndpoint = lineEndpointHit(for: hit.annotation, at: hit.pagePoint)
         draggedResizeHandle = resizeHandleHit(for: hit.annotation, at: hit.pagePoint)
+        didChangeDraggedAnnotation = false
         dragOffset = CGPoint(
             x: hit.pagePoint.x - hit.annotation.bounds.origin.x,
             y: hit.pagePoint.y - hit.annotation.bounds.origin.y
@@ -749,6 +769,7 @@ private final class MovableAnnotationPDFView: PDFView {
 
         let windowPoint = convert(event.locationInWindow, from: nil)
         let pagePoint = clamped(convert(windowPoint, to: page), to: page.bounds(for: displayBox))
+        prepareDraggedAnnotationChangeIfNeeded()
         if let endpoint = draggedLineEndpoint, annotation.isLineAnnotation {
             updateLineEndpoint(endpoint, annotation: annotation, page: page, pagePoint: pagePoint)
             needsDisplay = true
@@ -798,6 +819,7 @@ private final class MovableAnnotationPDFView: PDFView {
                 NSSound.beep()
                 return
             }
+            onAnnotationWillChange?()
             addInkAnnotation(page: page, points: inkPoints)
             needsDisplay = true
             onAnnotationEdited?()
@@ -820,6 +842,7 @@ private final class MovableAnnotationPDFView: PDFView {
                 NSSound.beep()
                 return
             }
+            onAnnotationWillChange?()
             addLineAnnotation(kind: mode, page: page, startPoint: startPoint, endPoint: endPoint)
             needsDisplay = true
             onAnnotationEdited?()
@@ -836,8 +859,12 @@ private final class MovableAnnotationPDFView: PDFView {
         draggedPage = nil
         draggedLineEndpoint = nil
         draggedResizeHandle = nil
+        let didChange = didChangeDraggedAnnotation
+        didChangeDraggedAnnotation = false
         updateResizeHandleOverlay()
-        onAnnotationMoved?()
+        if didChange {
+            onAnnotationMoved?()
+        }
     }
 
     override func scrollWheel(with event: NSEvent) {
@@ -865,6 +892,12 @@ private final class MovableAnnotationPDFView: PDFView {
             self.resizeHandleOverlayUpdateScheduled = false
             self.updateResizeHandleOverlay()
         }
+    }
+
+    private func prepareDraggedAnnotationChangeIfNeeded() {
+        guard !didChangeDraggedAnnotation else { return }
+        onAnnotationWillChange?()
+        didChangeDraggedAnnotation = true
     }
 
     private func movableAnnotationHit(for event: NSEvent) -> (page: PDFPage, annotation: PDFAnnotation, pagePoint: CGPoint)? {

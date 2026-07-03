@@ -230,6 +230,8 @@ struct DocumentTab: Identifiable, Equatable {
     var pdfPageCount: Int
     var pdfScale: CGFloat
     var pdfHasUnsavedAnnotations: Bool
+    var pdfAnnotationUndoStack: [Data]
+    var pdfAnnotationRedoStack: [Data]
 
     init(document: ViewerDocument) {
         id = UUID()
@@ -249,6 +251,8 @@ struct DocumentTab: Identifiable, Equatable {
         }
         pdfScale = 1.0
         pdfHasUnsavedAnnotations = false
+        pdfAnnotationUndoStack = []
+        pdfAnnotationRedoStack = []
     }
 
     init(document: ViewerDocument, pdfPage: Int, pdfScale: CGFloat) {
@@ -557,6 +561,16 @@ final class AppModel: ObservableObject {
         return selectedTab?.pdfHasUnsavedAnnotations == true
     }
 
+    var canUndoPDFAnnotation: Bool {
+        guard isPDFDocument else { return false }
+        return selectedTab?.pdfAnnotationUndoStack.isEmpty == false
+    }
+
+    var canRedoPDFAnnotation: Bool {
+        guard isPDFDocument else { return false }
+        return selectedTab?.pdfAnnotationRedoStack.isEmpty == false
+    }
+
     var isMarkdownDocument: Bool {
         if case .markdown = document { return true }
         return false
@@ -852,6 +866,61 @@ final class AppModel: ObservableObject {
         objectWillChange.send()
         tabs[index].pdfHasUnsavedAnnotations = true
         statusMessage = "PDF annotations changed. Save to keep them."
+    }
+
+    func preparePDFAnnotationUndoSnapshot(for url: URL) {
+        guard let index = tabs.firstIndex(where: { tab in
+            guard case .pdf(let pdf) = tab.document else { return false }
+            return pdf.url == url
+        }),
+        case .pdf(let pdf) = tabs[index].document,
+        let data = pdf.document.dataRepresentation() else { return }
+
+        let maxSnapshots = 10
+        objectWillChange.send()
+        tabs[index].pdfAnnotationUndoStack.append(data)
+        if tabs[index].pdfAnnotationUndoStack.count > maxSnapshots {
+            tabs[index].pdfAnnotationUndoStack.removeFirst(tabs[index].pdfAnnotationUndoStack.count - maxSnapshots)
+        }
+        tabs[index].pdfAnnotationRedoStack.removeAll()
+    }
+
+    func undoPDFAnnotation() {
+        guard let index = selectedTabIndex,
+              tabs.indices.contains(index),
+              case .pdf(let pdf) = tabs[index].document,
+              let undoData = tabs[index].pdfAnnotationUndoStack.popLast(),
+              let currentData = pdf.document.dataRepresentation(),
+              let restoredDocument = PDFDocument(data: undoData) else {
+            NSSound.beep()
+            return
+        }
+
+        objectWillChange.send()
+        tabs[index].pdfAnnotationRedoStack.append(currentData)
+        tabs[index].document = .pdf(PDFViewerDocument(url: pdf.url, document: restoredDocument))
+        tabs[index].pdfPageCount = restoredDocument.pageCount
+        tabs[index].pdfHasUnsavedAnnotations = true
+        statusMessage = "Undid PDF annotation change."
+    }
+
+    func redoPDFAnnotation() {
+        guard let index = selectedTabIndex,
+              tabs.indices.contains(index),
+              case .pdf(let pdf) = tabs[index].document,
+              let redoData = tabs[index].pdfAnnotationRedoStack.popLast(),
+              let currentData = pdf.document.dataRepresentation(),
+              let restoredDocument = PDFDocument(data: redoData) else {
+            NSSound.beep()
+            return
+        }
+
+        objectWillChange.send()
+        tabs[index].pdfAnnotationUndoStack.append(currentData)
+        tabs[index].document = .pdf(PDFViewerDocument(url: pdf.url, document: restoredDocument))
+        tabs[index].pdfPageCount = restoredDocument.pageCount
+        tabs[index].pdfHasUnsavedAnnotations = true
+        statusMessage = "Redid PDF annotation change."
     }
 
     func savePDFAnnotations() {

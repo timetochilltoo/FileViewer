@@ -59,6 +59,7 @@ Current MVP build includes:
   - show resize/endpoint handles while Move Annotation mode is on
   - edit sticky note and text box text with Edit Annotation mode
   - delete sticky notes and text boxes with Delete Annotation mode
+  - undo/redo recent PDF annotation changes
   - save embedded PDF annotations back to the PDF file
   - save an annotated PDF copy with Save Annotated Copy As / Command-Shift-S
   - warn before closing a PDF tab/window with unsaved annotations

@@ -60,6 +60,10 @@ struct ContentView: View {
             guard let url = notification.object as? URL else { return }
             model.markPDFAnnotationsChanged(for: url)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .pdfAnnotationWillChange)) { notification in
+            guard let url = notification.object as? URL else { return }
+            model.preparePDFAnnotationUndoSnapshot(for: url)
+        }
     }
 
     private var toolbar: some View {
@@ -497,6 +501,22 @@ struct PDFToolbar: View {
             .help(model.isPDFAnnotationDeleteModeEnabled ? "Delete Annotation Mode On" : "Delete Sticky Note or Text Box")
 
             Button {
+                model.undoPDFAnnotation()
+            } label: {
+                Image(systemName: "arrow.uturn.backward")
+            }
+            .disabled(!model.canUndoPDFAnnotation)
+            .help("Undo PDF Annotation Change")
+
+            Button {
+                model.redoPDFAnnotation()
+            } label: {
+                Image(systemName: "arrow.uturn.forward")
+            }
+            .disabled(!model.canRedoPDFAnnotation)
+            .help("Redo PDF Annotation Change")
+
+            Button {
                 model.savePDFAnnotations()
             } label: {
                 Image(systemName: "square.and.arrow.down")
@@ -623,6 +643,7 @@ extension Notification.Name {
     static let pdfAddStickyNote = Notification.Name("FileViewer.pdfAddStickyNote")
     static let pdfAddTextBox = Notification.Name("FileViewer.pdfAddTextBox")
     static let pdfAddShapeAnnotation = Notification.Name("FileViewer.pdfAddShapeAnnotation")
+    static let pdfAnnotationWillChange = Notification.Name("FileViewer.pdfAnnotationWillChange")
     static let pdfAnnotationDidChange = Notification.Name("FileViewer.pdfAnnotationDidChange")
     static let markdownSyncCurrentState = Notification.Name("FileViewer.markdownSyncCurrentState")
     static let toggleSidebar = Notification.Name("FileViewer.toggleSidebar")

@@ -345,6 +345,6 @@ Next implementation work:
 
 - Continue PDF annotation beyond v1:
   - improve sticky note styling
-  - annotation undo
+  - annotation summary/sidebar
 - Improve Markdown preview fidelity for richer GitHub-flavored tables, local images, and task-list polish if needed later.
 - Add tests or sample files for repeatable verification.

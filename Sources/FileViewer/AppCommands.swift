@@ -292,6 +292,20 @@ struct FileViewerCommands: Commands {
 
             Divider()
 
+            Button("Undo PDF Annotation Change") {
+                activeModel?.undoPDFAnnotation()
+            }
+            .keyboardShortcut("z", modifiers: [.command, .option])
+            .disabled(activeModel?.canUndoPDFAnnotation != true)
+
+            Button("Redo PDF Annotation Change") {
+                activeModel?.redoPDFAnnotation()
+            }
+            .keyboardShortcut("z", modifiers: [.command, .option, .shift])
+            .disabled(activeModel?.canRedoPDFAnnotation != true)
+
+            Divider()
+
             Button("Save PDF Annotations") {
                 activeModel?.savePDFAnnotations()
             }

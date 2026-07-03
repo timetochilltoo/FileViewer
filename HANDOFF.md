@@ -504,6 +504,7 @@ PDF annotation v1:
   14. To move a sticky note, text box, rectangle, oval, line, arrow, or ink annotation, turn on Move Annotation mode, drag the annotation, then save the PDF.
   15. To edit a sticky note or text box, turn on Edit Annotation mode, click the annotation, update the text, then save the PDF.
   16. To delete a sticky note, text box, rectangle, oval, line, arrow, or ink annotation, turn on Delete Annotation mode, click the annotation, confirm, then save the PDF.
+  17. To undo/redo recent annotation changes, use the PDF toolbar undo/redo buttons or PDF > Undo/Redo PDF Annotation Change.
 - Supported annotation types:
   - highlight: `PDFAnnotationSubtype.highlight`
   - underline: `PDFAnnotationSubtype.underline`
@@ -554,6 +555,10 @@ PDF annotation v1:
   - Delete Annotation mode is handled in `MovableAnnotationPDFView.mouseDown(with:)`. It targets `.text` sticky notes, `.freeText` text boxes, `.square` rectangles, `.circle` ovals, and `.line` line/arrow annotations, shows a confirmation alert, removes the annotation from its page, and posts the same dirty-state callback used by moves.
   - After a successful annotation, `PDFKitView` posts `.pdfAnnotationDidChange` with the PDF URL.
   - `ContentView` receives `.pdfAnnotationDidChange` and calls `model.markPDFAnnotationsChanged(for:)`.
+  - PDF annotation undo/redo is snapshot-based. Before an annotation mutation, `PDFKitView.Coordinator.prepareAnnotationUndoSnapshot()` posts `.pdfAnnotationWillChange`. `ContentView` receives it and calls `AppModel.preparePDFAnnotationUndoSnapshot(for:)`, which stores the current `PDFDocument.dataRepresentation()` in the selected PDF tab's undo stack and clears the redo stack.
+  - Undo/redo restore whole-PDF snapshots by constructing a new `PDFDocument(data:)` and replacing the current tab's `PDFViewerDocument`. This is simpler and safer than trying to reverse each PDFKit annotation object mutation manually.
+  - Each tab keeps its own PDF annotation undo/redo stacks. Undo history is capped at 10 snapshots per PDF tab to limit memory use.
+  - Move/resize/line-endpoint changes capture the undo snapshot only when the first actual drag mutation occurs, not when the user merely clicks in Move Annotation mode.
   - `DocumentTab.pdfHasUnsavedAnnotations` drives the orange unsaved status, enabled PDF Save button, Command-S behavior, and close warning.
   - `AppModel.savePDFAnnotations()` / `savePDFTab(at:)` writes through `PDFDocument.write(to:)`.
   - `AppModel.savePDFAnnotatedCopyAs()` presents an `NSSavePanel`, defaults the filename to `<original> annotated.pdf`, writes the same `PDFDocument` to the chosen URL, then switches the current tab to that new PDF URL. After this, normal Save writes to the annotated copy rather than the original.
@@ -914,11 +919,11 @@ Implemented:
 - save annotations back into the PDF file
 - save an annotated copy through Save Annotated Copy As
 - close warning for unsaved PDF annotations
+- undo/redo recent annotation changes
 
 Not implemented yet:
 
 - richer sticky-note styling UI
-- undo/redo
 - annotation summary/sidebar
 
 Important caution:
@@ -995,7 +1000,7 @@ Recommended order:
 
 1. Continue PDF annotation:
    - richer sticky-note styling polish
-   - undo/redo
+   - annotation summary/sidebar
 2. Improve Markdown preview rendering if Patrick relies heavily on richer tables/checklists.
 3. Add remaining Markdown formatting polish:
    - smarter link editing/toggling for arbitrary existing Markdown links
