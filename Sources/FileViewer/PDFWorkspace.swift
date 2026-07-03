@@ -621,11 +621,7 @@ private final class MovableAnnotationPDFView: PDFView {
     private weak var lineDrawingPage: PDFPage?
     private var inkPoints: [CGPoint] = []
     private weak var inkDrawingPage: PDFPage?
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        drawInkPreview()
-    }
+    private weak var inkPreviewView: InkPreviewView?
 
     private enum LineEndpoint {
         case start
@@ -650,7 +646,7 @@ private final class MovableAnnotationPDFView: PDFView {
             }
             inkDrawingPage = page
             inkPoints = [clamped(convert(viewPoint, to: page), to: page.bounds(for: displayBox))]
-            needsDisplay = true
+            updateInkPreview()
             return
         }
 
@@ -731,7 +727,7 @@ private final class MovableAnnotationPDFView: PDFView {
                 return
             }
             inkPoints.append(pagePoint)
-            needsDisplay = true
+            updateInkPreview()
             return
         }
 
@@ -780,7 +776,7 @@ private final class MovableAnnotationPDFView: PDFView {
             defer {
                 inkPoints = []
                 inkDrawingPage = nil
-                needsDisplay = true
+                clearInkPreview()
             }
 
             let viewPoint = convert(event.locationInWindow, from: nil)
@@ -1003,27 +999,44 @@ private final class MovableAnnotationPDFView: PDFView {
         page.addAnnotation(annotation)
     }
 
-    private func drawInkPreview() {
+    private func updateInkPreview() {
         guard isInkDrawingModeEnabled,
               let page = inkDrawingPage,
-              inkPoints.count >= 2 else { return }
-
-        let path = NSBezierPath()
-        path.lineWidth = 2
-        path.lineCapStyle = .round
-        path.lineJoinStyle = .round
-
-        for (index, point) in inkPoints.enumerated() {
-            let viewPoint = convert(point, from: page)
-            if index == 0 {
-                path.move(to: viewPoint)
-            } else {
-                path.line(to: viewPoint)
-            }
+              !inkPoints.isEmpty else {
+            clearInkPreview()
+            return
         }
 
-        annotationColor.forPDFShapeBorder().setStroke()
-        path.stroke()
+        let preview = ensureInkPreviewView()
+        preview.frame = bounds
+        preview.strokeColor = annotationColor.forPDFShapeBorder()
+        preview.points = inkPoints.map { pagePoint in
+            let viewPoint = convert(pagePoint, from: page)
+            return CGPoint(
+                x: viewPoint.x - bounds.origin.x,
+                y: viewPoint.y - bounds.origin.y
+            )
+        }
+        preview.needsDisplay = true
+    }
+
+    private func ensureInkPreviewView() -> InkPreviewView {
+        if let preview = inkPreviewView {
+            preview.removeFromSuperview()
+            addSubview(preview, positioned: .above, relativeTo: nil)
+            return preview
+        }
+
+        let preview = InkPreviewView(frame: bounds)
+        preview.autoresizingMask = [.width, .height]
+        addSubview(preview, positioned: .above, relativeTo: nil)
+        inkPreviewView = preview
+        return preview
+    }
+
+    private func clearInkPreview() {
+        inkPreviewView?.removeFromSuperview()
+        inkPreviewView = nil
     }
 
     private func setLineAnnotation(_ annotation: PDFAnnotation, page: PDFPage, startPoint: CGPoint, endPoint: CGPoint) {
@@ -1074,6 +1087,40 @@ private final class MovableAnnotationPDFView: PDFView {
         guard alert.runModal() == .alertFirstButtonReturn else { return nil }
         let text = textField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         return text.isEmpty ? nil : text
+    }
+}
+
+private final class InkPreviewView: NSView {
+    var points: [CGPoint] = []
+    var strokeColor = NSColor.systemYellow
+
+    override var isFlipped: Bool {
+        true
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard points.count >= 2 else { return }
+
+        let path = NSBezierPath()
+        path.lineWidth = 2
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
+
+        for (index, point) in points.enumerated() {
+            if index == 0 {
+                path.move(to: point)
+            } else {
+                path.line(to: point)
+            }
+        }
+
+        strokeColor.setStroke()
+        path.stroke()
     }
 }
 
