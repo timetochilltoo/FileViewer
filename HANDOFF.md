@@ -534,9 +534,9 @@ PDF annotation v1:
   - `PDFKitView` passes `pdfLineDrawingMode` into `MovableAnnotationPDFView`. The custom PDF view intercepts mouse down/up while the mode is active, converts the drag start/end to PDF page coordinates, creates a `.line` annotation, marks the PDF dirty, and clears the drawing mode after release.
   - Arrow annotations are PDFKit line annotations with `endLineStyle = .closedArrow`; plain lines use no line ending.
   - Pen Drawing Mode is stored in `AppModel.isPDFInkDrawingModeEnabled`. Turning it on turns off move, delete, edit, recolor, and line/arrow drawing modes.
-  - `PDFKitView` passes `isPDFInkDrawingModeEnabled` into `MovableAnnotationPDFView`. The custom PDF view captures mouse drag points in PDF page coordinates, creates a real PDFKit `.ink` annotation on mouse release, marks the PDF dirty, and keeps the ink as a normal embedded PDF annotation.
+  - `PDFKitView` passes `isPDFInkDrawingModeEnabled` into `MovableAnnotationPDFView`. The custom PDF view captures mouse drag points in PDF page coordinates, draws a temporary live preview stroke during the drag, creates a real PDFKit `.ink` annotation on mouse release, marks the PDF dirty, and keeps the ink as a normal embedded PDF annotation.
   - Ink annotations use the selected annotation color as their stroke color and a 2-point rounded path. Existing v1 Move, Delete, and Recolor modes can target ink annotations.
-  - Current ink limitation: the stroke appears after mouse release. There is not yet a live preview while dragging.
+  - Live ink preview is drawn by `MovableAnnotationPDFView.draw(_:)` using the captured page points converted back to view coordinates. The preview is not saved; it disappears when the real `.ink` annotation is added on mouse release.
   - Rectangle/oval placement: if PDF text is selected, the shape is placed around the selected bounds with padding. Otherwise it is placed near the center of the visible page. Current v1 rectangle/oval shapes have a fixed default size when no selection is available.
   - Line/arrow placement: the user now drags from start point to end point. This replaced the earlier fixed diagonal line/arrow behavior.
   - Shapes use the selected annotation color as a strong border plus a light transparent fill, so marked table cells or document areas remain readable.
@@ -555,7 +555,7 @@ PDF annotation v1:
   - `AppModel.savePDFAnnotations()` / `savePDFTab(at:)` writes through `PDFDocument.write(to:)`.
   - `AppModel.savePDFAnnotatedCopyAs()` presents an `NSSavePanel`, defaults the filename to `<original> annotated.pdf`, writes the same `PDFDocument` to the chosen URL, then switches the current tab to that new PDF URL. After this, normal Save writes to the annotated copy rather than the original.
 - Known limitations:
-  - Freehand ink is implemented, but does not show a live stroke preview while dragging. The ink appears after mouse release.
+  - Freehand ink is implemented and shows a live preview while dragging.
   - Text boxes can be added, moved, resized, edited, recolored, and deleted.
   - Sticky notes can be added, moved, edited, and deleted.
   - Rectangle, oval, line, arrow, and freehand ink shapes are implemented.
@@ -912,7 +912,6 @@ Implemented:
 
 Not implemented yet:
 
-- live pen-stroke preview while dragging
 - richer sticky-note styling UI
 - visible resize handles
 - undo/redo
@@ -992,7 +991,6 @@ Recommended order:
 
 1. Continue PDF annotation:
    - richer sticky-note styling polish
-   - live pen preview while drawing
    - visible resize handles
    - undo/redo
 2. Improve Markdown preview rendering if Patrick relies heavily on richer tables/checklists.

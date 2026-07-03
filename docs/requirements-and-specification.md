@@ -239,7 +239,6 @@ Implemented v1 on branch `feature/pdf-annotation`:
 
 Still required after v1:
 
-- Show a live preview while drawing freehand ink.
 - Add visible resize handles for shape annotations.
 - Undo and redo annotation actions.
 

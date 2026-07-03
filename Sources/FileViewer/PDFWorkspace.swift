@@ -622,6 +622,11 @@ private final class MovableAnnotationPDFView: PDFView {
     private var inkPoints: [CGPoint] = []
     private weak var inkDrawingPage: PDFPage?
 
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        drawInkPreview()
+    }
+
     private enum LineEndpoint {
         case start
         case end
@@ -645,6 +650,7 @@ private final class MovableAnnotationPDFView: PDFView {
             }
             inkDrawingPage = page
             inkPoints = [clamped(convert(viewPoint, to: page), to: page.bounds(for: displayBox))]
+            needsDisplay = true
             return
         }
 
@@ -725,6 +731,7 @@ private final class MovableAnnotationPDFView: PDFView {
                 return
             }
             inkPoints.append(pagePoint)
+            needsDisplay = true
             return
         }
 
@@ -773,6 +780,7 @@ private final class MovableAnnotationPDFView: PDFView {
             defer {
                 inkPoints = []
                 inkDrawingPage = nil
+                needsDisplay = true
             }
 
             let viewPoint = convert(event.locationInWindow, from: nil)
@@ -993,6 +1001,29 @@ private final class MovableAnnotationPDFView: PDFView {
         annotation.border = border
         annotation.add(path)
         page.addAnnotation(annotation)
+    }
+
+    private func drawInkPreview() {
+        guard isInkDrawingModeEnabled,
+              let page = inkDrawingPage,
+              inkPoints.count >= 2 else { return }
+
+        let path = NSBezierPath()
+        path.lineWidth = 2
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
+
+        for (index, point) in inkPoints.enumerated() {
+            let viewPoint = convert(point, from: page)
+            if index == 0 {
+                path.move(to: viewPoint)
+            } else {
+                path.line(to: viewPoint)
+            }
+        }
+
+        annotationColor.forPDFShapeBorder().setStroke()
+        path.stroke()
     }
 
     private func setLineAnnotation(_ annotation: PDFAnnotation, page: PDFPage, startPoint: CGPoint, endPoint: CGPoint) {
