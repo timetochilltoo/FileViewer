@@ -463,7 +463,12 @@ struct PDFToolbar: View {
                 model.togglePDFInkDrawingMode()
             } label: {
                 Image(systemName: "pencil.tip")
-                    .foregroundStyle(model.isPDFInkDrawingModeEnabled ? Color.accentColor : Color.primary)
+                    .foregroundStyle(model.isPDFInkDrawingModeEnabled ? Color.white : Color.primary)
+                    .padding(5)
+                    .background(
+                        Capsule()
+                            .fill(model.isPDFInkDrawingModeEnabled ? Color.accentColor : Color.clear)
+                    )
             }
             .help(model.isPDFInkDrawingModeEnabled ? "Pen Drawing Mode On" : "Draw Freehand Ink")
 
