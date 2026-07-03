@@ -1094,10 +1094,6 @@ private final class InkPreviewView: NSView {
     var points: [CGPoint] = []
     var strokeColor = NSColor.systemYellow
 
-    override var isFlipped: Bool {
-        true
-    }
-
     override func hitTest(_ point: NSPoint) -> NSView? {
         nil
     }
