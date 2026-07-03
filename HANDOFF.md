@@ -557,6 +557,7 @@ PDF annotation v1:
   - `ContentView` receives `.pdfAnnotationDidChange` and calls `model.markPDFAnnotationsChanged(for:)`.
   - PDF annotation undo/redo is snapshot-based. Before an annotation mutation, `PDFKitView.Coordinator.prepareAnnotationUndoSnapshot()` posts `.pdfAnnotationWillChange`. `ContentView` receives it and calls `AppModel.preparePDFAnnotationUndoSnapshot(for:)`, which stores the current `PDFDocument.dataRepresentation()` in the selected PDF tab's undo stack and clears the redo stack.
   - Undo/redo restore whole-PDF snapshots by constructing a new `PDFDocument(data:)` and replacing the current tab's `PDFViewerDocument`. This is simpler and safer than trying to reverse each PDFKit annotation object mutation manually.
+  - 2026-07-04 fix: restored PDF snapshots must force the viewer to refresh even though the file URL is unchanged. `PDFViewerDocument.==` now includes PDF object identity, and `ContentView` keys `PDFWorkspace` with `ObjectIdentifier(pdfDocument.document)`.
   - Each tab keeps its own PDF annotation undo/redo stacks. Undo history is capped at 10 snapshots per PDF tab to limit memory use.
   - Move/resize/line-endpoint changes capture the undo snapshot only when the first actual drag mutation occurs, not when the user merely clicks in Move Annotation mode.
   - `DocumentTab.pdfHasUnsavedAnnotations` drives the orange unsaved status, enabled PDF Save button, Command-S behavior, and close warning.

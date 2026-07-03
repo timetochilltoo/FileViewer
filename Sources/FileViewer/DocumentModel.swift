@@ -327,7 +327,7 @@ struct PDFViewerDocument: Equatable {
     let document: PDFDocument
 
     static func == (lhs: PDFViewerDocument, rhs: PDFViewerDocument) -> Bool {
-        lhs.url == rhs.url
+        lhs.url == rhs.url && lhs.document === rhs.document
     }
 }
 
@@ -883,6 +883,7 @@ final class AppModel: ObservableObject {
             tabs[index].pdfAnnotationUndoStack.removeFirst(tabs[index].pdfAnnotationUndoStack.count - maxSnapshots)
         }
         tabs[index].pdfAnnotationRedoStack.removeAll()
+        statusMessage = "PDF annotation undo point saved."
     }
 
     func undoPDFAnnotation() {
