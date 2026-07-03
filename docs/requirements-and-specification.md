@@ -231,6 +231,7 @@ Implemented v1 on branch `feature/pdf-annotation`:
 - Add rectangle, oval, line, and arrow shape annotations.
 - Draw freehand ink annotations.
 - Move sticky note icons and text boxes with a dedicated Move Annotation mode.
+- Show resize/endpoint handles while Move Annotation mode is on.
 - Edit sticky note and text box text with a dedicated Edit Annotation mode.
 - Delete sticky note and text box annotations with a dedicated Delete Annotation mode.
 - Save embedded annotations back to the PDF file.
@@ -239,7 +240,6 @@ Implemented v1 on branch `feature/pdf-annotation`:
 
 Still required after v1:
 
-- Add visible resize handles for shape annotations.
 - Undo and redo annotation actions.
 
 Recommended:

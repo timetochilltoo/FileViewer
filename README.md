@@ -56,6 +56,7 @@ Current MVP build includes:
   - move sticky note icons and text boxes with Move Annotation mode
   - resize text boxes with Move Annotation mode
   - resize rectangle and oval annotations with Move Annotation mode
+  - show resize/endpoint handles while Move Annotation mode is on
   - edit sticky note and text box text with Edit Annotation mode
   - delete sticky notes and text boxes with Delete Annotation mode
   - save embedded PDF annotations back to the PDF file

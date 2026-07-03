@@ -544,6 +544,7 @@ PDF annotation v1:
   - `MovableAnnotationPDFView` subclasses `PDFView` to support sticky-note, free-text-box, rectangle, oval, line, and arrow dragging when `isNoteMoveModeEnabled` is true. Normal PDF mouse handling is left alone when the mode is off.
   - Line/arrow endpoint adjustment is also handled in Move Annotation mode. If the click is close to a line annotation's start or end point, the drag moves only that endpoint. If the click is on the body/bounds instead, the whole line/arrow moves.
   - Text box and rectangle/oval resizing is also handled in Move Annotation mode. If the click is close to a text box/shape edge or corner, the drag resizes that side/corner. If the click is inside the annotation but not near an edge, the whole annotation moves.
+  - Move Annotation mode shows a transparent `ResizeHandleOverlayView` above the PDF. It draws small blue/white handles around resizable text boxes, rectangles, and ovals, plus endpoint handles for lines/arrows. These handles are UI-only and are not saved into the PDF.
   - Recolor Annotation mode is handled in `MovableAnnotationPDFView.mouseDown(with:)`. It targets FileViewer-supported annotation types: highlight, underline, strikeout, sticky note, free text box, rectangle, oval, line, and arrow. It applies the currently selected toolbar color using type-appropriate opacity/fill rules and marks the PDF dirty.
   - `AppModel.isPDFNoteMoveModeEnabled` stores the mode. It is toggled from the toolbar hand button or PDF > Move Annotation Mode, and disabled when switching away from PDF content. The internal name still says “Note” for historical reasons.
   - `AppModel.isPDFAnnotationEditModeEnabled` stores Edit Annotation mode. Turning it on turns off Move and Delete modes. It is toggled from the toolbar pencil button or PDF > Edit Annotation Mode.
@@ -560,7 +561,8 @@ PDF annotation v1:
   - Text boxes can be added, moved, resized, edited, recolored, and deleted.
   - Sticky notes can be added, moved, edited, and deleted.
   - Rectangle, oval, line, arrow, and freehand ink shapes are implemented.
-  - Existing annotation recoloring, text box resizing, rectangle/oval edge/corner resizing, and line/arrow endpoint adjustment are implemented.
+- Existing annotation recoloring, text box resizing, rectangle/oval edge/corner resizing, and line/arrow endpoint adjustment are implemented.
+- Visible resize/endpoint handles are shown while Move Annotation mode is on.
   - Text markup is still erased through selected text overlap, not direct object-click deletion.
   - No undo/redo for annotations yet.
   - Normal Save still writes back to the current PDF file. Use Save Annotated Copy As before marking important source PDFs if you want to preserve the original untouched.
@@ -906,6 +908,7 @@ Implemented:
 - move sticky note icons and text boxes with Move Annotation mode
 - edit sticky note and text box text with Edit Annotation mode
 - delete sticky notes and text boxes with Delete Annotation mode
+- show resize/endpoint handles while Move Annotation mode is on
 - mark PDF tab/window as dirty after annotation
 - save annotations back into the PDF file
 - save an annotated copy through Save Annotated Copy As
@@ -914,7 +917,6 @@ Implemented:
 Not implemented yet:
 
 - richer sticky-note styling UI
-- visible resize handles
 - undo/redo
 - annotation summary/sidebar
 
@@ -992,7 +994,6 @@ Recommended order:
 
 1. Continue PDF annotation:
    - richer sticky-note styling polish
-   - visible resize handles
    - undo/redo
 2. Improve Markdown preview rendering if Patrick relies heavily on richer tables/checklists.
 3. Add remaining Markdown formatting polish:

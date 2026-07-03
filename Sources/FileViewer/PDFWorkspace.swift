@@ -127,6 +127,7 @@ struct PDFKitView: NSViewRepresentable {
             movableView.isInkDrawingModeEnabled = isInkDrawingModeEnabled
             movableView.lineDrawingMode = lineDrawingMode
             movableView.annotationColor = annotationColor
+            movableView.updateResizeHandleOverlay()
             let lineModeBinding = $lineDrawingMode
             movableView.onLineDrawingFinished = {
                 lineModeBinding.wrappedValue = nil
@@ -622,6 +623,7 @@ private final class MovableAnnotationPDFView: PDFView {
     private var inkPoints: [CGPoint] = []
     private weak var inkDrawingPage: PDFPage?
     private weak var inkPreviewView: InkPreviewView?
+    private weak var resizeHandleOverlayView: ResizeHandleOverlayView?
 
     private enum LineEndpoint {
         case start
@@ -703,6 +705,7 @@ private final class MovableAnnotationPDFView: PDFView {
         guard isNoteMoveModeEnabled,
               let hit = movableAnnotationHit(for: event) else {
             super.mouseDown(with: event)
+            updateResizeHandleOverlay()
             return
         }
 
@@ -714,6 +717,7 @@ private final class MovableAnnotationPDFView: PDFView {
             x: hit.pagePoint.x - hit.annotation.bounds.origin.x,
             y: hit.pagePoint.y - hit.annotation.bounds.origin.y
         )
+        updateResizeHandleOverlay()
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -747,6 +751,7 @@ private final class MovableAnnotationPDFView: PDFView {
         if let endpoint = draggedLineEndpoint, annotation.isLineAnnotation {
             updateLineEndpoint(endpoint, annotation: annotation, page: page, pagePoint: pagePoint)
             needsDisplay = true
+            updateResizeHandleOverlay()
             return
         }
 
@@ -758,6 +763,7 @@ private final class MovableAnnotationPDFView: PDFView {
                 pageBounds: page.bounds(for: displayBox)
             )
             needsDisplay = true
+            updateResizeHandleOverlay()
             return
         }
 
@@ -768,6 +774,7 @@ private final class MovableAnnotationPDFView: PDFView {
         )
         annotation.bounds = clamped(newBounds, to: page.bounds(for: displayBox))
         needsDisplay = true
+        updateResizeHandleOverlay()
     }
 
     override func mouseUp(with event: NSEvent) {
@@ -828,7 +835,29 @@ private final class MovableAnnotationPDFView: PDFView {
         draggedPage = nil
         draggedLineEndpoint = nil
         draggedResizeHandle = nil
+        updateResizeHandleOverlay()
         onAnnotationMoved?()
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        super.scrollWheel(with: event)
+        updateResizeHandleOverlay()
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        updateResizeHandleOverlay()
+    }
+
+    func updateResizeHandleOverlay() {
+        guard isNoteMoveModeEnabled else {
+            clearResizeHandleOverlay()
+            return
+        }
+
+        let overlay = ensureResizeHandleOverlayView()
+        overlay.frame = bounds
+        overlay.needsDisplay = true
     }
 
     private func movableAnnotationHit(for event: NSEvent) -> (page: PDFPage, annotation: PDFAnnotation, pagePoint: CGPoint)? {
@@ -1011,13 +1040,17 @@ private final class MovableAnnotationPDFView: PDFView {
         preview.frame = bounds
         preview.strokeColor = annotationColor.forPDFShapeBorder()
         preview.points = inkPoints.map { pagePoint in
-            let viewPoint = convert(pagePoint, from: page)
-            return CGPoint(
-                x: viewPoint.x - bounds.origin.x,
-                y: viewPoint.y - bounds.origin.y
-            )
+            viewPointForOverlay(pagePoint, page: page)
         }
         preview.needsDisplay = true
+    }
+
+    func viewPointForOverlay(_ pagePoint: CGPoint, page: PDFPage) -> CGPoint {
+        let viewPoint = convert(pagePoint, from: page)
+        return CGPoint(
+            x: viewPoint.x - bounds.origin.x,
+            y: viewPoint.y - bounds.origin.y
+        )
     }
 
     private func ensureInkPreviewView() -> InkPreviewView {
@@ -1037,6 +1070,26 @@ private final class MovableAnnotationPDFView: PDFView {
     private func clearInkPreview() {
         inkPreviewView?.removeFromSuperview()
         inkPreviewView = nil
+    }
+
+    private func ensureResizeHandleOverlayView() -> ResizeHandleOverlayView {
+        if let overlay = resizeHandleOverlayView {
+            overlay.removeFromSuperview()
+            addSubview(overlay, positioned: .above, relativeTo: nil)
+            return overlay
+        }
+
+        let overlay = ResizeHandleOverlayView(frame: bounds)
+        overlay.autoresizingMask = [.width, .height]
+        overlay.pdfView = self
+        addSubview(overlay, positioned: .above, relativeTo: nil)
+        resizeHandleOverlayView = overlay
+        return overlay
+    }
+
+    private func clearResizeHandleOverlay() {
+        resizeHandleOverlayView?.removeFromSuperview()
+        resizeHandleOverlayView = nil
     }
 
     private func setLineAnnotation(_ annotation: PDFAnnotation, page: PDFPage, startPoint: CGPoint, endPoint: CGPoint) {
@@ -1116,6 +1169,97 @@ private final class InkPreviewView: NSView {
         }
 
         strokeColor.setStroke()
+        path.stroke()
+    }
+}
+
+private final class ResizeHandleOverlayView: NSView {
+    weak var pdfView: MovableAnnotationPDFView?
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard let pdfView,
+              pdfView.isNoteMoveModeEnabled,
+              let document = pdfView.document else { return }
+
+        for pageIndex in 0..<document.pageCount {
+            guard let page = document.page(at: pageIndex) else { continue }
+            for annotation in page.annotations {
+                if annotation.isResizableShapeAnnotation {
+                    drawResizeHandles(for: annotation, page: page, pdfView: pdfView)
+                } else if annotation.isLineAnnotation {
+                    drawLineEndpointHandles(for: annotation, page: page, pdfView: pdfView)
+                }
+            }
+        }
+    }
+
+    private func drawResizeHandles(for annotation: PDFAnnotation, page: PDFPage, pdfView: MovableAnnotationPDFView) {
+        let rect = viewRect(for: annotation.bounds, page: page, pdfView: pdfView)
+        guard rect.intersects(bounds.insetBy(dx: -24, dy: -24)) else { return }
+
+        NSColor.controlAccentColor.withAlphaComponent(0.28).setStroke()
+        let border = NSBezierPath(rect: rect)
+        border.lineWidth = 1
+        border.stroke()
+
+        let points = [
+            CGPoint(x: rect.minX, y: rect.minY),
+            CGPoint(x: rect.midX, y: rect.minY),
+            CGPoint(x: rect.maxX, y: rect.minY),
+            CGPoint(x: rect.maxX, y: rect.midY),
+            CGPoint(x: rect.maxX, y: rect.maxY),
+            CGPoint(x: rect.midX, y: rect.maxY),
+            CGPoint(x: rect.minX, y: rect.maxY),
+            CGPoint(x: rect.minX, y: rect.midY)
+        ]
+        points.forEach { drawHandle(at: $0) }
+    }
+
+    private func drawLineEndpointHandles(for annotation: PDFAnnotation, page: PDFPage, pdfView: MovableAnnotationPDFView) {
+        let start = pdfView.viewPointForOverlay(
+            CGPoint(
+                x: annotation.bounds.minX + annotation.startPoint.x,
+                y: annotation.bounds.minY + annotation.startPoint.y
+            ),
+            page: page
+        )
+        let end = pdfView.viewPointForOverlay(
+            CGPoint(
+                x: annotation.bounds.minX + annotation.endPoint.x,
+                y: annotation.bounds.minY + annotation.endPoint.y
+            ),
+            page: page
+        )
+        guard bounds.insetBy(dx: -24, dy: -24).contains(start) ||
+              bounds.insetBy(dx: -24, dy: -24).contains(end) else { return }
+        drawHandle(at: start)
+        drawHandle(at: end)
+    }
+
+    private func viewRect(for pageRect: CGRect, page: PDFPage, pdfView: MovableAnnotationPDFView) -> CGRect {
+        let lowerLeft = pdfView.viewPointForOverlay(CGPoint(x: pageRect.minX, y: pageRect.minY), page: page)
+        let upperRight = pdfView.viewPointForOverlay(CGPoint(x: pageRect.maxX, y: pageRect.maxY), page: page)
+        return CGRect(
+            x: min(lowerLeft.x, upperRight.x),
+            y: min(lowerLeft.y, upperRight.y),
+            width: abs(upperRight.x - lowerLeft.x),
+            height: abs(upperRight.y - lowerLeft.y)
+        )
+    }
+
+    private func drawHandle(at point: CGPoint) {
+        let size: CGFloat = 8
+        let rect = CGRect(x: point.x - size / 2, y: point.y - size / 2, width: size, height: size)
+        let path = NSBezierPath(ovalIn: rect)
+        NSColor.white.withAlphaComponent(0.96).setFill()
+        path.fill()
+        NSColor.controlAccentColor.setStroke()
+        path.lineWidth = 1.5
         path.stroke()
     }
 }
