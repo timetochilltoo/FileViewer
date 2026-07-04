@@ -126,16 +126,20 @@ struct PDFKitView: NSViewRepresentable {
         if view.document !== document {
             let requestedPage = max(1, min(context.coordinator.currentVisiblePage() ?? page, max(document.pageCount, 1)))
             let requestedScale = max(0.1, view.scaleFactor)
+            let visibleOrigin = context.coordinator.currentVisibleOrigin()
             context.coordinator.isReplacingDocument = true
             view.setCurrentSelection(nil, animate: false)
             view.highlightedSelections = []
             view.document = nil
             view.document = document
             context.coordinator.applyPageAndScale(page: requestedPage, scale: requestedScale)
+            context.coordinator.applyVisibleOrigin(visibleOrigin)
             DispatchQueue.main.async {
                 context.coordinator.applyPageAndScale(page: requestedPage, scale: requestedScale)
+                context.coordinator.applyVisibleOrigin(visibleOrigin)
                 DispatchQueue.main.async {
                     context.coordinator.applyPageAndScale(page: requestedPage, scale: requestedScale)
+                    context.coordinator.applyVisibleOrigin(visibleOrigin)
                     context.coordinator.isReplacingDocument = false
                     context.coordinator.syncCurrentViewState()
                 }
@@ -467,6 +471,18 @@ struct PDFKitView: NSViewRepresentable {
                   index >= 0,
                   index < document.pageCount else { return nil }
             return index + 1
+        }
+
+        @MainActor func currentVisibleOrigin() -> CGPoint? {
+            guard let clipView = pdfView?.documentView?.enclosingScrollView?.contentView else { return nil }
+            return clipView.bounds.origin
+        }
+
+        @MainActor func applyVisibleOrigin(_ origin: CGPoint?) {
+            guard let origin,
+                  let scrollView = pdfView?.documentView?.enclosingScrollView else { return }
+            scrollView.contentView.scroll(to: origin)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
         }
 
         @MainActor private func syncScale() {
