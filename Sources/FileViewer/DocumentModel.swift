@@ -195,6 +195,26 @@ struct PDFAnnotationUndoSnapshot {
     let data: Data
 }
 
+struct PDFAnnotationObjectChange {
+    let url: URL
+    let items: [PDFAnnotationObjectItem]
+}
+
+struct PDFAnnotationObjectItem {
+    let page: PDFPage
+    let annotation: PDFAnnotation
+}
+
+private struct PDFAnnotationObjectUndoAction {
+    let url: URL
+    let items: [PDFAnnotationObjectItem]
+}
+
+private enum PDFAnnotationUndoAction {
+    case addedObjects(PDFAnnotationObjectUndoAction)
+    case snapshot(url: URL, data: Data)
+}
+
 enum ViewerDocument: Equatable {
     case markdown(MarkdownDocument)
     case pdf(PDFViewerDocument)
@@ -358,6 +378,8 @@ final class AppModel: ObservableObject {
     private static let pdfStateKey = "FileViewer.pdf.lastStates"
     private static let markdownStateKey = "FileViewer.markdown.lastStates"
     private weak var lastActiveMarkdownTextView: NSTextView?
+    private var pdfAnnotationActionUndoStacks: [DocumentTab.ID: [PDFAnnotationUndoAction]] = [:]
+    private var pdfAnnotationActionRedoStacks: [DocumentTab.ID: [PDFAnnotationUndoAction]] = [:]
 
     var pdfAnnotationNSColor: NSColor {
         NSColor(pdfAnnotationColor)
@@ -568,12 +590,12 @@ final class AppModel: ObservableObject {
 
     var canUndoPDFAnnotation: Bool {
         guard isPDFDocument else { return false }
-        return selectedTab?.pdfAnnotationUndoStack.isEmpty == false
+        return selectedTabID.flatMap { pdfAnnotationActionUndoStacks[$0]?.isEmpty == false } ?? false
     }
 
     var canRedoPDFAnnotation: Bool {
         guard isPDFDocument else { return false }
-        return selectedTab?.pdfAnnotationRedoStack.isEmpty == false
+        return selectedTabID.flatMap { pdfAnnotationActionRedoStacks[$0]?.isEmpty == false } ?? false
     }
 
     var isMarkdownDocument: Bool {
@@ -723,6 +745,8 @@ final class AppModel: ObservableObject {
         savePDFStateIfNeeded(for: tabs[index])
         saveMarkdownStateIfNeeded(for: tabs[index])
         let id = tabs[index].id
+        pdfAnnotationActionUndoStacks[id] = nil
+        pdfAnnotationActionRedoStacks[id] = nil
         tabs.remove(at: index)
         if selectedTabID == id {
             selectedTabID = tabs.indices.contains(index) ? tabs[index].id : tabs.last?.id
@@ -879,13 +903,38 @@ final class AppModel: ObservableObject {
             return pdf.url == snapshot.url
         }) else { return }
 
-        let maxSnapshots = 10
+        let tabID = tabs[index].id
         objectWillChange.send()
         tabs[index].pdfAnnotationUndoStack.append(snapshot.data)
         if tabs[index].pdfAnnotationUndoStack.count > maxSnapshots {
             tabs[index].pdfAnnotationUndoStack.removeFirst(tabs[index].pdfAnnotationUndoStack.count - maxSnapshots)
         }
         tabs[index].pdfAnnotationRedoStack.removeAll()
+        pdfAnnotationActionUndoStacks[tabID, default: []].append(.snapshot(url: snapshot.url, data: snapshot.data))
+        trimPDFAnnotationUndoStack(for: tabID)
+        pdfAnnotationActionRedoStacks[tabID] = []
+        statusMessage = "PDF annotation undo point saved."
+    }
+
+    func recordPDFAnnotationObjectChange(_ change: PDFAnnotationObjectChange) {
+        guard let index = tabs.firstIndex(where: { tab in
+            guard case .pdf(let pdf) = tab.document else { return false }
+            return pdf.url == change.url
+        }) else { return }
+
+        let maxObjectActions = 50
+        let tabID = tabs[index].id
+        objectWillChange.send()
+        pdfAnnotationActionUndoStacks[tabID, default: []].append(
+            .addedObjects(PDFAnnotationObjectUndoAction(url: change.url, items: change.items))
+        )
+        if let count = pdfAnnotationActionUndoStacks[tabID]?.count, count > maxObjectActions {
+            pdfAnnotationActionUndoStacks[tabID]?.removeFirst(count - maxObjectActions)
+        }
+        trimPDFAnnotationUndoStack(for: tabID)
+        pdfAnnotationActionRedoStacks[tabID] = []
+        tabs[index].pdfAnnotationRedoStack.removeAll()
+        tabs[index].pdfHasUnsavedAnnotations = true
         statusMessage = "PDF annotation undo point saved."
     }
 
@@ -894,17 +943,31 @@ final class AppModel: ObservableObject {
         guard let index = selectedTabIndex,
               tabs.indices.contains(index),
               case .pdf(let pdf) = tabs[index].document,
-              let undoData = tabs[index].pdfAnnotationUndoStack.popLast(),
-              let currentData = pdf.document.dataRepresentation(),
-              let restoredDocument = PDFDocument(data: undoData) else {
+              let tabID = selectedTabID,
+              var undoStack = pdfAnnotationActionUndoStacks[tabID],
+              let action = undoStack.popLast() else {
             NSSound.beep()
             return
         }
 
         objectWillChange.send()
-        tabs[index].pdfAnnotationRedoStack.append(currentData)
-        tabs[index].document = .pdf(PDFViewerDocument(url: pdf.url, document: restoredDocument))
-        tabs[index].pdfPageCount = restoredDocument.pageCount
+        pdfAnnotationActionUndoStacks[tabID] = undoStack
+        switch action {
+        case .addedObjects(let objectAction):
+            removePDFAnnotationObjects(objectAction.items)
+            pdfAnnotationActionRedoStacks[tabID, default: []].append(action)
+            NotificationCenter.default.post(name: .pdfAnnotationDisplayNeedsRefresh, object: objectAction.url)
+        case .snapshot(_, let undoData):
+            guard let currentData = pdf.document.dataRepresentation(),
+                  let restoredDocument = PDFDocument(data: undoData) else {
+                NSSound.beep()
+                return
+            }
+            tabs[index].pdfAnnotationRedoStack.append(currentData)
+            pdfAnnotationActionRedoStacks[tabID, default: []].append(.snapshot(url: pdf.url, data: currentData))
+            tabs[index].document = .pdf(PDFViewerDocument(url: pdf.url, document: restoredDocument))
+            tabs[index].pdfPageCount = restoredDocument.pageCount
+        }
         tabs[index].pdfHasUnsavedAnnotations = true
         statusMessage = "Undid PDF annotation change."
     }
@@ -914,19 +977,79 @@ final class AppModel: ObservableObject {
         guard let index = selectedTabIndex,
               tabs.indices.contains(index),
               case .pdf(let pdf) = tabs[index].document,
-              let redoData = tabs[index].pdfAnnotationRedoStack.popLast(),
-              let currentData = pdf.document.dataRepresentation(),
-              let restoredDocument = PDFDocument(data: redoData) else {
+              let tabID = selectedTabID,
+              var redoStack = pdfAnnotationActionRedoStacks[tabID],
+              let action = redoStack.popLast() else {
             NSSound.beep()
             return
         }
 
         objectWillChange.send()
-        tabs[index].pdfAnnotationUndoStack.append(currentData)
-        tabs[index].document = .pdf(PDFViewerDocument(url: pdf.url, document: restoredDocument))
-        tabs[index].pdfPageCount = restoredDocument.pageCount
+        pdfAnnotationActionRedoStacks[tabID] = redoStack
+        switch action {
+        case .addedObjects(let objectAction):
+            addPDFAnnotationObjects(objectAction.items)
+            pdfAnnotationActionUndoStacks[tabID, default: []].append(action)
+            trimPDFAnnotationUndoStack(for: tabID)
+            NotificationCenter.default.post(name: .pdfAnnotationDisplayNeedsRefresh, object: objectAction.url)
+        case .snapshot(_, let redoData):
+            guard let currentData = pdf.document.dataRepresentation(),
+                  let restoredDocument = PDFDocument(data: redoData) else {
+                NSSound.beep()
+                return
+            }
+            tabs[index].pdfAnnotationUndoStack.append(currentData)
+            pdfAnnotationActionUndoStacks[tabID, default: []].append(.snapshot(url: pdf.url, data: currentData))
+            trimPDFAnnotationUndoStack(for: tabID)
+            tabs[index].document = .pdf(PDFViewerDocument(url: pdf.url, document: restoredDocument))
+            tabs[index].pdfPageCount = restoredDocument.pageCount
+        }
         tabs[index].pdfHasUnsavedAnnotations = true
         statusMessage = "Redid PDF annotation change."
+    }
+
+    private func removePDFAnnotationObjects(_ items: [PDFAnnotationObjectItem]) {
+        for item in items.reversed() {
+            if item.page.annotations.contains(where: { $0 === item.annotation }) {
+                item.page.removeAnnotation(item.annotation)
+            }
+            item.page.displaysAnnotations = true
+        }
+    }
+
+    private func addPDFAnnotationObjects(_ items: [PDFAnnotationObjectItem]) {
+        for item in items {
+            if !item.page.annotations.contains(where: { $0 === item.annotation }) {
+                item.page.addAnnotation(item.annotation)
+            }
+            item.page.displaysAnnotations = true
+        }
+    }
+
+    private var maxSnapshots: Int { 10 }
+
+    private func trimPDFAnnotationUndoStack(for tabID: DocumentTab.ID) {
+        guard var stack = pdfAnnotationActionUndoStacks[tabID] else { return }
+
+        let maxActions = 50
+        if stack.count > maxActions {
+            stack.removeFirst(stack.count - maxActions)
+        }
+
+        let snapshotIndices = stack.indices.filter { index in
+            if case .snapshot = stack[index] {
+                return true
+            }
+            return false
+        }
+        let excessSnapshotCount = snapshotIndices.count - maxSnapshots
+        if excessSnapshotCount > 0 {
+            for index in snapshotIndices.prefix(excessSnapshotCount).reversed() {
+                stack.remove(at: index)
+            }
+        }
+
+        pdfAnnotationActionUndoStacks[tabID] = stack
     }
 
     func savePDFAnnotations() {

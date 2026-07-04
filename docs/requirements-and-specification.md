@@ -235,6 +235,8 @@ Implemented v1 on branch `feature/pdf-annotation`:
 - Edit sticky note and text box text with a dedicated Edit Annotation mode.
 - Delete sticky note and text box annotations with a dedicated Delete Annotation mode.
 - Undo and redo recent PDF annotation changes.
+  - Newly-created annotations should undo/redo object-by-object so repeated shape undo does not reload the whole PDF or mix stale PDFKit appearances.
+  - Existing-annotation mutations may continue to use a whole-PDF snapshot fallback until more granular inverse operations are implemented.
 - Save embedded annotations back to the PDF file.
 - Save an annotated PDF copy without overwriting the original.
 - Warn before closing a PDF tab/window with unsaved annotations.

@@ -94,6 +94,9 @@ struct PDFKitView: NSViewRepresentable {
         view.onAnnotationWillChange = { [weak coordinator = context.coordinator] in
             coordinator?.prepareAnnotationUndoSnapshot()
         }
+        view.onAnnotationDidAddObjects = { [weak coordinator = context.coordinator] items in
+            coordinator?.recordAddedAnnotations(items)
+        }
         view.onAnnotationMoved = { [weak coordinator = context.coordinator] in
             coordinator?.markAnnotationChanged()
         }
@@ -187,6 +190,7 @@ struct PDFKitView: NSViewRepresentable {
             NotificationCenter.default.addObserver(self, selector: #selector(addStickyNote(_:)), name: .pdfAddStickyNote, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(addTextBox(_:)), name: .pdfAddTextBox, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(addShapeAnnotation(_:)), name: .pdfAddShapeAnnotation, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(refreshAnnotationDisplay(_:)), name: .pdfAnnotationDisplayNeedsRefresh, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(pageChanged), name: Notification.Name.PDFViewPageChanged, object: pdfView)
         }
 
@@ -269,9 +273,10 @@ struct PDFKitView: NSViewRepresentable {
                 NSSound.beep()
                 return
             }
-            prepareAnnotationUndoSnapshot()
-            guard addAnnotation(command.kind, color: command.color, to: selection) else { return }
+            let addedItems = addAnnotation(command.kind, color: command.color, to: selection)
+            guard !addedItems.isEmpty else { return }
             pdfView?.setCurrentSelection(nil, animate: false)
+            recordAddedAnnotations(addedItems)
             NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
         }
 
@@ -302,9 +307,9 @@ struct PDFKitView: NSViewRepresentable {
                   ) else {
                 return
             }
-            prepareAnnotationUndoSnapshot()
-            guard addStickyNote(text: noteText) else { return }
+            guard let addedItem = addStickyNote(text: noteText) else { return }
             pdfView?.needsDisplay = true
+            recordAddedAnnotations([addedItem])
             NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
         }
 
@@ -318,9 +323,9 @@ struct PDFKitView: NSViewRepresentable {
                   ) else {
                 return
             }
-            prepareAnnotationUndoSnapshot()
-            guard addTextBox(text: text) else { return }
+            guard let addedItem = addTextBox(text: text) else { return }
             pdfView?.needsDisplay = true
+            recordAddedAnnotations([addedItem])
             NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
         }
 
@@ -329,9 +334,9 @@ struct PDFKitView: NSViewRepresentable {
                   command.url == parent.documentURL else {
                 return
             }
-            prepareAnnotationUndoSnapshot()
-            guard addShape(command.kind, color: command.color) else { return }
+            guard let addedItem = addShape(command.kind, color: command.color) else { return }
             pdfView?.needsDisplay = true
+            recordAddedAnnotations([addedItem])
             NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
         }
 
@@ -350,6 +355,26 @@ struct PDFKitView: NSViewRepresentable {
             syncScale()
             pdfView?.needsDisplay = true
             NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
+        }
+
+        @MainActor func recordAddedAnnotations(_ items: [(page: PDFPage, annotation: PDFAnnotation)]) {
+            syncPage()
+            syncScale()
+            let change = PDFAnnotationObjectChange(
+                url: parent.documentURL,
+                items: items.map { PDFAnnotationObjectItem(page: $0.page, annotation: $0.annotation) }
+            )
+            NotificationCenter.default.post(name: .pdfAnnotationDidAddObjects, object: change)
+        }
+
+        @MainActor @objc private func refreshAnnotationDisplay(_ notification: Notification) {
+            guard let url = notification.object as? URL,
+                  url == parent.documentURL else { return }
+            for pageIndex in 0..<parent.document.pageCount {
+                parent.document.page(at: pageIndex)?.displaysAnnotations = true
+            }
+            pdfView?.setNeedsDisplay(pdfView?.bounds ?? .zero)
+            pdfView?.needsDisplay = true
         }
 
         @MainActor func applySearch(_ text: String) {
@@ -441,10 +466,10 @@ struct PDFKitView: NSViewRepresentable {
             parent.scale = view.scaleFactor
         }
 
-        @MainActor private func addAnnotation(_ kind: PDFAnnotationKind, color: NSColor, to selection: PDFSelection) -> Bool {
+        @MainActor private func addAnnotation(_ kind: PDFAnnotationKind, color: NSColor, to selection: PDFSelection) -> [(page: PDFPage, annotation: PDFAnnotation)] {
             let lineSelections = selection.selectionsByLine()
             let selections = lineSelections.isEmpty ? [selection] : lineSelections
-            var addedAnnotation = false
+            var addedItems: [(page: PDFPage, annotation: PDFAnnotation)] = []
 
             for lineSelection in selections {
                 for page in lineSelection.pages {
@@ -457,16 +482,16 @@ struct PDFKitView: NSViewRepresentable {
                     )
                     annotation.color = color.forPDFAnnotation(kind: kind)
                     page.addAnnotation(annotation)
-                    addedAnnotation = true
+                    addedItems.append((page, annotation))
                 }
             }
 
-            return addedAnnotation
+            return addedItems
         }
 
-        @MainActor private func addStickyNote(text: String) -> Bool {
+        @MainActor private func addStickyNote(text: String) -> (page: PDFPage, annotation: PDFAnnotation)? {
             guard let view = pdfView,
-                  let page = view.currentSelection?.pages.first ?? view.currentPage else { return false }
+                  let page = view.currentSelection?.pages.first ?? view.currentPage else { return nil }
             let point = stickyNotePoint(on: page)
             let bounds = clamped(
                 CGRect(x: point.x, y: point.y, width: 28, height: 28),
@@ -480,12 +505,12 @@ struct PDFKitView: NSViewRepresentable {
             annotation.contents = text
             annotation.color = parent.annotationColor.forPDFStickyNote()
             page.addAnnotation(annotation)
-            return true
+            return (page, annotation)
         }
 
-        @MainActor private func addTextBox(text: String) -> Bool {
+        @MainActor private func addTextBox(text: String) -> (page: PDFPage, annotation: PDFAnnotation)? {
             guard let view = pdfView,
-                  let page = view.currentSelection?.pages.first ?? view.currentPage else { return false }
+                  let page = view.currentSelection?.pages.first ?? view.currentPage else { return nil }
             let point = textBoxPoint(on: page)
             let bounds = clamped(
                 CGRect(x: point.x, y: point.y, width: 220, height: 64),
@@ -504,12 +529,12 @@ struct PDFKitView: NSViewRepresentable {
             border.lineWidth = 1
             annotation.border = border
             page.addAnnotation(annotation)
-            return true
+            return (page, annotation)
         }
 
-        @MainActor private func addShape(_ kind: PDFShapeAnnotationKind, color: NSColor) -> Bool {
+        @MainActor private func addShape(_ kind: PDFShapeAnnotationKind, color: NSColor) -> (page: PDFPage, annotation: PDFAnnotation)? {
             guard let view = pdfView,
-                  let page = view.currentSelection?.pages.first ?? view.currentPage else { return false }
+                  let page = view.currentSelection?.pages.first ?? view.currentPage else { return nil }
             let bounds = clamped(shapeBounds(on: page), to: page.bounds(for: view.displayBox))
             let annotation = PDFAnnotation(
                 bounds: bounds,
@@ -528,7 +553,7 @@ struct PDFKitView: NSViewRepresentable {
                 annotation.endLineStyle = kind == .arrow ? .closedArrow : .none
             }
             page.addAnnotation(annotation)
-            return true
+            return (page, annotation)
         }
 
         @MainActor private func stickyNotePoint(on page: PDFPage) -> CGPoint {
@@ -671,6 +696,7 @@ private final class MovableAnnotationPDFView: PDFView {
     var lineDrawingMode: PDFShapeAnnotationKind?
     var annotationColor = NSColor.systemYellow
     var onAnnotationWillChange: (() -> Void)?
+    var onAnnotationDidAddObjects: (([(page: PDFPage, annotation: PDFAnnotation)]) -> Void)?
     var onAnnotationMoved: (() -> Void)?
     var onAnnotationDeleted: (() -> Void)?
     var onAnnotationEdited: (() -> Void)?
@@ -867,9 +893,9 @@ private final class MovableAnnotationPDFView: PDFView {
                 NSSound.beep()
                 return
             }
-            onAnnotationWillChange?()
-            addInkAnnotation(page: page, points: inkPoints)
+            guard let annotation = addInkAnnotation(page: page, points: inkPoints) else { return }
             needsDisplay = true
+            onAnnotationDidAddObjects?([(page, annotation)])
             onAnnotationEdited?()
             return
         }
@@ -890,9 +916,9 @@ private final class MovableAnnotationPDFView: PDFView {
                 NSSound.beep()
                 return
             }
-            onAnnotationWillChange?()
-            addLineAnnotation(kind: mode, page: page, startPoint: startPoint, endPoint: endPoint)
+            let annotation = addLineAnnotation(kind: mode, page: page, startPoint: startPoint, endPoint: endPoint)
             needsDisplay = true
+            onAnnotationDidAddObjects?([(page, annotation)])
             onAnnotationEdited?()
             return
         }
@@ -1065,7 +1091,7 @@ private final class MovableAnnotationPDFView: PDFView {
         setLineAnnotation(annotation, page: page, startPoint: newStart, endPoint: newEnd)
     }
 
-    private func addLineAnnotation(kind: PDFShapeAnnotationKind, page: PDFPage, startPoint: CGPoint, endPoint: CGPoint) {
+    private func addLineAnnotation(kind: PDFShapeAnnotationKind, page: PDFPage, startPoint: CGPoint, endPoint: CGPoint) -> PDFAnnotation {
         let annotation = PDFAnnotation(
             bounds: .zero,
             forType: .line,
@@ -1080,9 +1106,10 @@ private final class MovableAnnotationPDFView: PDFView {
         annotation.endLineStyle = kind == .arrow ? .closedArrow : .none
         setLineAnnotation(annotation, page: page, startPoint: startPoint, endPoint: endPoint)
         page.addAnnotation(annotation)
+        return annotation
     }
 
-    private func addInkAnnotation(page: PDFPage, points: [CGPoint]) {
+    private func addInkAnnotation(page: PDFPage, points: [CGPoint]) -> PDFAnnotation? {
         let strokePadding: CGFloat = 4
         let pageBounds = page.bounds(for: displayBox)
         var rawBounds = points.reduce(CGRect.null) { partialResult, point in
@@ -1090,6 +1117,7 @@ private final class MovableAnnotationPDFView: PDFView {
         }
         rawBounds = rawBounds.insetBy(dx: -strokePadding, dy: -strokePadding)
         let bounds = clamped(rawBounds, to: pageBounds)
+        guard bounds.width > 0, bounds.height > 0 else { return nil }
 
         let path = NSBezierPath()
         path.lineWidth = 2
@@ -1115,6 +1143,7 @@ private final class MovableAnnotationPDFView: PDFView {
         annotation.border = border
         annotation.add(path)
         page.addAnnotation(annotation)
+        return annotation
     }
 
     private func updateInkPreview() {

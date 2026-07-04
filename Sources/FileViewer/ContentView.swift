@@ -64,6 +64,10 @@ struct ContentView: View {
             guard let snapshot = notification.object as? PDFAnnotationUndoSnapshot else { return }
             model.preparePDFAnnotationUndoSnapshot(snapshot)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .pdfAnnotationDidAddObjects)) { notification in
+            guard let change = notification.object as? PDFAnnotationObjectChange else { return }
+            model.recordPDFAnnotationObjectChange(change)
+        }
     }
 
     private var toolbar: some View {
@@ -645,6 +649,8 @@ extension Notification.Name {
     static let pdfAddShapeAnnotation = Notification.Name("FileViewer.pdfAddShapeAnnotation")
     static let pdfAnnotationWillChange = Notification.Name("FileViewer.pdfAnnotationWillChange")
     static let pdfAnnotationDidChange = Notification.Name("FileViewer.pdfAnnotationDidChange")
+    static let pdfAnnotationDidAddObjects = Notification.Name("FileViewer.pdfAnnotationDidAddObjects")
+    static let pdfAnnotationDisplayNeedsRefresh = Notification.Name("FileViewer.pdfAnnotationDisplayNeedsRefresh")
     static let markdownSyncCurrentState = Notification.Name("FileViewer.markdownSyncCurrentState")
     static let toggleSidebar = Notification.Name("FileViewer.toggleSidebar")
 }
