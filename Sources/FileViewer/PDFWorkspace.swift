@@ -119,16 +119,20 @@ struct PDFKitView: NSViewRepresentable {
     }
 
     func updateNSView(_ view: PDFView, context: Context) {
+        context.coordinator.parent = self
         if view.document !== document {
             let requestedPage = max(1, min(context.coordinator.currentVisiblePage() ?? page, max(document.pageCount, 1)))
             let requestedScale = max(0.1, view.scaleFactor)
             context.coordinator.isReplacingDocument = true
             view.document = document
-            context.coordinator.isReplacingDocument = false
             context.coordinator.applyPageAndScale(page: requestedPage, scale: requestedScale)
+            DispatchQueue.main.async {
+                context.coordinator.applyPageAndScale(page: requestedPage, scale: requestedScale)
+                context.coordinator.isReplacingDocument = false
+                context.coordinator.syncCurrentViewState()
+            }
         }
 
-        context.coordinator.parent = self
         if let movableView = view as? MovableAnnotationPDFView {
             movableView.isNoteMoveModeEnabled = isNoteMoveModeEnabled
             movableView.isAnnotationDeleteModeEnabled = isAnnotationDeleteModeEnabled
@@ -326,7 +330,11 @@ struct PDFKitView: NSViewRepresentable {
         @MainActor func prepareAnnotationUndoSnapshot() {
             syncPage()
             syncScale()
-            NotificationCenter.default.post(name: .pdfAnnotationWillChange, object: parent.documentURL)
+            guard let data = parent.document.dataRepresentation() else { return }
+            NotificationCenter.default.post(
+                name: .pdfAnnotationWillChange,
+                object: PDFAnnotationUndoSnapshot(url: parent.documentURL, data: data)
+            )
         }
 
         @MainActor func markAnnotationChanged() {

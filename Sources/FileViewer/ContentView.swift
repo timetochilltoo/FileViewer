@@ -61,8 +61,8 @@ struct ContentView: View {
             model.markPDFAnnotationsChanged(for: url)
         }
         .onReceive(NotificationCenter.default.publisher(for: .pdfAnnotationWillChange)) { notification in
-            guard let url = notification.object as? URL else { return }
-            model.preparePDFAnnotationUndoSnapshot(for: url)
+            guard let snapshot = notification.object as? PDFAnnotationUndoSnapshot else { return }
+            model.preparePDFAnnotationUndoSnapshot(snapshot)
         }
     }
 

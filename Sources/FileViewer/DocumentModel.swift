@@ -190,6 +190,11 @@ struct PDFShapeAnnotationCommand {
     let color: NSColor
 }
 
+struct PDFAnnotationUndoSnapshot {
+    let url: URL
+    let data: Data
+}
+
 enum ViewerDocument: Equatable {
     case markdown(MarkdownDocument)
     case pdf(PDFViewerDocument)
@@ -868,17 +873,15 @@ final class AppModel: ObservableObject {
         statusMessage = "PDF annotations changed. Save to keep them."
     }
 
-    func preparePDFAnnotationUndoSnapshot(for url: URL) {
+    func preparePDFAnnotationUndoSnapshot(_ snapshot: PDFAnnotationUndoSnapshot) {
         guard let index = tabs.firstIndex(where: { tab in
             guard case .pdf(let pdf) = tab.document else { return false }
-            return pdf.url == url
-        }),
-        case .pdf(let pdf) = tabs[index].document,
-        let data = pdf.document.dataRepresentation() else { return }
+            return pdf.url == snapshot.url
+        }) else { return }
 
         let maxSnapshots = 10
         objectWillChange.send()
-        tabs[index].pdfAnnotationUndoStack.append(data)
+        tabs[index].pdfAnnotationUndoStack.append(snapshot.data)
         if tabs[index].pdfAnnotationUndoStack.count > maxSnapshots {
             tabs[index].pdfAnnotationUndoStack.removeFirst(tabs[index].pdfAnnotationUndoStack.count - maxSnapshots)
         }
