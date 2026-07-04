@@ -944,32 +944,42 @@ final class AppModel: ObservableObject {
               tabs.indices.contains(index),
               case .pdf(let pdf) = tabs[index].document,
               let tabID = selectedTabID,
-              var undoStack = pdfAnnotationActionUndoStacks[tabID],
-              let action = undoStack.popLast() else {
+              var undoStack = pdfAnnotationActionUndoStacks[tabID] else {
             NSSound.beep()
             return
         }
 
         objectWillChange.send()
-        pdfAnnotationActionUndoStacks[tabID] = undoStack
-        switch action {
-        case .addedObjects(let objectAction):
-            removePDFAnnotationObjects(objectAction.items)
-            pdfAnnotationActionRedoStacks[tabID, default: []].append(action)
-            NotificationCenter.default.post(name: .pdfAnnotationDisplayNeedsRefresh, object: objectAction.url)
-        case .snapshot(_, let undoData):
-            guard let currentData = pdf.document.dataRepresentation(),
-                  let restoredDocument = PDFDocument(data: undoData) else {
-                NSSound.beep()
+        while let action = undoStack.popLast() {
+            switch action {
+            case .addedObjects(let objectAction):
+                if removePDFAnnotationObjects(objectAction.items) {
+                    pdfAnnotationActionUndoStacks[tabID] = undoStack
+                    pdfAnnotationActionRedoStacks[tabID, default: []].append(action)
+                    tabs[index].pdfHasUnsavedAnnotations = true
+                    statusMessage = "Undid PDF annotation change."
+                    NotificationCenter.default.post(name: .pdfAnnotationDisplayNeedsRefresh, object: objectAction.url)
+                    return
+                }
+            case .snapshot(_, let undoData):
+                guard let currentData = pdf.document.dataRepresentation(),
+                      currentData != undoData,
+                      let restoredDocument = PDFDocument(data: undoData) else {
+                    continue
+                }
+                pdfAnnotationActionUndoStacks[tabID] = undoStack
+                tabs[index].pdfAnnotationRedoStack.append(currentData)
+                pdfAnnotationActionRedoStacks[tabID, default: []].append(.snapshot(url: pdf.url, data: currentData))
+                tabs[index].document = .pdf(PDFViewerDocument(url: pdf.url, document: restoredDocument))
+                tabs[index].pdfPageCount = restoredDocument.pageCount
+                tabs[index].pdfHasUnsavedAnnotations = true
+                statusMessage = "Undid PDF annotation change."
                 return
             }
-            tabs[index].pdfAnnotationRedoStack.append(currentData)
-            pdfAnnotationActionRedoStacks[tabID, default: []].append(.snapshot(url: pdf.url, data: currentData))
-            tabs[index].document = .pdf(PDFViewerDocument(url: pdf.url, document: restoredDocument))
-            tabs[index].pdfPageCount = restoredDocument.pageCount
         }
-        tabs[index].pdfHasUnsavedAnnotations = true
-        statusMessage = "Undid PDF annotation change."
+
+        pdfAnnotationActionUndoStacks[tabID] = []
+        NSSound.beep()
     }
 
     func redoPDFAnnotation() {
@@ -978,52 +988,68 @@ final class AppModel: ObservableObject {
               tabs.indices.contains(index),
               case .pdf(let pdf) = tabs[index].document,
               let tabID = selectedTabID,
-              var redoStack = pdfAnnotationActionRedoStacks[tabID],
-              let action = redoStack.popLast() else {
+              var redoStack = pdfAnnotationActionRedoStacks[tabID] else {
             NSSound.beep()
             return
         }
 
         objectWillChange.send()
-        pdfAnnotationActionRedoStacks[tabID] = redoStack
-        switch action {
-        case .addedObjects(let objectAction):
-            addPDFAnnotationObjects(objectAction.items)
-            pdfAnnotationActionUndoStacks[tabID, default: []].append(action)
-            trimPDFAnnotationUndoStack(for: tabID)
-            NotificationCenter.default.post(name: .pdfAnnotationDisplayNeedsRefresh, object: objectAction.url)
-        case .snapshot(_, let redoData):
-            guard let currentData = pdf.document.dataRepresentation(),
-                  let restoredDocument = PDFDocument(data: redoData) else {
-                NSSound.beep()
+        while let action = redoStack.popLast() {
+            switch action {
+            case .addedObjects(let objectAction):
+                if addPDFAnnotationObjects(objectAction.items) {
+                    pdfAnnotationActionRedoStacks[tabID] = redoStack
+                    pdfAnnotationActionUndoStacks[tabID, default: []].append(action)
+                    trimPDFAnnotationUndoStack(for: tabID)
+                    tabs[index].pdfHasUnsavedAnnotations = true
+                    statusMessage = "Redid PDF annotation change."
+                    NotificationCenter.default.post(name: .pdfAnnotationDisplayNeedsRefresh, object: objectAction.url)
+                    return
+                }
+            case .snapshot(_, let redoData):
+                guard let currentData = pdf.document.dataRepresentation(),
+                      currentData != redoData,
+                      let restoredDocument = PDFDocument(data: redoData) else {
+                    continue
+                }
+                pdfAnnotationActionRedoStacks[tabID] = redoStack
+                tabs[index].pdfAnnotationUndoStack.append(currentData)
+                pdfAnnotationActionUndoStacks[tabID, default: []].append(.snapshot(url: pdf.url, data: currentData))
+                trimPDFAnnotationUndoStack(for: tabID)
+                tabs[index].document = .pdf(PDFViewerDocument(url: pdf.url, document: restoredDocument))
+                tabs[index].pdfPageCount = restoredDocument.pageCount
+                tabs[index].pdfHasUnsavedAnnotations = true
+                statusMessage = "Redid PDF annotation change."
                 return
             }
-            tabs[index].pdfAnnotationUndoStack.append(currentData)
-            pdfAnnotationActionUndoStacks[tabID, default: []].append(.snapshot(url: pdf.url, data: currentData))
-            trimPDFAnnotationUndoStack(for: tabID)
-            tabs[index].document = .pdf(PDFViewerDocument(url: pdf.url, document: restoredDocument))
-            tabs[index].pdfPageCount = restoredDocument.pageCount
         }
-        tabs[index].pdfHasUnsavedAnnotations = true
-        statusMessage = "Redid PDF annotation change."
+
+        pdfAnnotationActionRedoStacks[tabID] = []
+        NSSound.beep()
     }
 
-    private func removePDFAnnotationObjects(_ items: [PDFAnnotationObjectItem]) {
+    private func removePDFAnnotationObjects(_ items: [PDFAnnotationObjectItem]) -> Bool {
+        var didRemove = false
         for item in items.reversed() {
             if item.page.annotations.contains(where: { $0 === item.annotation }) {
                 item.page.removeAnnotation(item.annotation)
+                didRemove = true
             }
             item.page.displaysAnnotations = true
         }
+        return didRemove
     }
 
-    private func addPDFAnnotationObjects(_ items: [PDFAnnotationObjectItem]) {
+    private func addPDFAnnotationObjects(_ items: [PDFAnnotationObjectItem]) -> Bool {
+        var didAdd = false
         for item in items {
             if !item.page.annotations.contains(where: { $0 === item.annotation }) {
                 item.page.addAnnotation(item.annotation)
+                didAdd = true
             }
             item.page.displaysAnnotations = true
         }
+        return didAdd
     }
 
     private var maxSnapshots: Int { 10 }
