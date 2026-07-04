@@ -890,6 +890,7 @@ final class AppModel: ObservableObject {
     }
 
     func undoPDFAnnotation() {
+        NotificationCenter.default.post(name: .pdfSyncCurrentState, object: nil)
         guard let index = selectedTabIndex,
               tabs.indices.contains(index),
               case .pdf(let pdf) = tabs[index].document,
@@ -909,6 +910,7 @@ final class AppModel: ObservableObject {
     }
 
     func redoPDFAnnotation() {
+        NotificationCenter.default.post(name: .pdfSyncCurrentState, object: nil)
         guard let index = selectedTabIndex,
               tabs.indices.contains(index),
               case .pdf(let pdf) = tabs[index].document,

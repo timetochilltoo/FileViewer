@@ -124,12 +124,18 @@ struct PDFKitView: NSViewRepresentable {
             let requestedPage = max(1, min(context.coordinator.currentVisiblePage() ?? page, max(document.pageCount, 1)))
             let requestedScale = max(0.1, view.scaleFactor)
             context.coordinator.isReplacingDocument = true
+            view.setCurrentSelection(nil, animate: false)
+            view.highlightedSelections = []
+            view.document = nil
             view.document = document
             context.coordinator.applyPageAndScale(page: requestedPage, scale: requestedScale)
             DispatchQueue.main.async {
                 context.coordinator.applyPageAndScale(page: requestedPage, scale: requestedScale)
-                context.coordinator.isReplacingDocument = false
-                context.coordinator.syncCurrentViewState()
+                DispatchQueue.main.async {
+                    context.coordinator.applyPageAndScale(page: requestedPage, scale: requestedScale)
+                    context.coordinator.isReplacingDocument = false
+                    context.coordinator.syncCurrentViewState()
+                }
             }
         }
 
@@ -147,8 +153,10 @@ struct PDFKitView: NSViewRepresentable {
                 lineModeBinding.wrappedValue = nil
             }
         }
-        context.coordinator.applySearch(searchText)
-        context.coordinator.goToSearchMatch(searchMatchIndex)
+        if !context.coordinator.isReplacingDocument {
+            context.coordinator.applySearch(searchText)
+            context.coordinator.goToSearchMatch(searchMatchIndex)
+        }
     }
 
     final class Coordinator: NSObject {
