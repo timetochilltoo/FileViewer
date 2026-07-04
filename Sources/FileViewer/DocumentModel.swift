@@ -203,6 +203,7 @@ struct PDFAnnotationObjectChange {
 struct PDFAnnotationObjectItem {
     let page: PDFPage
     let annotation: PDFAnnotation
+    let annotationID: String
 }
 
 private struct PDFAnnotationObjectUndoAction {
@@ -353,6 +354,25 @@ struct PDFViewerDocument: Equatable {
 
     static func == (lhs: PDFViewerDocument, rhs: PDFViewerDocument) -> Bool {
         lhs.url == rhs.url && lhs.document === rhs.document
+    }
+}
+
+extension PDFAnnotation {
+    private static let fileViewerUndoIDKey = PDFAnnotationKey(rawValue: "FileViewerUndoID")
+
+    var fileViewerUndoID: String? {
+        value(forAnnotationKey: Self.fileViewerUndoIDKey) as? String
+    }
+
+    @discardableResult
+    func ensureFileViewerUndoID() -> String {
+        if let existingID = fileViewerUndoID, !existingID.isEmpty {
+            return existingID
+        }
+
+        let id = UUID().uuidString
+        setValue(id, forAnnotationKey: Self.fileViewerUndoIDKey)
+        return id
     }
 }
 
@@ -1034,6 +1054,9 @@ final class AppModel: ObservableObject {
             if item.page.annotations.contains(where: { $0 === item.annotation }) {
                 item.page.removeAnnotation(item.annotation)
                 didRemove = true
+            } else if let matchingAnnotation = item.page.annotations.first(where: { $0.fileViewerUndoID == item.annotationID }) {
+                item.page.removeAnnotation(matchingAnnotation)
+                didRemove = true
             }
             item.page.displaysAnnotations = true
         }
@@ -1043,7 +1066,10 @@ final class AppModel: ObservableObject {
     private func addPDFAnnotationObjects(_ items: [PDFAnnotationObjectItem]) -> Bool {
         var didAdd = false
         for item in items {
-            if !item.page.annotations.contains(where: { $0 === item.annotation }) {
+            let alreadyExists = item.page.annotations.contains { annotation in
+                annotation === item.annotation || annotation.fileViewerUndoID == item.annotationID
+            }
+            if !alreadyExists {
                 item.page.addAnnotation(item.annotation)
                 didAdd = true
             }
