@@ -119,9 +119,13 @@ struct PDFKitView: NSViewRepresentable {
     }
 
     func updateNSView(_ view: PDFView, context: Context) {
-        let documentChanged = view.document !== document
         if view.document !== document {
+            let requestedPage = max(1, min(context.coordinator.currentVisiblePage() ?? page, max(document.pageCount, 1)))
+            let requestedScale = max(0.1, view.scaleFactor)
+            context.coordinator.isReplacingDocument = true
             view.document = document
+            context.coordinator.isReplacingDocument = false
+            context.coordinator.applyPageAndScale(page: requestedPage, scale: requestedScale)
         }
 
         context.coordinator.parent = self
@@ -139,9 +143,6 @@ struct PDFKitView: NSViewRepresentable {
                 lineModeBinding.wrappedValue = nil
             }
         }
-        if documentChanged {
-            context.coordinator.applyRestoredPageAndScale()
-        }
         context.coordinator.applySearch(searchText)
         context.coordinator.goToSearchMatch(searchMatchIndex)
     }
@@ -152,6 +153,7 @@ struct PDFKitView: NSViewRepresentable {
         private var lastSearchText = ""
         private var lastSearchIndex = 0
         private var searchSelections: [PDFSelection] = []
+        var isReplacingDocument = false
 
         init(_ parent: PDFKitView) {
             self.parent = parent
@@ -363,9 +365,12 @@ struct PDFKitView: NSViewRepresentable {
         }
 
         @MainActor func applyRestoredPageAndScale() {
-            guard let view = pdfView else { return }
+            applyPageAndScale(page: parent.page, scale: parent.scale)
+        }
 
-            let requestedPage = max(1, min(parent.page, max(parent.document.pageCount, 1)))
+        @MainActor func applyPageAndScale(page requestedPage: Int, scale requestedScale: CGFloat) {
+            guard let view = pdfView else { return }
+            let requestedPage = max(1, min(requestedPage, max(parent.document.pageCount, 1)))
             if let currentPage = view.currentPage {
                 let currentIndex = parent.document.index(for: currentPage)
                 if currentIndex != requestedPage - 1,
@@ -376,10 +381,10 @@ struct PDFKitView: NSViewRepresentable {
                 view.go(to: targetPage)
             }
 
-            if parent.scale > 0.1,
-               abs(view.scaleFactor - parent.scale) > 0.01 {
+            if requestedScale > 0.1,
+               abs(view.scaleFactor - requestedScale) > 0.01 {
                 view.autoScales = false
-                view.scaleFactor = parent.scale
+                view.scaleFactor = requestedScale
             }
         }
 
@@ -393,6 +398,7 @@ struct PDFKitView: NSViewRepresentable {
         }
 
         @MainActor private func syncPage() {
+            guard !isReplacingDocument else { return }
             guard let view = pdfView,
                   let currentPage = view.currentPage else { return }
             let index = parent.document.index(for: currentPage)
@@ -401,6 +407,17 @@ struct PDFKitView: NSViewRepresentable {
                   index < parent.document.pageCount else { return }
             parent.page = index + 1
             parent.pageCount = parent.document.pageCount
+        }
+
+        @MainActor func currentVisiblePage() -> Int? {
+            guard let view = pdfView,
+                  let currentPage = view.currentPage else { return nil }
+            let document = view.document ?? parent.document
+            let index = document.index(for: currentPage)
+            guard index != NSNotFound,
+                  index >= 0,
+                  index < document.pageCount else { return nil }
+            return index + 1
         }
 
         @MainActor private func syncScale() {
