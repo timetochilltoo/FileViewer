@@ -197,11 +197,13 @@ struct PDFAnnotationUndoSnapshot {
 
 struct PDFAnnotationObjectChange {
     let url: URL
+    let document: PDFDocument
     let items: [PDFAnnotationObjectItem]
 }
 
 struct PDFAnnotationObjectItem {
     let page: PDFPage
+    let pageIndex: Int
     let annotation: PDFAnnotation
     let annotationID: String
 }
@@ -939,7 +941,7 @@ final class AppModel: ObservableObject {
     func recordPDFAnnotationObjectChange(_ change: PDFAnnotationObjectChange) {
         guard let index = tabs.firstIndex(where: { tab in
             guard case .pdf(let pdf) = tab.document else { return false }
-            return pdf.url == change.url
+            return pdf.url == change.url && pdf.document === change.document
         }) else { return }
 
         let maxObjectActions = 50
@@ -973,7 +975,7 @@ final class AppModel: ObservableObject {
         while let action = undoStack.popLast() {
             switch action {
             case .addedObjects(let objectAction):
-                if removePDFAnnotationObjects(objectAction.items) {
+                if removePDFAnnotationObjects(objectAction.items, from: pdf.document) {
                     pdfAnnotationActionUndoStacks[tabID] = undoStack
                     pdfAnnotationActionRedoStacks[tabID, default: []].append(action)
                     tabs[index].pdfHasUnsavedAnnotations = true
@@ -1017,7 +1019,7 @@ final class AppModel: ObservableObject {
         while let action = redoStack.popLast() {
             switch action {
             case .addedObjects(let objectAction):
-                if addPDFAnnotationObjects(objectAction.items) {
+                if addPDFAnnotationObjects(objectAction.items, to: pdf.document) {
                     pdfAnnotationActionRedoStacks[tabID] = redoStack
                     pdfAnnotationActionUndoStacks[tabID, default: []].append(action)
                     trimPDFAnnotationUndoStack(for: tabID)
@@ -1048,32 +1050,34 @@ final class AppModel: ObservableObject {
         NSSound.beep()
     }
 
-    private func removePDFAnnotationObjects(_ items: [PDFAnnotationObjectItem]) -> Bool {
+    private func removePDFAnnotationObjects(_ items: [PDFAnnotationObjectItem], from document: PDFDocument) -> Bool {
         var didRemove = false
         for item in items.reversed() {
-            if item.page.annotations.contains(where: { $0 === item.annotation }) {
-                item.page.removeAnnotation(item.annotation)
+            let page = document.page(at: item.pageIndex) ?? item.page
+            if page.annotations.contains(where: { $0 === item.annotation }) {
+                page.removeAnnotation(item.annotation)
                 didRemove = true
-            } else if let matchingAnnotation = item.page.annotations.first(where: { $0.fileViewerUndoID == item.annotationID }) {
-                item.page.removeAnnotation(matchingAnnotation)
+            } else if let matchingAnnotation = page.annotations.first(where: { $0.fileViewerUndoID == item.annotationID }) {
+                page.removeAnnotation(matchingAnnotation)
                 didRemove = true
             }
-            item.page.displaysAnnotations = true
+            page.displaysAnnotations = true
         }
         return didRemove
     }
 
-    private func addPDFAnnotationObjects(_ items: [PDFAnnotationObjectItem]) -> Bool {
+    private func addPDFAnnotationObjects(_ items: [PDFAnnotationObjectItem], to document: PDFDocument) -> Bool {
         var didAdd = false
         for item in items {
-            let alreadyExists = item.page.annotations.contains { annotation in
+            let page = document.page(at: item.pageIndex) ?? item.page
+            let alreadyExists = page.annotations.contains { annotation in
                 annotation === item.annotation || annotation.fileViewerUndoID == item.annotationID
             }
             if !alreadyExists {
-                item.page.addAnnotation(item.annotation)
+                page.addAnnotation(item.annotation)
                 didAdd = true
             }
-            item.page.displaysAnnotations = true
+            page.displaysAnnotations = true
         }
         return didAdd
     }

@@ -362,9 +362,11 @@ struct PDFKitView: NSViewRepresentable {
             syncScale()
             let change = PDFAnnotationObjectChange(
                 url: parent.documentURL,
+                document: parent.document,
                 items: items.map { item in
                     PDFAnnotationObjectItem(
                         page: item.page,
+                        pageIndex: parent.document.index(for: item.page),
                         annotation: item.annotation,
                         annotationID: item.annotation.ensureFileViewerUndoID()
                     )
