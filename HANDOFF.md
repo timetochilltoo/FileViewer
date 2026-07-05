@@ -587,6 +587,9 @@ PDF annotation v1:
     - The app briefly showed two sidebar-looking icons: the native title-bar sidebar toggle and a custom in-content toolbar button.
     - A follow-up attempt kept only the native title-bar sidebar using `NavigationSplitViewVisibility`, but on Patrick's screen the sidebar could slide over the content and clip the left edge of sidebar rows while also changing the PDF page margin unexpectedly.
     - Current design: `ContentView` uses a plain `HStack` with a fixed-width 320-point `SidebarView`, a divider, and the document area. The only visible sidebar button is the app toolbar button. This is less “native magic” but much more predictable for this app.
+    - 2026-07-06 follow-up: on a maximized window the sidebar could still compress to roughly 190 points and clip the left side of the `Notes` rows. `ContentView` now gives the sidebar a fixed min/ideal/max width of 320 points and a higher layout priority. `SidebarView` also has the same fixed width.
+    - The sidebar mode control is no longer a native segmented picker. It is a custom `HStack` of buttons so `Recent / Contents / Pages / Notes` will not slide/clamp sideways inside a squeezed segmented control.
+    - The `Notes` annotation list is no longer a native `List`; it is a `ScrollView` + `LazyVStack` with explicit horizontal padding. This avoids macOS sidebar-list row insets/clipping where only the page numbers were visible.
     - If this is revisited later, make sure the PDF page never sits under the sidebar and the left edge of `Notes` rows is never clipped.
   - `DocumentTab.pdfHasUnsavedAnnotations` drives the orange unsaved status, enabled PDF Save button, Command-S behavior, and close warning.
   - `AppModel.savePDFAnnotations()` / `savePDFTab(at:)` writes through `PDFDocument.write(to:)`.

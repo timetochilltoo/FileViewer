@@ -19,21 +19,23 @@ struct ContentView: View {
         HStack(spacing: 0) {
             if sidebarVisible {
                 SidebarView(model: model)
-                    .frame(width: 320)
+                    .frame(minWidth: 320, idealWidth: 320, maxWidth: 320)
+                    .layoutPriority(10)
                 Divider()
             }
 
             VStack(spacing: 0) {
-                    toolbar
+                toolbar
+                Divider()
+                tabBar
+                if !model.tabs.isEmpty {
                     Divider()
-                    tabBar
-                    if !model.tabs.isEmpty {
-                        Divider()
-                    }
-                    statusBar
-                    Divider()
-                    documentBody
+                }
+                statusBar
+                Divider()
+                documentBody
             }
+            .layoutPriority(1)
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             for provider in providers {

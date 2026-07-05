@@ -42,7 +42,7 @@ Current MVP build includes:
 - PDF thumbnails.
 - PDF outline/table-of-contents sidebar when the PDF provides one.
 - PDF search highlighting with current/total count and previous/next navigation.
-- Single app toolbar sidebar toggle with a stable fixed-width sidebar.
+- Single app toolbar sidebar toggle with a stable fixed-width sidebar and custom sidebar tabs.
 - PDF annotation v1 on the `feature/pdf-annotation` branch:
   - highlight selected PDF text
   - underline selected PDF text

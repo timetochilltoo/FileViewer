@@ -10,15 +10,10 @@ struct SidebarView: View {
                 Text("Sidebar")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                Picker("Sidebar", selection: $model.sidebarMode) {
-                    ForEach(SidebarMode.allCases, id: \.self) { mode in
-                        Text(mode.title).tag(mode)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
+                modeSelector
             }
-            .padding(10)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
 
             Divider()
 
@@ -33,6 +28,33 @@ struct SidebarView: View {
                 pdfAnnotations
             }
         }
+        .frame(minWidth: 320, idealWidth: 320, maxWidth: 320)
+    }
+
+    private var modeSelector: some View {
+        HStack(spacing: 4) {
+            ForEach(SidebarMode.allCases, id: \.self) { mode in
+                Button {
+                    model.sidebarMode = mode
+                } label: {
+                    Text(mode.title)
+                        .font(.callout.weight(model.sidebarMode == mode ? .semibold : .regular))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(model.sidebarMode == mode ? .white : .primary)
+                .background(
+                    RoundedRectangle(cornerRadius: 7)
+                        .fill(model.sidebarMode == mode ? Color.accentColor : Color.clear)
+                )
+            }
+        }
+        .padding(3)
+        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private var recentList: some View {
@@ -126,39 +148,52 @@ struct SidebarView: View {
     private var pdfAnnotations: some View {
         if let url = model.selectedPDFURL {
             let entries = model.pdfAnnotationEntries
-            List(entries) { entry in
-                Button {
-                    NotificationCenter.default.post(
-                        name: .pdfGoToAnnotation,
-                        object: PDFAnnotationNavigationTarget(
-                            url: url,
-                            page: entry.page,
-                            bounds: entry.bounds
-                        )
-                    )
-                } label: {
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: entry.iconName)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 18)
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack {
-                                Text(entry.kind)
-                                    .font(.caption.weight(.semibold))
-                                Spacer()
-                                Text("p.\(entry.page)")
-                                    .font(.caption2)
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(entries) { entry in
+                        Button {
+                            NotificationCenter.default.post(
+                                name: .pdfGoToAnnotation,
+                                object: PDFAnnotationNavigationTarget(
+                                    url: url,
+                                    page: entry.page,
+                                    bounds: entry.bounds
+                                )
+                            )
+                        } label: {
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: entry.iconName)
                                     .foregroundStyle(.secondary)
+                                    .frame(width: 18)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    HStack {
+                                        Text(entry.kind)
+                                            .font(.caption.weight(.semibold))
+                                            .lineLimit(1)
+                                        Spacer()
+                                        Text("p.\(entry.page)")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                    Text(entry.summary)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
                             }
-                            Text(entry.summary)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(3)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+
+                        Divider()
+                            .padding(.leading, 40)
                     }
-                    .padding(.vertical, 3)
                 }
-                .buttonStyle(.plain)
+                .padding(.top, 4)
             }
             .overlay {
                 if entries.isEmpty {
