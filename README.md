@@ -42,6 +42,7 @@ Current MVP build includes:
 - PDF thumbnails.
 - PDF outline/table-of-contents sidebar when the PDF provides one.
 - PDF search highlighting with current/total count and previous/next navigation.
+- Single native window sidebar toggle in the title bar.
 - PDF annotation v1 on the `feature/pdf-annotation` branch:
   - highlight selected PDF text
   - underline selected PDF text
@@ -50,7 +51,7 @@ Current MVP build includes:
   - recolor existing PDF annotations
   - remove highlight/underline/strikeout markup from selected PDF text
   - add sticky note comments to the current PDF page
-  - sticky notes use the standard PDF note icon and a slightly larger clickable note target
+  - sticky notes use the standard PDF note icon and a larger Move/Edit/Delete hit target
   - add visible text box annotations
   - add rectangle, oval, line, and arrow shape annotations
   - draw freehand ink annotations

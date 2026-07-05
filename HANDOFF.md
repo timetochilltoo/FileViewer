@@ -525,7 +525,8 @@ PDF annotation v1:
   - Eraser limitation: it removes the whole overlapping annotation. If 10 words were highlighted as one annotation and the user selects 2 words inside it, the whole 10-word markup is removed. This is acceptable for v1; partial erasing would require creating smaller annotations or splitting annotation geometry.
   - `PDFKitView.Coordinator.addStickyNote(_:)` asks for note text with an `NSAlert` and creates a `.text` PDF annotation.
   - Sticky note placement: if text is selected, the note is placed near the selected text bounds; otherwise it is placed near the center of the current visible page area.
-  - Sticky notes use the selected annotation color with high opacity, the standard PDF note icon (`annotation.iconType = .note`), and a 34×34 point note bounds rectangle so the note is easier to see and click.
+  - Sticky notes use the selected annotation color with high opacity and the standard PDF note icon (`annotation.iconType = .note`).
+  - 2026-07-05 follow-up: PDFKit keeps the native sticky-note icon visually small even when its bounds are enlarged, so do not promise a visibly larger icon. The note is now created with a 44×44 point bounds rectangle and `MovableAnnotationPDFView.annotationHit(for:matching:)` uses a larger 20-point hit padding for sticky notes in FileViewer's Move/Edit/Delete/Recolor modes. If Patrick later wants a visibly larger note marker, implement it as a custom visible text/shape annotation rather than native `.text`.
   - `PDFKitView.Coordinator.addTextBox(_:)` asks for text with an `NSAlert` and creates a `.freeText` PDF annotation.
   - Text box placement: if text is selected, the box is placed below the selected text; otherwise it is placed near the center of the current visible page area.
   - Text boxes use the selected annotation color as a translucent background.
@@ -582,6 +583,11 @@ PDF annotation v1:
     - Clicking a sidebar row posts `.pdfGoToAnnotation` with `PDFAnnotationNavigationTarget(url:page:bounds:)`.
     - `PDFKitView.Coordinator.goToAnnotation(_:)` verifies the URL matches the live PDF tab/window, then scrolls to a padded copy of the annotation bounds.
     - Performance note: the sidebar currently scans PDF page annotations on demand whenever the sidebar renders. That is okay for v1, but if large annotated PDFs feel slow, add a per-document cache invalidated by `.pdfAnnotationDidChange`, document replacement, and tab close.
+  - 2026-07-05 sidebar toggle cleanup:
+    - The app previously showed two sidebar-looking icons: the native title-bar sidebar toggle and a custom in-content toolbar button.
+    - The custom in-content toolbar button was removed. The native title-bar sidebar toggle is the one intended to remain.
+    - `ContentView` now binds `NavigationSplitView` to `NavigationSplitViewVisibility` instead of conditionally removing the sidebar view. This keeps the native title-bar sidebar control and menu command in sync and avoids the partially-shown sidebar state that can happen when SwiftUI/AppKit and app-local state disagree.
+    - Sidebar column width was widened to min 280 / ideal 320 / max 400 so the four modes (`Recent`, `Contents`, `Pages`, `Notes`) have more room.
   - `DocumentTab.pdfHasUnsavedAnnotations` drives the orange unsaved status, enabled PDF Save button, Command-S behavior, and close warning.
   - `AppModel.savePDFAnnotations()` / `savePDFTab(at:)` writes through `PDFDocument.write(to:)`.
   - `AppModel.savePDFAnnotatedCopyAs()` presents an `NSSavePanel`, defaults the filename to `<original> annotated.pdf`, writes the same `PDFDocument` to the chosen URL, then switches the current tab to that new PDF URL. After this, normal Save writes to the annotated copy rather than the original.
@@ -945,7 +951,7 @@ Implemented:
 - close warning for unsaved PDF annotations
 - undo/redo recent annotation changes
 - sidebar `Notes` list for jumping to annotations
-- basic sticky-note styling polish: standard note icon plus larger visible/clickable note target
+- basic sticky-note styling polish: standard note icon plus larger FileViewer Move/Edit/Delete hit target
 
 Important caution:
 

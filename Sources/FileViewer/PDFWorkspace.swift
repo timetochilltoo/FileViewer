@@ -533,7 +533,7 @@ struct PDFKitView: NSViewRepresentable {
                   let page = view.currentSelection?.pages.first ?? view.currentPage else { return nil }
             let point = stickyNotePoint(on: page)
             let bounds = clamped(
-                CGRect(x: point.x, y: point.y, width: 34, height: 34),
+                CGRect(x: point.x, y: point.y, width: 44, height: 44),
                 to: page.bounds(for: view.displayBox)
             )
             let annotation = PDFAnnotation(
@@ -1024,7 +1024,8 @@ private final class MovableAnnotationPDFView: PDFView {
         guard let page = page(for: viewPoint, nearest: true) else { return nil }
         let pagePoint = convert(viewPoint, to: page)
         for annotation in page.annotations.reversed() where isCandidate(annotation) {
-            if annotation.bounds.insetBy(dx: -8, dy: -8).contains(pagePoint) {
+            let hitPadding: CGFloat = annotation.isStickyNote ? 20 : 8
+            if annotation.bounds.insetBy(dx: -hitPadding, dy: -hitPadding).contains(pagePoint) {
                 return (page, annotation, pagePoint)
             }
         }

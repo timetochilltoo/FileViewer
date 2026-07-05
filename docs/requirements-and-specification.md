@@ -226,7 +226,8 @@ Implemented v1 on branch `feature/pdf-annotation`:
 - Recolor existing annotations.
 - Remove highlight/underline/strikeout markup from selected text.
 - Add sticky note comments.
-  - Sticky notes use the standard PDF note icon and a slightly larger visible/clickable note target.
+  - Sticky notes use the standard PDF note icon.
+  - The app uses an expanded sticky-note hit target in Move/Edit/Delete modes because PDFKit keeps the visible native note icon small.
 - Add text boxes.
 - Resize text boxes.
 - Add rectangle, oval, line, and arrow shape annotations.
@@ -242,6 +243,7 @@ Implemented v1 on branch `feature/pdf-annotation`:
 - Save an annotated PDF copy without overwriting the original.
 - Warn before closing a PDF tab/window with unsaved annotations.
 - Show a PDF annotation summary in the sidebar `Notes` tab and jump to an annotation when the user clicks it.
+- Use one native title-bar sidebar toggle. The extra in-content toolbar sidebar button is intentionally removed to avoid two similar sidebar icons.
 
 Recommended:
 
