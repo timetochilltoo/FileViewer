@@ -584,10 +584,10 @@ PDF annotation v1:
     - `PDFKitView.Coordinator.goToAnnotation(_:)` verifies the URL matches the live PDF tab/window, then scrolls to a padded copy of the annotation bounds.
     - Performance note: the sidebar currently scans PDF page annotations on demand whenever the sidebar renders. That is okay for v1, but if large annotated PDFs feel slow, add a per-document cache invalidated by `.pdfAnnotationDidChange`, document replacement, and tab close.
   - 2026-07-05 sidebar toggle cleanup:
-    - The app previously showed two sidebar-looking icons: the native title-bar sidebar toggle and a custom in-content toolbar button.
-    - The custom in-content toolbar button was removed. The native title-bar sidebar toggle is the one intended to remain.
-    - `ContentView` now binds `NavigationSplitView` to `NavigationSplitViewVisibility` instead of conditionally removing the sidebar view. This keeps the native title-bar sidebar control and menu command in sync and avoids the partially-shown sidebar state that can happen when SwiftUI/AppKit and app-local state disagree.
-    - Sidebar column width was widened to min 280 / ideal 320 / max 400 so the four modes (`Recent`, `Contents`, `Pages`, `Notes`) have more room.
+    - The app briefly showed two sidebar-looking icons: the native title-bar sidebar toggle and a custom in-content toolbar button.
+    - A follow-up attempt kept only the native title-bar sidebar using `NavigationSplitViewVisibility`, but on Patrick's screen the sidebar could slide over the content and clip the left edge of sidebar rows while also changing the PDF page margin unexpectedly.
+    - Current design: `ContentView` uses a plain `HStack` with a fixed-width 320-point `SidebarView`, a divider, and the document area. The only visible sidebar button is the app toolbar button. This is less “native magic” but much more predictable for this app.
+    - If this is revisited later, make sure the PDF page never sits under the sidebar and the left edge of `Notes` rows is never clipped.
   - `DocumentTab.pdfHasUnsavedAnnotations` drives the orange unsaved status, enabled PDF Save button, Command-S behavior, and close warning.
   - `AppModel.savePDFAnnotations()` / `savePDFTab(at:)` writes through `PDFDocument.write(to:)`.
   - `AppModel.savePDFAnnotatedCopyAs()` presents an `NSSavePanel`, defaults the filename to `<original> annotated.pdf`, writes the same `PDFDocument` to the chosen URL, then switches the current tab to that new PDF URL. After this, normal Save writes to the annotated copy rather than the original.

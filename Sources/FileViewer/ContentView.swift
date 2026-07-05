@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @StateObject private var model: AppModel
-    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var sidebarVisible = true
 
     init(initialURLs: [URL] = []) {
         _model = StateObject(wrappedValue: AppModel(opening: initialURLs))
@@ -16,20 +16,23 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            SidebarView(model: model)
-                .navigationSplitViewColumnWidth(min: 280, ideal: 320, max: 400)
-        } detail: {
+        HStack(spacing: 0) {
+            if sidebarVisible {
+                SidebarView(model: model)
+                    .frame(width: 320)
+                Divider()
+            }
+
             VStack(spacing: 0) {
-                toolbar
-                Divider()
-                tabBar
-                if !model.tabs.isEmpty {
+                    toolbar
                     Divider()
-                }
-                statusBar
-                Divider()
-                documentBody
+                    tabBar
+                    if !model.tabs.isEmpty {
+                        Divider()
+                    }
+                    statusBar
+                    Divider()
+                    documentBody
             }
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
@@ -85,6 +88,13 @@ struct ContentView: View {
                     .labelStyle(.iconOnly)
             }
             .help("Open")
+
+            Button {
+                toggleSidebar()
+            } label: {
+                Image(systemName: "sidebar.left")
+            }
+            .help(sidebarVisible ? "Hide Sidebar" : "Show Sidebar")
 
             if case .markdown = model.document {
                 VStack(alignment: .leading, spacing: 3) {
@@ -181,7 +191,7 @@ struct ContentView: View {
     }
 
     private func toggleSidebar() {
-        columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+        sidebarVisible.toggle()
     }
 
     @ViewBuilder
