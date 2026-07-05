@@ -636,6 +636,7 @@ extension Notification.Name {
     static let pdfNextPage = Notification.Name("FileViewer.pdfNextPage")
     static let pdfLastPage = Notification.Name("FileViewer.pdfLastPage")
     static let pdfGoToPage = Notification.Name("FileViewer.pdfGoToPage")
+    static let pdfGoToAnnotation = Notification.Name("FileViewer.pdfGoToAnnotation")
     static let pdfZoomIn = Notification.Name("FileViewer.pdfZoomIn")
     static let pdfZoomOut = Notification.Name("FileViewer.pdfZoomOut")
     static let pdfFitWidth = Notification.Name("FileViewer.pdfFitWidth")

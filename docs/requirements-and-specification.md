@@ -226,6 +226,7 @@ Implemented v1 on branch `feature/pdf-annotation`:
 - Recolor existing annotations.
 - Remove highlight/underline/strikeout markup from selected text.
 - Add sticky note comments.
+  - Sticky notes use the standard PDF note icon and a slightly larger visible/clickable note target.
 - Add text boxes.
 - Resize text boxes.
 - Add rectangle, oval, line, and arrow shape annotations.
@@ -240,18 +241,14 @@ Implemented v1 on branch `feature/pdf-annotation`:
 - Save embedded annotations back to the PDF file.
 - Save an annotated PDF copy without overwriting the original.
 - Warn before closing a PDF tab/window with unsaved annotations.
-
-Still required after v1:
-
-- A richer annotation summary/sidebar.
+- Show a PDF annotation summary in the sidebar `Notes` tab and jump to an annotation when the user clicks it.
 
 Recommended:
 
-- Annotation sidebar.
 - Filter annotations by type.
 - Export annotation summary.
 - Author name and timestamp for annotations.
-- Recolor existing annotations and add stroke width controls.
+- Add stroke width controls.
 
 ## 6.5 PDF Page Operations
 

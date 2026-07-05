@@ -29,6 +29,8 @@ struct SidebarView: View {
                 contentsList
             case .pages:
                 pdfPages
+            case .annotations:
+                pdfAnnotations
             }
         }
     }
@@ -114,6 +116,54 @@ struct SidebarView: View {
         if case .pdf(let viewerDocument) = model.document {
             PDFThumbnailSidebar(document: viewerDocument.document) { page in
                 NotificationCenter.default.post(name: .pdfGoToPage, object: page)
+            }
+        } else {
+            ContentUnavailableView("No PDF Open", systemImage: "doc.richtext")
+        }
+    }
+
+    @ViewBuilder
+    private var pdfAnnotations: some View {
+        if let url = model.selectedPDFURL {
+            let entries = model.pdfAnnotationEntries
+            List(entries) { entry in
+                Button {
+                    NotificationCenter.default.post(
+                        name: .pdfGoToAnnotation,
+                        object: PDFAnnotationNavigationTarget(
+                            url: url,
+                            page: entry.page,
+                            bounds: entry.bounds
+                        )
+                    )
+                } label: {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: entry.iconName)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 18)
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack {
+                                Text(entry.kind)
+                                    .font(.caption.weight(.semibold))
+                                Spacer()
+                                Text("p.\(entry.page)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text(entry.summary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(3)
+                        }
+                    }
+                    .padding(.vertical, 3)
+                }
+                .buttonStyle(.plain)
+            }
+            .overlay {
+                if entries.isEmpty {
+                    ContentUnavailableView("No Annotations", systemImage: "note.text")
+                }
             }
         } else {
             ContentUnavailableView("No PDF Open", systemImage: "doc.richtext")

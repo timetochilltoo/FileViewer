@@ -50,6 +50,7 @@ Current MVP build includes:
   - recolor existing PDF annotations
   - remove highlight/underline/strikeout markup from selected PDF text
   - add sticky note comments to the current PDF page
+  - sticky notes use the standard PDF note icon and a slightly larger clickable note target
   - add visible text box annotations
   - add rectangle, oval, line, and arrow shape annotations
   - draw freehand ink annotations
@@ -60,6 +61,7 @@ Current MVP build includes:
   - edit sticky note and text box text with Edit Annotation mode
   - delete sticky notes and text boxes with Delete Annotation mode
   - undo/redo recent PDF annotation changes
+  - browse PDF annotations from the sidebar `Notes` tab and jump back to the selected annotation
   - save embedded PDF annotations back to the PDF file
   - save an annotated PDF copy with Save Annotated Copy As / Command-Shift-S
   - warn before closing a PDF tab/window with unsaved annotations

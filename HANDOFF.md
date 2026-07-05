@@ -505,6 +505,7 @@ PDF annotation v1:
   15. To edit a sticky note or text box, turn on Edit Annotation mode, click the annotation, update the text, then save the PDF.
   16. To delete a sticky note, text box, rectangle, oval, line, arrow, or ink annotation, turn on Delete Annotation mode, click the annotation, confirm, then save the PDF.
   17. To undo/redo recent annotation changes, use the PDF toolbar undo/redo buttons or PDF > Undo/Redo PDF Annotation Change.
+  18. To review annotations, switch the left sidebar to `Notes`. The list shows supported PDF annotations with type, page number, and note/text summary where available. Clicking a row jumps the PDF view to that annotation.
 - Supported annotation types:
   - highlight: `PDFAnnotationSubtype.highlight`
   - underline: `PDFAnnotationSubtype.underline`
@@ -524,7 +525,7 @@ PDF annotation v1:
   - Eraser limitation: it removes the whole overlapping annotation. If 10 words were highlighted as one annotation and the user selects 2 words inside it, the whole 10-word markup is removed. This is acceptable for v1; partial erasing would require creating smaller annotations or splitting annotation geometry.
   - `PDFKitView.Coordinator.addStickyNote(_:)` asks for note text with an `NSAlert` and creates a `.text` PDF annotation.
   - Sticky note placement: if text is selected, the note is placed near the selected text bounds; otherwise it is placed near the center of the current visible page area.
-  - Sticky notes use the selected annotation color with high opacity.
+  - Sticky notes use the selected annotation color with high opacity, the standard PDF note icon (`annotation.iconType = .note`), and a 34×34 point note bounds rectangle so the note is easier to see and click.
   - `PDFKitView.Coordinator.addTextBox(_:)` asks for text with an `NSAlert` and creates a `.freeText` PDF annotation.
   - Text box placement: if text is selected, the box is placed below the selected text; otherwise it is placed near the center of the current visible page area.
   - Text boxes use the selected annotation color as a translucent background.
@@ -573,6 +574,14 @@ PDF annotation v1:
   - 2026-07-04 follow-up 5: before Undo/Redo, `AppModel` now posts `.pdfSyncCurrentState` so the PDF view synchronously updates current page/scale before the snapshot restore. During restore, `PDFKitView.updateNSView` clears current selection/highlights, sets `view.document = nil`, assigns the restored document, skips search navigation while replacing, and restores the captured page/scale across two main-loop ticks. This is intentionally more conservative to avoid stale annotation drawing and page-1 jumps.
   - Each tab keeps its own PDF annotation undo/redo history. Object-level add history is capped at 50 actions per PDF tab. Snapshot history is capped at 10 snapshots per PDF tab to limit memory use.
   - Move/resize/line-endpoint changes capture the undo snapshot only when the first actual drag mutation occurs, not when the user merely clicks in Move Annotation mode.
+  - PDF annotation sidebar:
+    - `SidebarMode.annotations` is the sidebar `Notes` mode.
+    - `AppModel.pdfAnnotationEntries` scans the selected PDF document and returns `PDFAnnotationEntry` values for supported annotation types.
+    - `DocumentModel.extractPDFAnnotations(from:)` currently includes highlight, underline, strikeout, sticky note, free-text box, rectangle, oval, line/arrow, and ink annotations.
+    - `SidebarView.pdfAnnotations` renders the list. Each row shows an SF Symbol, annotation type, page number, and a short summary. For sticky notes/text boxes, the summary is `annotation.contents`. For markup/shapes without text, it falls back to the annotation type.
+    - Clicking a sidebar row posts `.pdfGoToAnnotation` with `PDFAnnotationNavigationTarget(url:page:bounds:)`.
+    - `PDFKitView.Coordinator.goToAnnotation(_:)` verifies the URL matches the live PDF tab/window, then scrolls to a padded copy of the annotation bounds.
+    - Performance note: the sidebar currently scans PDF page annotations on demand whenever the sidebar renders. That is okay for v1, but if large annotated PDFs feel slow, add a per-document cache invalidated by `.pdfAnnotationDidChange`, document replacement, and tab close.
   - `DocumentTab.pdfHasUnsavedAnnotations` drives the orange unsaved status, enabled PDF Save button, Command-S behavior, and close warning.
   - `AppModel.savePDFAnnotations()` / `savePDFTab(at:)` writes through `PDFDocument.write(to:)`.
   - `AppModel.savePDFAnnotatedCopyAs()` presents an `NSSavePanel`, defaults the filename to `<original> annotated.pdf`, writes the same `PDFDocument` to the chosen URL, then switches the current tab to that new PDF URL. After this, normal Save writes to the annotated copy rather than the original.
@@ -935,11 +944,8 @@ Implemented:
 - save an annotated copy through Save Annotated Copy As
 - close warning for unsaved PDF annotations
 - undo/redo recent annotation changes
-
-Not implemented yet:
-
-- richer sticky-note styling UI
-- annotation summary/sidebar
+- sidebar `Notes` list for jumping to annotations
+- basic sticky-note styling polish: standard note icon plus larger visible/clickable note target
 
 Important caution:
 
@@ -1014,8 +1020,9 @@ Patrick is newer to Markdown and wants the app to teach/assist him. The Help gui
 Recommended order:
 
 1. Continue PDF annotation:
-   - richer sticky-note styling polish
-   - annotation summary/sidebar
+   - annotation-sidebar filtering by type
+   - annotation-summary export
+   - stroke width controls for shapes/ink
 2. Improve Markdown preview rendering if Patrick relies heavily on richer tables/checklists.
 3. Add remaining Markdown formatting polish:
    - smarter link editing/toggling for arbitrary existing Markdown links

@@ -113,12 +113,14 @@ enum SidebarMode: String, CaseIterable {
     case recent
     case contents
     case pages
+    case annotations
 
     var title: String {
         switch self {
         case .recent: "Recent"
         case .contents: "Contents"
         case .pages: "Pages"
+        case .annotations: "Notes"
         }
     }
 }
@@ -142,6 +144,35 @@ struct PDFOutlineEntry: Identifiable, Equatable {
     let level: Int
     let title: String
     let page: Int?
+}
+
+struct PDFAnnotationEntry: Identifiable, Equatable {
+    let id: String
+    let page: Int
+    let kind: String
+    let summary: String
+    let bounds: CGRect
+
+    var iconName: String {
+        switch kind {
+        case "Highlight": "highlighter"
+        case "Underline": "underline"
+        case "Strikeout": "strikethrough"
+        case "Sticky Note": "note.text"
+        case "Text Box": "text.bubble"
+        case "Rectangle": "rectangle"
+        case "Oval": "oval"
+        case "Line": "line.diagonal"
+        case "Ink": "pencil.and.scribble"
+        default: "pencil.tip"
+        }
+    }
+}
+
+struct PDFAnnotationNavigationTarget {
+    let url: URL
+    let page: Int
+    let bounds: CGRect
 }
 
 enum PDFAnnotationKind: String, CaseIterable, Equatable {
@@ -376,6 +407,35 @@ extension PDFAnnotation {
         setValue(id, forAnnotationKey: Self.fileViewerUndoIDKey)
         return id
     }
+
+    var fileViewerSummaryKind: String? {
+        switch normalizedFileViewerType {
+        case "highlight": "Highlight"
+        case "underline": "Underline"
+        case "strikeout": "Strikeout"
+        case "text": "Sticky Note"
+        case "freetext": "Text Box"
+        case "square": "Rectangle"
+        case "circle": "Oval"
+        case "line": "Line"
+        case "ink": "Ink"
+        default: nil
+        }
+    }
+
+    var fileViewerSummaryText: String {
+        let text = (contents ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\n", with: " ")
+        guard !text.isEmpty else {
+            return fileViewerSummaryKind ?? "Annotation"
+        }
+        return text.count > 120 ? "\(text.prefix(117))..." : text
+    }
+
+    private var normalizedFileViewerType: String {
+        (type ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
+    }
 }
 
 @MainActor
@@ -599,6 +659,11 @@ final class AppModel: ObservableObject {
     var pdfOutlineEntries: [PDFOutlineEntry] {
         guard case .pdf(let document) = document else { return [] }
         return Self.extractPDFOutline(from: document.document)
+    }
+
+    var pdfAnnotationEntries: [PDFAnnotationEntry] {
+        guard case .pdf(let document) = document else { return [] }
+        return Self.extractPDFAnnotations(from: document.document)
     }
 
     var canSaveMarkdown: Bool {
@@ -2197,6 +2262,24 @@ final class AppModel: ObservableObject {
         }
 
         appendChildren(of: root, level: 1, path: "root")
+        return entries
+    }
+
+    static func extractPDFAnnotations(from document: PDFDocument) -> [PDFAnnotationEntry] {
+        var entries: [PDFAnnotationEntry] = []
+        for pageIndex in 0..<document.pageCount {
+            guard let page = document.page(at: pageIndex) else { continue }
+            for (annotationIndex, annotation) in page.annotations.enumerated() {
+                guard let kind = annotation.fileViewerSummaryKind else { continue }
+                entries.append(PDFAnnotationEntry(
+                    id: "\(pageIndex)-\(annotationIndex)-\(annotation.fileViewerUndoID ?? annotation.bounds.debugDescription)",
+                    page: pageIndex + 1,
+                    kind: kind,
+                    summary: annotation.fileViewerSummaryText,
+                    bounds: annotation.bounds
+                ))
+            }
+        }
         return entries
     }
 }

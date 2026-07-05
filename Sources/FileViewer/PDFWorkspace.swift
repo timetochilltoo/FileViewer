@@ -184,6 +184,7 @@ struct PDFKitView: NSViewRepresentable {
             NotificationCenter.default.addObserver(self, selector: #selector(nextPage), name: .pdfNextPage, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(lastPage), name: .pdfLastPage, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(goToPage(_:)), name: .pdfGoToPage, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(goToAnnotation(_:)), name: .pdfGoToAnnotation, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(zoomIn), name: .pdfZoomIn, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(zoomOut), name: .pdfZoomOut, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(fitWidth), name: .pdfFitWidth, object: nil)
@@ -225,6 +226,19 @@ struct PDFKitView: NSViewRepresentable {
             let requestedPage = notification.object as? Int ?? parent.page
             guard let page = parent.document.page(at: max(0, min(parent.document.pageCount - 1, requestedPage - 1))) else { return }
             pdfView?.go(to: page)
+            syncPage()
+        }
+
+        @MainActor @objc private func goToAnnotation(_ notification: Notification) {
+            guard let target = notification.object as? PDFAnnotationNavigationTarget,
+                  target.url == parent.documentURL,
+                  let page = parent.document.page(at: max(0, min(parent.document.pageCount - 1, target.page - 1))) else { return }
+            if target.bounds.width > 0, target.bounds.height > 0 {
+                let paddedBounds = target.bounds.insetBy(dx: -24, dy: -24)
+                pdfView?.go(to: paddedBounds, on: page)
+            } else {
+                pdfView?.go(to: page)
+            }
             syncPage()
         }
 
@@ -519,7 +533,7 @@ struct PDFKitView: NSViewRepresentable {
                   let page = view.currentSelection?.pages.first ?? view.currentPage else { return nil }
             let point = stickyNotePoint(on: page)
             let bounds = clamped(
-                CGRect(x: point.x, y: point.y, width: 28, height: 28),
+                CGRect(x: point.x, y: point.y, width: 34, height: 34),
                 to: page.bounds(for: view.displayBox)
             )
             let annotation = PDFAnnotation(
@@ -529,6 +543,7 @@ struct PDFKitView: NSViewRepresentable {
             )
             annotation.contents = text
             annotation.color = parent.annotationColor.forPDFStickyNote()
+            annotation.iconType = .note
             page.addAnnotation(annotation)
             return (page, annotation)
         }
