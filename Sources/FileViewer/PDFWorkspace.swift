@@ -402,6 +402,7 @@ struct PDFKitView: NSViewRepresentable {
             pdfView?.highlightedSelections = searchSelections
             setSearchState(count: searchSelections.count, index: 0)
             if let first = searchSelections.first {
+                lastSearchIndex = 0
                 pdfView?.setCurrentSelection(first, animate: false)
                 pdfView?.go(to: first)
             }
@@ -410,7 +411,7 @@ struct PDFKitView: NSViewRepresentable {
         @MainActor func goToSearchMatch(_ index: Int) {
             guard !searchSelections.isEmpty else { return }
             let safeIndex = min(max(0, index), searchSelections.count - 1)
-            guard safeIndex != lastSearchIndex || pdfView?.currentSelection == nil else { return }
+            guard safeIndex != lastSearchIndex else { return }
             lastSearchIndex = safeIndex
             let selection = searchSelections[safeIndex]
             pdfView?.setCurrentSelection(selection, animate: false)

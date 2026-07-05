@@ -393,6 +393,7 @@ final class AppModel: ObservableObject {
     @Published var isPDFInkDrawingModeEnabled = false
     @Published var pdfLineDrawingMode: PDFShapeAnnotationKind?
     @Published var pdfAnnotationColor = Color.yellow
+    @Published var markdownEditorFocusRequest = UUID()
 
     private let recentsKey = "FileViewer.recents"
     private let markdownModeKey = "FileViewer.markdownMode"
@@ -649,8 +650,10 @@ final class AppModel: ObservableObject {
         }
         let name = untitledCount == 0 ? "Untitled.md" : "Untitled \(untitledCount + 1).md"
         appendTab(.markdown(MarkdownDocument(url: nil, untitledName: name, text: "", savedText: "")))
+        markdownMode = .split
         sidebarMode = .contents
         statusMessage = "New Markdown document."
+        markdownEditorFocusRequest = UUID()
     }
 
     func openWithPanel() {

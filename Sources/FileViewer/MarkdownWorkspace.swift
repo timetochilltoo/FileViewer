@@ -97,6 +97,7 @@ struct MarkdownWorkspace: View {
             set: { model.updateMarkdown($0) }
         ), initialScrollY: model.markdownSourceScrollY,
            initialVisibleLocation: model.markdownSourceVisibleLocation,
+           focusRequest: model.markdownEditorFocusRequest,
            onFormatCommand: { command in
             model.applyMarkdownFormat(command)
         }, onViewportChanged: { scrollY, visibleLocation in
@@ -968,6 +969,7 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
     @Binding var text: String
     let initialScrollY: Double
     let initialVisibleLocation: Int
+    let focusRequest: UUID
     let onFormatCommand: (MarkdownFormatCommand) -> Void
     let onViewportChanged: (Double, Int) -> Void
     let onTextViewReady: (NSTextView) -> Void
@@ -977,6 +979,7 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
             text: $text,
             initialScrollY: initialScrollY,
             initialVisibleLocation: initialVisibleLocation,
+            focusRequest: focusRequest,
             onFormatCommand: onFormatCommand,
             onViewportChanged: onViewportChanged,
             onTextViewReady: onTextViewReady
@@ -1021,6 +1024,7 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
         onTextViewReady(textView)
         DispatchQueue.main.async {
             context.coordinator.restoreInitialScrollIfNeeded()
+            context.coordinator.focusEditorIfRequested()
         }
         return scrollView
     }
@@ -1028,6 +1032,7 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? NSTextView else { return }
         context.coordinator.text = $text
+        context.coordinator.focusRequest = focusRequest
         context.coordinator.onFormatCommand = onFormatCommand
         context.coordinator.onViewportChanged = onViewportChanged
         context.coordinator.onTextViewReady = onTextViewReady
@@ -1043,6 +1048,7 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
         onTextViewReady(textView)
         DispatchQueue.main.async {
             context.coordinator.restoreInitialScrollIfNeeded()
+            context.coordinator.focusEditorIfRequested()
         }
     }
 
@@ -1051,6 +1057,7 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
         var text: Binding<String>
         let initialScrollY: Double
         let initialVisibleLocation: Int
+        var focusRequest: UUID
         var onFormatCommand: (MarkdownFormatCommand) -> Void
         var onViewportChanged: (Double, Int) -> Void
         var onTextViewReady: (NSTextView) -> Void
@@ -1059,11 +1066,13 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
         private var didRestoreInitialScroll = false
         private var restoreAttempts = 0
         private var isObservingScroll = false
+        private var handledFocusRequest: UUID?
 
         init(
             text: Binding<String>,
             initialScrollY: Double,
             initialVisibleLocation: Int,
+            focusRequest: UUID,
             onFormatCommand: @escaping (MarkdownFormatCommand) -> Void,
             onViewportChanged: @escaping (Double, Int) -> Void,
             onTextViewReady: @escaping (NSTextView) -> Void
@@ -1071,6 +1080,7 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
             self.text = text
             self.initialScrollY = initialScrollY
             self.initialVisibleLocation = max(0, initialVisibleLocation)
+            self.focusRequest = focusRequest
             self.onFormatCommand = onFormatCommand
             self.onViewportChanged = onViewportChanged
             self.onTextViewReady = onTextViewReady
@@ -1119,6 +1129,13 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
                 didRestoreInitialScroll = true
             }
             publishCurrentScroll()
+        }
+
+        func focusEditorIfRequested() {
+            guard handledFocusRequest != focusRequest,
+                  let textView else { return }
+            handledFocusRequest = focusRequest
+            textView.window?.makeFirstResponder(textView)
         }
 
         private func publishCurrentScroll() {

@@ -622,6 +622,7 @@ Menus:
 
 - File/New replacement:
   - New Markdown Document
+  - 2026-07-05 fix: New Markdown switches to Split mode and requests focus for the source editor. This avoids the confusing case where a new blank Markdown document opens while the app is still in Preview mode, making it look like typing is broken.
   - Open...
 - Save group:
   - Save
@@ -889,7 +890,7 @@ Known bug reported by Patrick on 2026-07-02:
 
 - Search can keep pulling the document back to the active match after the user scrolls away to keep reading. Example: search for `chapter 17.1`, the app jumps to the correct match, then manual scrolling may jump back to that same match.
 - Clearing the search field can sometimes jump back to the top of the document/page unexpectedly. Patrick said this is intermittent, not every time.
-- This is not urgent and should be fixed after the current PDF annotation work. Likely cause to inspect later: `PDFKitView.updateNSView` repeatedly calls `applySearch(searchText)` and `goToSearchMatch(searchMatchIndex)` during SwiftUI refreshes, so the selected search match may be re-applied even after the user manually scrolls.
+- 2026-07-05 fix: `PDFKitView.updateNSView` still calls `goToSearchMatch(searchMatchIndex)`, but `goToSearchMatch(_:)` now only navigates when the requested match index actually changes. Normal SwiftUI/PDFKit refreshes should no longer pull the document back to the same search match after the user manually scrolls away. Search text changes still jump to the first match, and Return/next/previous still jump intentionally.
 
 ### 6.8 PDF outline support is basic
 
