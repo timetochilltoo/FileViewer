@@ -25,7 +25,7 @@ struct ContentView: View {
 
             HStack(spacing: 0) {
                 if sidebarVisible {
-                    SidebarView(model: model)
+                    SidebarView(model: model, onToggleSidebar: toggleSidebar)
                         .frame(width: reservedSidebarWidth, height: proxy.size.height)
                         .clipped()
                     Divider()
@@ -101,12 +101,14 @@ struct ContentView: View {
             }
             .help("Open")
 
-            Button {
-                toggleSidebar()
-            } label: {
-                Image(systemName: "sidebar.left")
+            if !sidebarVisible {
+                Button {
+                    toggleSidebar()
+                } label: {
+                    Image(systemName: "sidebar.left")
+                }
+                .help("Show Sidebar")
             }
-            .help(sidebarVisible ? "Hide Sidebar" : "Show Sidebar")
 
             if case .markdown = model.document {
                 VStack(alignment: .leading, spacing: 3) {

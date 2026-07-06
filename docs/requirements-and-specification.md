@@ -243,7 +243,7 @@ Implemented v1 on branch `feature/pdf-annotation`:
 - Save an annotated PDF copy without overwriting the original.
 - Warn before closing a PDF tab/window with unsaved annotations.
 - Show a PDF annotation summary in the sidebar `Notes` tab and jump to an annotation when the user clicks it.
-- Use one app toolbar sidebar toggle with a stable fixed-width sidebar. Avoid native overlay/sidebar behavior, native segmented sidebar tabs, native sidebar-list row insets, and toolbar intrinsic-width pressure that can clip sidebar contents or cover the PDF page.
+- Use a reachable sidebar toggle with a stable fixed-width sidebar. Avoid native overlay/sidebar behavior, native segmented sidebar tabs, native sidebar-list row insets, and toolbar intrinsic-width pressure that can clip sidebar contents or cover the PDF page.
 
 Recommended:
 
