@@ -17,8 +17,11 @@ struct SidebarView: View {
                         onToggleSidebar()
                     } label: {
                         Image(systemName: "sidebar.left")
+                            .frame(width: 28, height: 28)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.borderless)
+                    .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 7))
                     .help("Hide Sidebar")
                 }
                 modeSelector
