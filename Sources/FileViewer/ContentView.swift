@@ -6,6 +6,8 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @StateObject private var model: AppModel
     @State private var sidebarVisible = true
+    private let sidebarWidth: CGFloat = 320
+    private let dividerWidth: CGFloat = 1
 
     init(initialURLs: [URL] = []) {
         _model = StateObject(wrappedValue: AppModel(opening: initialURLs))
@@ -16,26 +18,34 @@ struct ContentView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            if sidebarVisible {
-                SidebarView(model: model)
-                    .frame(minWidth: 320, idealWidth: 320, maxWidth: 320)
-                    .layoutPriority(10)
-                Divider()
-            }
+        GeometryReader { proxy in
+            let reservedSidebarWidth = sidebarVisible ? min(sidebarWidth, max(0, proxy.size.width - 360)) : 0
+            let reservedDividerWidth = sidebarVisible ? dividerWidth : 0
+            let documentWidth = max(0, proxy.size.width - reservedSidebarWidth - reservedDividerWidth)
 
-            VStack(spacing: 0) {
-                toolbar
-                Divider()
-                tabBar
-                if !model.tabs.isEmpty {
+            HStack(spacing: 0) {
+                if sidebarVisible {
+                    SidebarView(model: model)
+                        .frame(width: reservedSidebarWidth, height: proxy.size.height)
+                        .clipped()
                     Divider()
+                        .frame(width: reservedDividerWidth)
                 }
-                statusBar
-                Divider()
-                documentBody
+
+                VStack(spacing: 0) {
+                    toolbar
+                    Divider()
+                    tabBar
+                    if !model.tabs.isEmpty {
+                        Divider()
+                    }
+                    statusBar
+                    Divider()
+                    documentBody
+                }
+                .frame(width: documentWidth, height: proxy.size.height)
+                .clipped()
             }
-            .layoutPriority(1)
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             for provider in providers {

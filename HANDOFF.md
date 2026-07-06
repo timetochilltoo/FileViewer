@@ -590,6 +590,7 @@ PDF annotation v1:
     - 2026-07-06 follow-up: on a maximized window the sidebar could still compress to roughly 190 points and clip the left side of the `Notes` rows. `ContentView` now gives the sidebar a fixed min/ideal/max width of 320 points and a higher layout priority. `SidebarView` also has the same fixed width.
     - The sidebar mode control is no longer a native segmented picker. It is a custom `HStack` of buttons so `Recent / Contents / Pages / Notes` will not slide/clamp sideways inside a squeezed segmented control.
     - The `Notes` annotation list is no longer a native `List`; it is a `ScrollView` + `LazyVStack` with explicit horizontal padding. This avoids macOS sidebar-list row insets/clipping where only the page numbers were visible.
+    - 2026-07-06 follow-up 2: the sidebar still compressed because the PDF annotation toolbar has a very large intrinsic minimum width. SwiftUI protected that toolbar by shrinking the sidebar. `ContentView.body` now uses `GeometryReader` to explicitly reserve 320 points for the sidebar and assign the remaining width to the document area. The document/toolbar side is clipped if necessary; the sidebar should no longer be sacrificed.
     - If this is revisited later, make sure the PDF page never sits under the sidebar and the left edge of `Notes` rows is never clipped.
   - `DocumentTab.pdfHasUnsavedAnnotations` drives the orange unsaved status, enabled PDF Save button, Command-S behavior, and close warning.
   - `AppModel.savePDFAnnotations()` / `savePDFTab(at:)` writes through `PDFDocument.write(to:)`.
