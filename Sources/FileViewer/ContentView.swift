@@ -23,28 +23,36 @@ struct ContentView: View {
             let reservedDividerWidth = sidebarVisible ? dividerWidth : 0
             let documentWidth = max(0, proxy.size.width - reservedSidebarWidth - reservedDividerWidth)
 
-            HStack(spacing: 0) {
-                if sidebarVisible {
-                    SidebarView(model: model, onToggleSidebar: toggleSidebar)
-                        .frame(width: reservedSidebarWidth, height: proxy.size.height)
-                        .clipped()
-                    Divider()
-                        .frame(width: reservedDividerWidth)
+            ZStack(alignment: .topLeading) {
+                HStack(spacing: 0) {
+                    if sidebarVisible {
+                        SidebarView(model: model)
+                            .frame(width: reservedSidebarWidth, height: proxy.size.height)
+                            .clipped()
+                        Divider()
+                            .frame(width: reservedDividerWidth)
+                    }
+
+                    VStack(spacing: 0) {
+                        toolbar
+                        Divider()
+                        tabBar
+                        if !model.tabs.isEmpty {
+                            Divider()
+                        }
+                        statusBar
+                        Divider()
+                        documentBody
+                    }
+                    .frame(width: documentWidth, height: proxy.size.height)
+                    .clipped()
                 }
 
-                VStack(spacing: 0) {
-                    toolbar
-                    Divider()
-                    tabBar
-                    if !model.tabs.isEmpty {
-                        Divider()
-                    }
-                    statusBar
-                    Divider()
-                    documentBody
+                if sidebarVisible {
+                    sidebarOverlayToggle
+                        .position(x: max(32, reservedSidebarWidth - 36), y: 42)
+                        .zIndex(50)
                 }
-                .frame(width: documentWidth, height: proxy.size.height)
-                .clipped()
             }
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
@@ -206,6 +214,19 @@ struct ContentView: View {
 
     private func toggleSidebar() {
         sidebarVisible.toggle()
+    }
+
+    private var sidebarOverlayToggle: some View {
+        Button {
+            toggleSidebar()
+        } label: {
+            Image(systemName: "sidebar.left")
+                .frame(width: 32, height: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(.quaternary.opacity(0.55), in: RoundedRectangle(cornerRadius: 8))
+        .help("Hide Sidebar")
     }
 
     @ViewBuilder

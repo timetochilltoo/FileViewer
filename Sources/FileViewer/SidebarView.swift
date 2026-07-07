@@ -3,27 +3,14 @@ import SwiftUI
 
 struct SidebarView: View {
     @ObservedObject var model: AppModel
-    let onToggleSidebar: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("Sidebar")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button {
-                        onToggleSidebar()
-                    } label: {
-                        Image(systemName: "sidebar.left")
-                            .frame(width: 28, height: 28)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.borderless)
-                    .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 7))
-                    .help("Hide Sidebar")
-                }
+                Text("Sidebar")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(height: 28, alignment: .center)
                 modeSelector
             }
             .padding(.horizontal, 14)
