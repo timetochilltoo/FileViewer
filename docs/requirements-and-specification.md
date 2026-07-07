@@ -243,12 +243,12 @@ Implemented v1 on branch `feature/pdf-annotation`:
 - Save an annotated PDF copy without overwriting the original.
 - Warn before closing a PDF tab/window with unsaved annotations.
 - Show a PDF annotation summary in the sidebar `Notes` tab and jump to an annotation when the user clicks it.
+- Filter the `Notes` sidebar by annotation type: All, Markup, Notes, Text Boxes, Shapes, and Ink.
+- Export a Markdown annotation summary report with page number, annotation type, and summary/details.
 - Use a reachable sidebar toggle with a stable fixed-width sidebar. Avoid native overlay/sidebar behavior, native segmented sidebar tabs, native sidebar-list row insets, and toolbar intrinsic-width pressure that can clip sidebar contents or cover the PDF page.
 
 Recommended:
 
-- Filter annotations by type.
-- Export annotation summary.
 - Author name and timestamp for annotations.
 - Add stroke width controls.
 

@@ -63,6 +63,8 @@ Current MVP build includes:
   - delete sticky notes and text boxes with Delete Annotation mode
   - undo/redo recent PDF annotation changes
   - browse PDF annotations from the sidebar `Notes` tab and jump back to the selected annotation
+  - filter the `Notes` sidebar by annotation type
+  - export a Markdown annotation summary report
   - save embedded PDF annotations back to the PDF file
   - save an annotated PDF copy with Save Annotated Copy As / Command-Shift-S
   - warn before closing a PDF tab/window with unsaved annotations

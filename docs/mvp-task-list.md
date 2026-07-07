@@ -344,8 +344,7 @@ Acceptance criteria:
 Next implementation work:
 
 - Continue PDF annotation beyond v1:
-  - filter the annotation sidebar by annotation type
-  - export an annotation summary
   - add stroke width controls
+  - add author name and timestamp metadata for annotations
 - Improve Markdown preview fidelity for richer GitHub-flavored tables, local images, and task-list polish if needed later.
 - Add tests or sample files for repeatable verification.

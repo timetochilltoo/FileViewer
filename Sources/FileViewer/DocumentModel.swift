@@ -169,6 +169,43 @@ struct PDFAnnotationEntry: Identifiable, Equatable {
     }
 }
 
+enum PDFAnnotationFilter: String, CaseIterable {
+    case all
+    case markup
+    case stickyNotes
+    case textBoxes
+    case shapes
+    case ink
+
+    var title: String {
+        switch self {
+        case .all: "All"
+        case .markup: "Markup"
+        case .stickyNotes: "Notes"
+        case .textBoxes: "Text Boxes"
+        case .shapes: "Shapes"
+        case .ink: "Ink"
+        }
+    }
+
+    func includes(_ entry: PDFAnnotationEntry) -> Bool {
+        switch self {
+        case .all:
+            true
+        case .markup:
+            ["Highlight", "Underline", "Strikeout"].contains(entry.kind)
+        case .stickyNotes:
+            entry.kind == "Sticky Note"
+        case .textBoxes:
+            entry.kind == "Text Box"
+        case .shapes:
+            ["Rectangle", "Oval", "Line"].contains(entry.kind)
+        case .ink:
+            entry.kind == "Ink"
+        }
+    }
+}
+
 struct PDFAnnotationNavigationTarget {
     let url: URL
     let page: Int
@@ -453,6 +490,7 @@ final class AppModel: ObservableObject {
     @Published var isPDFInkDrawingModeEnabled = false
     @Published var pdfLineDrawingMode: PDFShapeAnnotationKind?
     @Published var pdfAnnotationColor = Color.yellow
+    @Published var pdfAnnotationFilter: PDFAnnotationFilter = .all
     @Published var markdownEditorFocusRequest = UUID()
 
     private let recentsKey = "FileViewer.recents"
@@ -664,6 +702,10 @@ final class AppModel: ObservableObject {
     var pdfAnnotationEntries: [PDFAnnotationEntry] {
         guard case .pdf(let document) = document else { return [] }
         return Self.extractPDFAnnotations(from: document.document)
+    }
+
+    var filteredPDFAnnotationEntries: [PDFAnnotationEntry] {
+        pdfAnnotationEntries.filter { pdfAnnotationFilter.includes($0) }
     }
 
     var canSaveMarkdown: Bool {
@@ -1206,6 +1248,47 @@ final class AppModel: ObservableObject {
         savePDFStateIfNeeded(for: tabs[index])
         saveCurrentSession()
         statusMessage = "Saved annotated PDF copy."
+    }
+
+    func exportPDFAnnotationSummary() {
+        guard case .pdf(let pdf) = document else { return }
+
+        let entries = pdfAnnotationEntries
+        guard !entries.isEmpty else {
+            statusMessage = "No PDF annotations to export."
+            let alert = NSAlert()
+            alert.messageText = "No PDF Annotations"
+            alert.informativeText = "This PDF does not have FileViewer-supported annotations to export."
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+            return
+        }
+
+        let panel = NSSavePanel()
+        let baseName = pdf.url.deletingPathExtension().lastPathComponent
+        panel.nameFieldStringValue = "\(baseName) annotation summary.md"
+        panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        let markdown = Self.pdfAnnotationSummaryMarkdown(
+            pdfName: pdf.url.lastPathComponent,
+            pdfPath: pdf.url.path,
+            entries: entries
+        )
+
+        do {
+            try markdown.write(to: url, atomically: true, encoding: .utf8)
+            statusMessage = "Exported PDF annotation summary."
+            addRecent(name: url.lastPathComponent, kind: .markdown, url: url)
+        } catch {
+            statusMessage = "Could not export PDF annotation summary."
+            let alert = NSAlert()
+            alert.messageText = "Could Not Export Annotation Summary"
+            alert.informativeText = "FileViewer could not write the annotation summary to \(url.lastPathComponent)."
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
     }
 
     func togglePDFNoteMoveMode() {
@@ -2282,6 +2365,38 @@ final class AppModel: ObservableObject {
         }
         return entries
     }
+
+    static func pdfAnnotationSummaryMarkdown(pdfName: String, pdfPath: String, entries: [PDFAnnotationEntry]) -> String {
+        let generated = Date().formatted(date: .abbreviated, time: .shortened)
+        var lines: [String] = [
+            "# PDF Annotation Summary",
+            "",
+            "- PDF: \(pdfName.escapedForMarkdownListValue)",
+            "- Path: `\(pdfPath.replacingOccurrences(of: "`", with: "\\`"))`",
+            "- Generated: \(generated)",
+            "- Total annotations: \(entries.count)",
+            "",
+            "| Page | Type | Summary |",
+            "|---:|---|---|"
+        ]
+
+        for entry in entries {
+            lines.append("| \(entry.page) | \(entry.kind.escapedForMarkdownTableCell) | \(entry.summary.escapedForMarkdownTableCell) |")
+        }
+
+        lines.append("")
+        lines.append("## Details")
+        lines.append("")
+
+        for entry in entries {
+            lines.append("### Page \(entry.page) — \(entry.kind)")
+            lines.append("")
+            lines.append(entry.summary)
+            lines.append("")
+        }
+
+        return lines.joined(separator: "\n")
+    }
 }
 
 extension String {
@@ -2290,6 +2405,18 @@ extension String {
             .filter { $0.isLetter || $0.isNumber || $0.isWhitespace || $0 == "-" }
             .split(separator: " ")
             .joined(separator: "-")
+    }
+
+    var escapedForMarkdownTableCell: String {
+        replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "|", with: "\\|")
+            .replacingOccurrences(of: "\n", with: "<br>")
+            .replacingOccurrences(of: "\r", with: "")
+    }
+
+    var escapedForMarkdownListValue: String {
+        replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: "")
     }
 }
 

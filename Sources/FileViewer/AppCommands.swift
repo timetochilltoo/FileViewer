@@ -315,6 +315,11 @@ struct FileViewerCommands: Commands {
                 activeModel?.savePDFAnnotatedCopyAs()
             }
             .disabled(activeModel?.isPDFDocument != true)
+
+            Button("Export Annotation Summary...") {
+                activeModel?.exportPDFAnnotationSummary()
+            }
+            .disabled(activeModel?.isPDFDocument != true)
         }
 
         CommandGroup(replacing: .help) {

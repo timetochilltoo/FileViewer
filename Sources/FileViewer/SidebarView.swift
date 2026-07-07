@@ -148,57 +148,88 @@ struct SidebarView: View {
     @ViewBuilder
     private var pdfAnnotations: some View {
         if let url = model.selectedPDFURL {
-            let entries = model.pdfAnnotationEntries
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(entries) { entry in
-                        Button {
-                            NotificationCenter.default.post(
-                                name: .pdfGoToAnnotation,
-                                object: PDFAnnotationNavigationTarget(
-                                    url: url,
-                                    page: entry.page,
-                                    bounds: entry.bounds
-                                )
-                            )
-                        } label: {
-                            HStack(alignment: .top, spacing: 8) {
-                                Image(systemName: entry.iconName)
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: 18)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    HStack {
-                                        Text(entry.kind)
-                                            .font(.caption.weight(.semibold))
-                                            .lineLimit(1)
-                                        Spacer()
-                                        Text("p.\(entry.page)")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(1)
-                                    }
-                                    Text(entry.summary)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(2)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                            }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .contentShape(Rectangle())
+            let allEntries = model.pdfAnnotationEntries
+            let entries = model.filteredPDFAnnotationEntries
+            VStack(spacing: 0) {
+                HStack(spacing: 8) {
+                    Picker("Annotation Filter", selection: $model.pdfAnnotationFilter) {
+                        ForEach(PDFAnnotationFilter.allCases, id: \.self) { filter in
+                            Text(filter.title).tag(filter)
                         }
-                        .buttonStyle(.plain)
-
-                        Divider()
-                            .padding(.leading, 40)
                     }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity)
+
+                    Button {
+                        model.exportPDFAnnotationSummary()
+                    } label: {
+                        Label("Export", systemImage: "square.and.arrow.up")
+                            .labelStyle(.iconOnly)
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.borderless)
+                    .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 7))
+                    .help("Export Annotation Summary")
+                    .disabled(allEntries.isEmpty)
                 }
-                .padding(.top, 4)
-            }
-            .overlay {
-                if entries.isEmpty {
-                    ContentUnavailableView("No Annotations", systemImage: "note.text")
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+
+                Divider()
+
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(entries) { entry in
+                            Button {
+                                NotificationCenter.default.post(
+                                    name: .pdfGoToAnnotation,
+                                    object: PDFAnnotationNavigationTarget(
+                                        url: url,
+                                        page: entry.page,
+                                        bounds: entry.bounds
+                                    )
+                                )
+                            } label: {
+                                HStack(alignment: .top, spacing: 8) {
+                                    Image(systemName: entry.iconName)
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 18)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        HStack {
+                                            Text(entry.kind)
+                                                .font(.caption.weight(.semibold))
+                                                .lineLimit(1)
+                                            Spacer()
+                                            Text("p.\(entry.page)")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(1)
+                                        }
+                                        Text(entry.summary)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(2)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+
+                            Divider()
+                                .padding(.leading, 40)
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+                .overlay {
+                    if allEntries.isEmpty {
+                        ContentUnavailableView("No Annotations", systemImage: "note.text")
+                    } else if entries.isEmpty {
+                        ContentUnavailableView("No \(model.pdfAnnotationFilter.title)", systemImage: "line.3.horizontal.decrease.circle")
+                    }
                 }
             }
         } else {
