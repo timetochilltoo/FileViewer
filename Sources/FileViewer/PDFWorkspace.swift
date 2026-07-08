@@ -10,6 +10,7 @@ struct PDFWorkspace: View {
             documentURL: viewerDocument.url,
             document: viewerDocument.document,
             searchText: model.searchText,
+            searchNavigationRequestID: model.searchNavigationRequestID,
             page: Binding(
                 get: { model.pdfPage },
                 set: { model.pdfPage = $0 }
@@ -57,7 +58,8 @@ struct PDFWorkspace: View {
             annotationColor: Binding(
                 get: { model.pdfAnnotationNSColor },
                 set: { model.pdfAnnotationColor = Color(nsColor: $0) }
-            )
+            ),
+            annotationStrokeWidth: model.pdfAnnotationLineWidth
         )
         .background(Color(nsColor: .underPageBackgroundColor))
     }
@@ -67,6 +69,7 @@ struct PDFKitView: NSViewRepresentable {
     let documentURL: URL
     let document: PDFDocument
     let searchText: String
+    let searchNavigationRequestID: UUID
     @Binding var page: Int
     @Binding var pageCount: Int
     @Binding var scale: CGFloat
@@ -79,6 +82,7 @@ struct PDFKitView: NSViewRepresentable {
     @Binding var isInkDrawingModeEnabled: Bool
     @Binding var lineDrawingMode: PDFShapeAnnotationKind?
     @Binding var annotationColor: NSColor
+    let annotationStrokeWidth: CGFloat
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -130,6 +134,7 @@ struct PDFKitView: NSViewRepresentable {
             context.coordinator.isReplacingDocument = true
             view.setCurrentSelection(nil, animate: false)
             view.highlightedSelections = []
+            context.coordinator.resetSearchCache()
             view.document = nil
             view.document = document
             context.coordinator.applyPageAndScale(page: requestedPage, scale: requestedScale)
@@ -154,6 +159,7 @@ struct PDFKitView: NSViewRepresentable {
             movableView.isInkDrawingModeEnabled = isInkDrawingModeEnabled
             movableView.lineDrawingMode = lineDrawingMode
             movableView.annotationColor = annotationColor
+            movableView.annotationStrokeWidth = annotationStrokeWidth
             movableView.scheduleResizeHandleOverlayUpdate()
             let lineModeBinding = $lineDrawingMode
             movableView.onLineDrawingFinished = {
@@ -162,7 +168,7 @@ struct PDFKitView: NSViewRepresentable {
         }
         if !context.coordinator.isReplacingDocument {
             context.coordinator.applySearch(searchText)
-            context.coordinator.goToSearchMatch(searchMatchIndex)
+            context.coordinator.goToSearchMatch(searchMatchIndex, requestID: searchNavigationRequestID)
         }
     }
 
@@ -170,9 +176,17 @@ struct PDFKitView: NSViewRepresentable {
         var parent: PDFKitView
         weak var pdfView: PDFView?
         private var lastSearchText = ""
-        private var lastSearchIndex = 0
+        private var lastSearchIndex = -1
+        private var lastSearchNavigationRequestID: UUID?
         private var searchSelections: [PDFSelection] = []
         var isReplacingDocument = false
+
+        @MainActor func resetSearchCache() {
+            lastSearchText = ""
+            lastSearchIndex = -1
+            lastSearchNavigationRequestID = nil
+            searchSelections = []
+        }
 
         init(_ parent: PDFKitView) {
             self.parent = parent
@@ -406,7 +420,7 @@ struct PDFKitView: NSViewRepresentable {
         @MainActor func applySearch(_ text: String) {
             guard text != lastSearchText else { return }
             lastSearchText = text
-            lastSearchIndex = 0
+            lastSearchIndex = -1
             pdfView?.highlightedSelections = []
             searchSelections = []
             setSearchState(count: 0, index: 0)
@@ -415,14 +429,11 @@ struct PDFKitView: NSViewRepresentable {
             searchSelections = parent.document.findString(text, withOptions: [.caseInsensitive])
             pdfView?.highlightedSelections = searchSelections
             setSearchState(count: searchSelections.count, index: 0)
-            if let first = searchSelections.first {
-                lastSearchIndex = 0
-                pdfView?.setCurrentSelection(first, animate: false)
-                pdfView?.go(to: first)
-            }
         }
 
-        @MainActor func goToSearchMatch(_ index: Int) {
+        @MainActor func goToSearchMatch(_ index: Int, requestID: UUID) {
+            guard requestID != lastSearchNavigationRequestID else { return }
+            lastSearchNavigationRequestID = requestID
             guard !searchSelections.isEmpty else { return }
             let safeIndex = min(max(0, index), searchSelections.count - 1)
             guard safeIndex != lastSearchIndex else { return }
@@ -584,7 +595,7 @@ struct PDFKitView: NSViewRepresentable {
             annotation.color = color.forPDFShapeBorder()
             annotation.interiorColor = color.forPDFShapeFill()
             let border = PDFBorder()
-            border.lineWidth = 2
+            border.lineWidth = parent.annotationStrokeWidth
             annotation.border = border
             if kind.isLineBased {
                 annotation.startPoint = CGPoint(x: 0, y: 0)
@@ -735,6 +746,7 @@ private final class MovableAnnotationPDFView: PDFView {
     var isInkDrawingModeEnabled = false
     var lineDrawingMode: PDFShapeAnnotationKind?
     var annotationColor = NSColor.systemYellow
+    var annotationStrokeWidth: CGFloat = 2
     var onAnnotationWillChange: (() -> Void)?
     var onAnnotationDidAddObjects: (([(page: PDFPage, annotation: PDFAnnotation)]) -> Void)?
     var onAnnotationMoved: (() -> Void)?
@@ -1141,7 +1153,7 @@ private final class MovableAnnotationPDFView: PDFView {
         annotation.color = annotationColor.forPDFShapeBorder()
         annotation.interiorColor = annotationColor.forPDFShapeBorder()
         let border = PDFBorder()
-        border.lineWidth = 2
+        border.lineWidth = annotationStrokeWidth
         annotation.border = border
         annotation.startLineStyle = .none
         annotation.endLineStyle = kind == .arrow ? .closedArrow : .none
@@ -1151,7 +1163,7 @@ private final class MovableAnnotationPDFView: PDFView {
     }
 
     private func addInkAnnotation(page: PDFPage, points: [CGPoint]) -> PDFAnnotation? {
-        let strokePadding: CGFloat = 4
+        let strokePadding = max(4, annotationStrokeWidth * 2)
         let pageBounds = page.bounds(for: displayBox)
         var rawBounds = points.reduce(CGRect.null) { partialResult, point in
             partialResult.union(CGRect(origin: point, size: .zero))
@@ -1161,7 +1173,7 @@ private final class MovableAnnotationPDFView: PDFView {
         guard bounds.width > 0, bounds.height > 0 else { return nil }
 
         let path = NSBezierPath()
-        path.lineWidth = 2
+        path.lineWidth = annotationStrokeWidth
         path.lineCapStyle = .round
         path.lineJoinStyle = .round
         for (index, point) in points.enumerated() {
@@ -1180,7 +1192,7 @@ private final class MovableAnnotationPDFView: PDFView {
         )
         annotation.color = annotationColor.forPDFShapeBorder()
         let border = PDFBorder()
-        border.lineWidth = 2
+        border.lineWidth = annotationStrokeWidth
         annotation.border = border
         annotation.add(path)
         page.addAnnotation(annotation)
@@ -1198,6 +1210,7 @@ private final class MovableAnnotationPDFView: PDFView {
         let preview = ensureInkPreviewView()
         preview.frame = bounds
         preview.strokeColor = annotationColor.forPDFShapeBorder()
+        preview.lineWidth = annotationStrokeWidth
         preview.points = inkPoints.map { pagePoint in
             viewPointForOverlay(pagePoint, page: page)
         }
@@ -1306,6 +1319,7 @@ private final class MovableAnnotationPDFView: PDFView {
 private final class InkPreviewView: NSView {
     var points: [CGPoint] = []
     var strokeColor = NSColor.systemYellow
+    var lineWidth: CGFloat = 2
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         nil
@@ -1316,7 +1330,7 @@ private final class InkPreviewView: NSView {
         guard points.count >= 2 else { return }
 
         let path = NSBezierPath()
-        path.lineWidth = 2
+        path.lineWidth = lineWidth
         path.lineCapStyle = .round
         path.lineJoinStyle = .round
 

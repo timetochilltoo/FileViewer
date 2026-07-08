@@ -232,6 +232,7 @@ Implemented v1 on branch `feature/pdf-annotation`:
 - Resize text boxes.
 - Add rectangle, oval, line, and arrow shape annotations.
 - Draw freehand ink annotations.
+- Choose Thin, Medium, or Thick stroke width for new shapes, lines, arrows, and freehand ink.
 - Move sticky note icons and text boxes with a dedicated Move Annotation mode.
 - Show resize/endpoint handles while Move Annotation mode is on.
 - Edit sticky note and text box text with a dedicated Edit Annotation mode.
@@ -250,7 +251,6 @@ Implemented v1 on branch `feature/pdf-annotation`:
 Recommended:
 
 - Author name and timestamp for annotations.
-- Add stroke width controls.
 
 ## 6.5 PDF Page Operations
 

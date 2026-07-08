@@ -48,6 +48,7 @@ Current MVP build includes:
   - underline selected PDF text
   - strike through selected PDF text
   - choose the color used for newly-created PDF annotations
+  - choose Thin, Medium, or Thick stroke width for new shapes, lines, arrows, and freehand ink
   - recolor existing PDF annotations
   - remove highlight/underline/strikeout markup from selected PDF text
   - add sticky note comments to the current PDF page

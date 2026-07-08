@@ -258,6 +258,26 @@ struct PDFShapeAnnotationCommand {
     let color: NSColor
 }
 
+enum PDFAnnotationStrokeWidth: Double, CaseIterable, Identifiable {
+    case thin = 1.0
+    case medium = 2.0
+    case thick = 4.0
+
+    var id: Double { rawValue }
+
+    var title: String {
+        switch self {
+        case .thin: "Thin"
+        case .medium: "Medium"
+        case .thick: "Thick"
+        }
+    }
+
+    var lineWidth: CGFloat {
+        CGFloat(rawValue)
+    }
+}
+
 struct PDFAnnotationUndoSnapshot {
     let url: URL
     let data: Data
@@ -318,6 +338,7 @@ struct DocumentTab: Identifiable, Equatable {
     var searchText: String
     var searchMatchIndex: Int
     var searchMatchCount: Int
+    var searchNavigationRequestID: UUID
     var markdownSourceScrollY: Double
     var markdownPreviewScrollY: Double
     var markdownSourceVisibleLocation: Int
@@ -335,6 +356,7 @@ struct DocumentTab: Identifiable, Equatable {
         searchText = ""
         searchMatchIndex = 0
         searchMatchCount = 0
+        searchNavigationRequestID = UUID()
         markdownSourceScrollY = 0
         markdownPreviewScrollY = 0
         markdownSourceVisibleLocation = 0
@@ -490,6 +512,7 @@ final class AppModel: ObservableObject {
     @Published var isPDFInkDrawingModeEnabled = false
     @Published var pdfLineDrawingMode: PDFShapeAnnotationKind?
     @Published var pdfAnnotationColor = Color.yellow
+    @Published var pdfAnnotationStrokeWidth: PDFAnnotationStrokeWidth = .medium
     @Published var pdfAnnotationFilter: PDFAnnotationFilter = .all
     @Published var markdownEditorFocusRequest = UUID()
 
@@ -504,6 +527,10 @@ final class AppModel: ObservableObject {
 
     var pdfAnnotationNSColor: NSColor {
         NSColor(pdfAnnotationColor)
+    }
+
+    var pdfAnnotationLineWidth: CGFloat {
+        pdfAnnotationStrokeWidth.lineWidth
     }
 
     func resetPDFAnnotationColor() {
@@ -564,9 +591,13 @@ final class AppModel: ObservableObject {
         set {
             guard let index = selectedTabIndex else { return }
             objectWillChange.send()
+            let didChange = tabs[index].searchText != newValue
             tabs[index].searchText = newValue
             tabs[index].searchMatchIndex = 0
             tabs[index].searchMatchCount = searchMatchCount(for: newValue, in: tabs[index].document)
+            if didChange {
+                tabs[index].searchNavigationRequestID = UUID()
+            }
         }
     }
 
@@ -577,6 +608,10 @@ final class AppModel: ObservableObject {
             objectWillChange.send()
             tabs[index].searchMatchIndex = max(0, newValue)
         }
+    }
+
+    var searchNavigationRequestID: UUID {
+        selectedTab?.searchNavigationRequestID ?? UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
     }
 
     var searchMatchCount: Int {
@@ -614,14 +649,18 @@ final class AppModel: ObservableObject {
 
     func previousSearchMatch() {
         let count = searchMatchCount
-        guard count > 0 else { return }
-        searchMatchIndex = (searchMatchIndex - 1 + count) % count
+        guard count > 0, let index = selectedTabIndex else { return }
+        objectWillChange.send()
+        tabs[index].searchMatchIndex = (tabs[index].searchMatchIndex - 1 + count) % count
+        tabs[index].searchNavigationRequestID = UUID()
     }
 
     func nextSearchMatch() {
         let count = searchMatchCount
-        guard count > 0 else { return }
-        searchMatchIndex = (searchMatchIndex + 1) % count
+        guard count > 0, let index = selectedTabIndex else { return }
+        objectWillChange.send()
+        tabs[index].searchMatchIndex = (tabs[index].searchMatchIndex + 1) % count
+        tabs[index].searchNavigationRequestID = UUID()
     }
 
     private func searchMatchCount(for searchText: String, in document: ViewerDocument) -> Int {

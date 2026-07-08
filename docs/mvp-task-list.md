@@ -344,7 +344,6 @@ Acceptance criteria:
 Next implementation work:
 
 - Continue PDF annotation beyond v1:
-  - add stroke width controls
   - add author name and timestamp metadata for annotations
 - Improve Markdown preview fidelity for richer GitHub-flavored tables, local images, and task-list polish if needed later.
 - Add tests or sample files for repeatable verification.

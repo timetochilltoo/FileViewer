@@ -477,12 +477,15 @@ PDF search:
 
 - `applySearch(_:)` uses `parent.document.findString(text, withOptions: [.caseInsensitive])`.
 - Highlights results through `pdfView?.highlightedSelections`.
-- Jumps to the first result.
+- Search highlighting and search navigation are intentionally separate.
+- `DocumentTab.searchNavigationRequestID` changes only when the search text changes or the user explicitly requests previous/next/Return search navigation.
+- `PDFKitView.Coordinator.applySearch(_:)` rebuilds the PDFKit highlighted selections and match count, but no longer scrolls the PDF by itself.
+- `PDFKitView.Coordinator.goToSearchMatch(_:requestID:)` scrolls only when it receives a new navigation request ID. This prevents normal SwiftUI/PDFKit refreshes, annotation redraws, resizing, or manual scrolling from pulling the user back to the active search hit.
 - `PDFKitView` binds `searchMatchIndex` and `searchMatchCount` back to `AppModel`.
 - Search count updates are dispatched through stored `Binding` values on the next main-queue tick. This avoids mutating SwiftUI state directly during `PDFKitView.updateNSView`, which previously prevented the toolbar from reliably showing current/total matches.
 - 2026-06-29 follow-up: PDF match count is also calculated immediately in `AppModel.searchText` using the selected `PDFDocument.findString(...)`. This makes the toolbar count deterministic even if the `PDFKitView` binding callback is delayed or skipped by SwiftUI/PDFKit refresh timing.
 - PDF search status text is prefixed with `PDF:` so it is visually clear that the count is coming from PDF search, e.g. `PDF: 1 of 6`.
-- Previous/next search buttons update `searchMatchIndex`; `PDFKitView.Coordinator.goToSearchMatch(_:)` selects and scrolls to the requested `PDFSelection`.
+- Previous/next search buttons update `searchMatchIndex` and the search navigation request ID; `PDFKitView.Coordinator.goToSearchMatch(_:requestID:)` selects and scrolls to the requested `PDFSelection`.
 
 PDF annotation v1:
 
@@ -534,14 +537,17 @@ PDF annotation v1:
   - Text boxes use the selected annotation color as a translucent background.
   - 2026-07-01 fix: sticky note/text box creation now clamps the annotation rectangle inside the PDF page bounds. Before this, adding a text box below selected text near the bottom of a page could create it off-page, making it look like the user needed to retry several times.
   - `PDFShapeAnnotationKind` and `PDFShapeAnnotationCommand` live in `DocumentModel.swift`.
+  - `PDFAnnotationStrokeWidth` lives in `DocumentModel.swift` and currently offers `Thin` = 1 pt, `Medium` = 2 pt, and `Thick` = 4 pt.
+  - `AppModel.pdfAnnotationStrokeWidth` stores the current stroke width. `ContentView.PDFToolbar` exposes it through a compact picker beside the annotation color picker.
   - Rectangle/oval shape creation posts `.pdfAddShapeAnnotation`. The coordinator creates real PDFKit `.square` or `.circle` annotations.
   - Line/arrow toolbar buttons call `AppModel.beginPDFLineDrawingMode(_:)`, which stores `.line` or `.arrow` in `AppModel.pdfLineDrawingMode`, turns off move/delete/edit modes, and tells the user to drag on the PDF.
   - `PDFKitView` passes `pdfLineDrawingMode` into `MovableAnnotationPDFView`. The custom PDF view intercepts mouse down/up while the mode is active, converts the drag start/end to PDF page coordinates, creates a `.line` annotation, marks the PDF dirty, and clears the drawing mode after release.
   - Arrow annotations are PDFKit line annotations with `endLineStyle = .closedArrow`; plain lines use no line ending.
   - Pen Drawing Mode is stored in `AppModel.isPDFInkDrawingModeEnabled`. Turning it on turns off move, delete, edit, recolor, and line/arrow drawing modes.
   - `PDFKitView` passes `isPDFInkDrawingModeEnabled` into `MovableAnnotationPDFView`. The custom PDF view captures mouse drag points in PDF page coordinates, draws a temporary live preview stroke during the drag, creates a real PDFKit `.ink` annotation on mouse release, marks the PDF dirty, and keeps the ink as a normal embedded PDF annotation.
-  - Ink annotations use the selected annotation color as their stroke color and a 2-point rounded path. Existing v1 Move, Delete, and Recolor modes can target ink annotations.
+  - Shape/line/arrow/ink annotations use the selected annotation stroke width. Existing v1 Move, Delete, and Recolor modes can target ink annotations.
   - Live ink preview is drawn by a transparent `InkPreviewView` overlay added above the PDF view during the drag. The captured PDF page points are converted back to view coordinates for the overlay. The preview is not saved; it disappears when the real `.ink` annotation is added on mouse release.
+  - Live ink preview uses the selected stroke width so the user sees the same width while dragging and after the real PDF annotation is created.
   - 2026-07-04 fix: `InkPreviewView` must use the normal unflipped AppKit coordinate system. A flipped overlay mirrored the temporary stroke vertically, so drawing near the bottom of a page showed a matching preview near the top.
   - Rectangle/oval placement: if PDF text is selected, the shape is placed around the selected bounds with padding. Otherwise it is placed near the center of the visible page. Current v1 rectangle/oval shapes have a fixed default size when no selection is available.
   - Line/arrow placement: the user now drags from start point to end point. This replaced the earlier fixed diagonal line/arrow behavior.
@@ -904,13 +910,12 @@ The Contents sidebar lists Markdown headings but clicking a heading does not scr
 PDF search:
 
 - highlights all matches
-- jumps to first match
+- jumps to first match only when the search text changes
 - shows current result and total results in the shared search field
 - supports previous/next result navigation
 
 Missing:
 
-- clearing search highlights more predictably
 - search result sidebar/list
 
 Known bug reported by Patrick on 2026-07-02:
@@ -918,6 +923,7 @@ Known bug reported by Patrick on 2026-07-02:
 - Search can keep pulling the document back to the active match after the user scrolls away to keep reading. Example: search for `chapter 17.1`, the app jumps to the correct match, then manual scrolling may jump back to that same match.
 - Clearing the search field can sometimes jump back to the top of the document/page unexpectedly. Patrick said this is intermittent, not every time.
 - 2026-07-05 fix: `PDFKitView.updateNSView` still calls `goToSearchMatch(searchMatchIndex)`, but `goToSearchMatch(_:)` now only navigates when the requested match index actually changes. Normal SwiftUI/PDFKit refreshes should no longer pull the document back to the same search match after the user manually scrolls away. Search text changes still jump to the first match, and Return/next/previous still jump intentionally.
+- 2026-07-08 fix: the PDF search jump behavior was tightened again. Search text changes and previous/next/Return now create an explicit per-tab navigation request ID. `applySearch(_:)` only updates highlights/counts, while `goToSearchMatch(_:requestID:)` performs scrolling only once per new request. Clearing search removes highlights/counts without issuing a fresh PDF scroll.
 
 ### 6.8 PDF outline support is basic
 
@@ -1038,7 +1044,6 @@ Patrick is newer to Markdown and wants the app to teach/assist him. The Help gui
 Recommended order:
 
 1. Continue PDF annotation:
-   - stroke width controls for shapes/ink
    - author/timestamp metadata in annotation reports
 2. Improve Markdown preview rendering if Patrick relies heavily on richer tables/checklists.
 3. Add remaining Markdown formatting polish:

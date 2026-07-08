@@ -424,6 +424,15 @@ struct PDFToolbar: View {
                 .frame(width: 32)
                 .help("Choose PDF Annotation Color")
 
+            Picker("Stroke Width", selection: $model.pdfAnnotationStrokeWidth) {
+                ForEach(PDFAnnotationStrokeWidth.allCases) { width in
+                    Text(width.title).tag(width)
+                }
+            }
+            .labelsHidden()
+            .frame(width: 76)
+            .help("Choose Shape and Pen Stroke Width")
+
             Button {
                 model.resetPDFAnnotationColor()
             } label: {
