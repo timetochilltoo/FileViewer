@@ -94,14 +94,6 @@ struct ContentView: View {
     private var toolbar: some View {
         HStack(spacing: 8) {
             Button {
-                model.newMarkdownDocument()
-            } label: {
-                Label("New", systemImage: "plus")
-                    .labelStyle(.iconOnly)
-            }
-            .help("New Markdown Document")
-
-            Button {
                 model.openWithPanel()
             } label: {
                 Label("Open", systemImage: "folder")
@@ -135,36 +127,11 @@ struct ContentView: View {
                     .pickerStyle(.segmented)
                 }
                 .frame(minWidth: 170, idealWidth: 220, maxWidth: 260)
-
-                Button {
-                    model.saveMarkdown()
-                } label: {
-                    Image(systemName: "square.and.arrow.down")
-                }
-                .keyboardShortcut("s", modifiers: .command)
-                .disabled(!model.canSaveMarkdown)
-                .help("Save")
-
-                Button {
-                    model.saveMarkdownAs()
-                } label: {
-                    Image(systemName: "doc.badge.plus")
-                }
-                .keyboardShortcut("s", modifiers: [.command, .shift])
-                .help("Save As")
             }
 
             if case .pdf = model.document {
                 PDFToolbar(model: model)
             }
-
-            Button {
-                model.printDocument()
-            } label: {
-                Image(systemName: "printer")
-            }
-            .disabled(!model.canPrintDocument)
-            .help("Print")
 
             Spacer()
                 .frame(minWidth: 0)
@@ -299,7 +266,7 @@ struct ContentView: View {
                 Text("Page \(model.pdfPage) of \(max(model.pdfPageCount, 1))")
                     .foregroundStyle(.secondary)
                 if model.canSavePDF {
-                    Text("Unsaved PDF annotations")
+                    Text("Unsaved PDF changes")
                         .foregroundStyle(.orange)
                 }
             }
@@ -568,21 +535,6 @@ struct PDFToolbar: View {
             }
             .disabled(!model.canRedoPDFAnnotation)
             .help("Redo PDF Annotation Change")
-
-            Button {
-                model.savePDFAnnotations()
-            } label: {
-                Image(systemName: "square.and.arrow.down")
-            }
-            .disabled(!model.canSavePDF)
-            .help("Save PDF Annotations")
-
-            Button {
-                model.savePDFAnnotatedCopyAs()
-            } label: {
-                Image(systemName: "doc.badge.plus")
-            }
-            .help("Save Annotated Copy As")
         }
     }
 
@@ -701,6 +653,7 @@ extension Notification.Name {
     static let pdfAnnotationDidChange = Notification.Name("FileViewer.pdfAnnotationDidChange")
     static let pdfAnnotationDidAddObjects = Notification.Name("FileViewer.pdfAnnotationDidAddObjects")
     static let pdfAnnotationDisplayNeedsRefresh = Notification.Name("FileViewer.pdfAnnotationDisplayNeedsRefresh")
+    static let pdfFormFieldBaselineDidReset = Notification.Name("FileViewer.pdfFormFieldBaselineDidReset")
     static let markdownSyncCurrentState = Notification.Name("FileViewer.markdownSyncCurrentState")
     static let toggleSidebar = Notification.Name("FileViewer.toggleSidebar")
 }

@@ -314,16 +314,21 @@ Main pieces:
   - detail: toolbar, tab bar, status bar, document body
 - toolbar:
 - Open button
-- New button
 - sidebar toggle button
   - Markdown mode control when Markdown tab is selected
-  - Save / Save As buttons when Markdown tab is selected
 - PDF toolbar when PDF tab is selected
-- Print button when any document is selected
 - search field
   - implemented as `SearchTextField`, a small AppKit `NSTextField` bridge, because SwiftUI `TextField.onSubmit` did not reliably fire Return in the toolbar on macOS
   - shows current match / total matches while searching
   - up/down buttons move to previous/next match
+- 2026-07-09 toolbar simplification:
+  - Removed New File, Save, Save As, and Print icons from the toolbar because the PDF annotation toolbar became too crowded on Patrick's screen.
+  - The functions still exist in menus and shortcuts:
+    - New Markdown Document
+    - Save / Command-S
+    - Save As / Command-Shift-S
+    - Print / Command-P
+  - Do not re-add these as toolbar icons unless the toolbar layout is redesigned with overflow/adaptive grouping.
   - Return in the search field moves to next match
 - tab bar:
   - horizontal list of open tabs
@@ -496,8 +501,8 @@ PDF annotation v1:
   3. Optionally choose an annotation color from the PDF toolbar color picker.
   4. Click Highlight, Underline, or Strikeout in the PDF toolbar, or use the PDF menu.
   5. The selected text receives a real PDFKit annotation.
-  6. The tab/window is marked as having unsaved PDF annotations.
-  7. Click the PDF Save button or use Command-S to embed the annotation in the PDF file.
+  6. The tab/window is marked as having unsaved PDF changes.
+  7. Use Command-S, File > Save, or PDF > Save PDF Changes to embed the annotation in the PDF file.
   8. To remove v1 text markup, select the marked text and use Remove Markup from Selection / the eraser toolbar button.
   9. To add a sticky note, click Add Sticky Note, enter the note text, then save the PDF.
   10. To add visible page text, click Add Text Box, enter the text, then save the PDF.
@@ -606,9 +611,18 @@ PDF annotation v1:
     - 2026-07-06 follow-up 3: after the document/toolbar side became clipped, the toolbar sidebar button could disappear. The toggle now lives in the sidebar header while the sidebar is open, and only appears in the main toolbar when the sidebar is hidden. This avoids duplicate buttons while keeping the control reachable.
     - 2026-07-07 follow-up: after shrink/enlarge window cycles, the sidebar-header button could visually remain but its hit target could behave stale; clicking it sometimes activated the PDF pages/thumbnails and jumped page instead of hiding the sidebar. The open-sidebar toggle is now a top-level `ContentView` overlay positioned above the sidebar (`zIndex(50)`) with a fixed 32×32 hit area. `SidebarView` no longer owns the hide button. The closed-sidebar toggle remains in the main toolbar.
     - If this is revisited later, make sure the PDF page never sits under the sidebar and the left edge of `Notes` rows is never clipped.
-  - `DocumentTab.pdfHasUnsavedAnnotations` drives the orange unsaved status, enabled PDF Save button, Command-S behavior, and close warning.
+  - `DocumentTab.pdfHasUnsavedAnnotations` is now the general PDF dirty flag. The name is historical; it drives the orange unsaved status, Command-S behavior, and close warning for both annotations and fillable-form edits.
   - `AppModel.savePDFAnnotations()` / `savePDFTab(at:)` writes through `PDFDocument.write(to:)`.
   - `AppModel.savePDFAnnotatedCopyAs()` presents an `NSSavePanel`, defaults the filename to `<original> annotated.pdf`, writes the same `PDFDocument` to the chosen URL, then switches the current tab to that new PDF URL. After this, normal Save writes to the annotated copy rather than the original.
+  - Fillable PDF form support:
+    - 2026-07-09: Patrick tested a fillable PDF where typing into form fields worked, but Save stayed disabled and only Save As could preserve the filled form. The app now treats PDF widget/form edits as PDF changes.
+    - `PDFKitView.Coordinator.formFieldSignature()` scans every page for widget annotations and builds a lightweight signature from page index, field name, widget field type, rounded bounds, `widgetStringValue`, `buttonWidgetState`, and `buttonWidgetStateString`.
+    - The baseline signature is captured when a PDF view is created and whenever the PDF document object is replaced.
+    - `PDFWorkspace` observes likely AppKit form-control notifications: `NSControl.textDidChangeNotification`, `NSControl.textDidEndEditingNotification`, and `NSComboBox.selectionDidChangeNotification`.
+    - `MovableAnnotationPDFView.mouseUp(with:)` also schedules a form-field check after normal PDFKit mouse handling, which catches checkbox/radio/button-style widget changes that may not emit text-control notifications.
+    - Checks are debounced briefly on the main queue. If the current signature differs from the baseline, the coordinator posts `.pdfAnnotationDidChange`; the existing PDF dirty/save/close-warning path is reused.
+    - After a successful PDF save, `AppModel.savePDFTab(at:)` posts `.pdfFormFieldBaselineDidReset` with the PDF URL so the live coordinator can reset its form-field baseline and avoid immediately marking the just-saved file dirty again.
+    - Limitation: fillable-form edits currently do not create FileViewer undo/redo entries. Use Save to persist them, or close without saving to discard changes.
 - Known limitations:
   - Freehand ink is implemented and shows a live preview while dragging.
   - Text boxes can be added, moved, resized, edited, recolored, and deleted.
@@ -964,9 +978,10 @@ Implemented:
 - delete sticky notes and text boxes with Delete Annotation mode
 - show resize/endpoint handles while Move Annotation mode is on
 - mark PDF tab/window as dirty after annotation
-- save annotations back into the PDF file
+- detect fillable PDF form edits and mark the PDF tab/window dirty
+- save annotations and fillable-form edits back into the PDF file
 - save an annotated copy through Save Annotated Copy As
-- close warning for unsaved PDF annotations
+- close warning for unsaved PDF changes
 - undo/redo recent annotation changes
 - sidebar `Notes` list for jumping to annotations
 - basic sticky-note styling polish: standard note icon plus larger FileViewer Move/Edit/Delete hit target

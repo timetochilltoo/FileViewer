@@ -976,8 +976,8 @@ final class AppModel: ObservableObject {
 
     private func closeConfirmation(forPDFNamed name: String) -> CloseConfirmationAction {
         let alert = NSAlert()
-        alert.messageText = "Save PDF annotations to “\(name)” before closing?"
-        alert.informativeText = "If you don’t save, your PDF markups will be lost."
+        alert.messageText = "Save PDF changes to “\(name)” before closing?"
+        alert.informativeText = "If you don’t save, your PDF annotations or form edits will be lost."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Save")
         alert.addButton(withTitle: "Don’t Save")
@@ -1065,7 +1065,7 @@ final class AppModel: ObservableObject {
         }) else { return }
         objectWillChange.send()
         tabs[index].pdfHasUnsavedAnnotations = true
-        statusMessage = "PDF annotations changed. Save to keep them."
+        statusMessage = "PDF changes detected. Save to keep them."
     }
 
     func preparePDFAnnotationUndoSnapshot(_ snapshot: PDFAnnotationUndoSnapshot) {
@@ -1425,14 +1425,15 @@ final class AppModel: ObservableObject {
         }
 
         guard pdf.document.write(to: pdf.url) else {
-            statusMessage = "Could not save PDF annotations."
+            statusMessage = "Could not save PDF changes."
             showPDFSaveFailedAlert(for: pdf.url.lastPathComponent)
             return false
         }
 
         objectWillChange.send()
         tabs[index].pdfHasUnsavedAnnotations = false
-        statusMessage = "Saved PDF annotations."
+        statusMessage = "Saved PDF changes."
+        NotificationCenter.default.post(name: .pdfFormFieldBaselineDidReset, object: pdf.url)
         return true
     }
 

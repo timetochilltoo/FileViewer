@@ -107,14 +107,18 @@ struct PDFKitView: NSViewRepresentable {
         view.onAnnotationDeleted = { [weak coordinator = context.coordinator] in
             coordinator?.markAnnotationChanged()
         }
-            view.onAnnotationEdited = { [weak coordinator = context.coordinator] in
-                coordinator?.markAnnotationChanged()
-            }
+        view.onAnnotationEdited = { [weak coordinator = context.coordinator] in
+            coordinator?.markAnnotationChanged()
+        }
         view.onViewStateChanged = { [weak coordinator = context.coordinator] in
             coordinator?.syncCurrentViewState()
         }
+        view.onPossibleFormFieldChange = { [weak coordinator = context.coordinator] in
+            coordinator?.scheduleFormFieldChangeCheck()
+        }
         context.coordinator.pdfView = view
         context.coordinator.installObservers()
+        context.coordinator.resetFormFieldSnapshot()
         DispatchQueue.main.async {
             pageCount = document.pageCount
             if page < 1 {
@@ -135,6 +139,7 @@ struct PDFKitView: NSViewRepresentable {
             view.setCurrentSelection(nil, animate: false)
             view.highlightedSelections = []
             context.coordinator.resetSearchCache()
+            context.coordinator.resetFormFieldSnapshot()
             view.document = nil
             view.document = document
             context.coordinator.applyPageAndScale(page: requestedPage, scale: requestedScale)
@@ -179,6 +184,8 @@ struct PDFKitView: NSViewRepresentable {
         private var lastSearchIndex = -1
         private var lastSearchNavigationRequestID: UUID?
         private var searchSelections: [PDFSelection] = []
+        private var lastFormFieldSignature = ""
+        private var formFieldCheckScheduled = false
         var isReplacingDocument = false
 
         @MainActor func resetSearchCache() {
@@ -210,6 +217,10 @@ struct PDFKitView: NSViewRepresentable {
             NotificationCenter.default.addObserver(self, selector: #selector(addTextBox(_:)), name: .pdfAddTextBox, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(addShapeAnnotation(_:)), name: .pdfAddShapeAnnotation, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(refreshAnnotationDisplay(_:)), name: .pdfAnnotationDisplayNeedsRefresh, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(resetFormFieldBaseline(_:)), name: .pdfFormFieldBaselineDidReset, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(possibleFormFieldChanged(_:)), name: NSControl.textDidChangeNotification, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(possibleFormFieldChanged(_:)), name: NSControl.textDidEndEditingNotification, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(possibleFormFieldChanged(_:)), name: NSComboBox.selectionDidChangeNotification, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(pageChanged), name: Notification.Name.PDFViewPageChanged, object: pdfView)
         }
 
@@ -290,6 +301,7 @@ struct PDFKitView: NSViewRepresentable {
         @MainActor @objc private func syncCurrentState() {
             syncPage()
             syncScale()
+            checkForFormFieldChanges()
         }
 
         @MainActor func syncCurrentViewState() {
@@ -386,6 +398,7 @@ struct PDFKitView: NSViewRepresentable {
             syncPage()
             syncScale()
             pdfView?.needsDisplay = true
+            resetFormFieldSnapshot()
             NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
         }
 
@@ -415,6 +428,68 @@ struct PDFKitView: NSViewRepresentable {
             }
             pdfView?.setNeedsDisplay(pdfView?.bounds ?? .zero)
             pdfView?.needsDisplay = true
+        }
+
+        @MainActor func resetFormFieldSnapshot() {
+            lastFormFieldSignature = formFieldSignature()
+            formFieldCheckScheduled = false
+        }
+
+        @MainActor @objc private func resetFormFieldBaseline(_ notification: Notification) {
+            guard let url = notification.object as? URL,
+                  url == parent.documentURL else { return }
+            resetFormFieldSnapshot()
+        }
+
+        @MainActor @objc private func possibleFormFieldChanged(_ notification: Notification) {
+            guard let view = pdfView else { return }
+            if let notifyingView = notification.object as? NSView,
+               notifyingView.window !== view.window {
+                return
+            }
+            scheduleFormFieldChangeCheck()
+        }
+
+        @MainActor func scheduleFormFieldChangeCheck() {
+            guard !formFieldCheckScheduled else { return }
+            formFieldCheckScheduled = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.formFieldCheckScheduled = false
+                    self.checkForFormFieldChanges()
+                }
+            }
+        }
+
+        @MainActor private func checkForFormFieldChanges() {
+            let currentSignature = formFieldSignature()
+            guard currentSignature != lastFormFieldSignature else { return }
+            lastFormFieldSignature = currentSignature
+            NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
+        }
+
+        @MainActor private func formFieldSignature() -> String {
+            var parts: [String] = []
+            for pageIndex in 0..<parent.document.pageCount {
+                guard let page = parent.document.page(at: pageIndex) else { continue }
+                for annotation in page.annotations where annotation.type == PDFAnnotationSubtype.widget.rawValue {
+                    let bounds = annotation.bounds
+                    parts.append([
+                        "\(pageIndex)",
+                        annotation.fieldName ?? "",
+                        annotation.widgetFieldType.rawValue,
+                        "\(bounds.minX.rounded())",
+                        "\(bounds.minY.rounded())",
+                        "\(bounds.width.rounded())",
+                        "\(bounds.height.rounded())",
+                        annotation.widgetStringValue ?? "",
+                        "\(annotation.buttonWidgetState.rawValue)",
+                        annotation.buttonWidgetStateString
+                    ].joined(separator: "\u{1F}"))
+                }
+            }
+            return parts.joined(separator: "\u{1E}")
         }
 
         @MainActor func applySearch(_ text: String) {
@@ -754,6 +829,7 @@ private final class MovableAnnotationPDFView: PDFView {
     var onAnnotationEdited: (() -> Void)?
     var onLineDrawingFinished: (() -> Void)?
     var onViewStateChanged: (() -> Void)?
+    var onPossibleFormFieldChange: (() -> Void)?
     private weak var draggedAnnotation: PDFAnnotation?
     private weak var draggedPage: PDFPage?
     private var dragOffset = CGPoint.zero
@@ -978,6 +1054,7 @@ private final class MovableAnnotationPDFView: PDFView {
         guard isNoteMoveModeEnabled,
               draggedAnnotation != nil else {
             super.mouseUp(with: event)
+            onPossibleFormFieldChange?()
             return
         }
 

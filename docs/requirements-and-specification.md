@@ -246,7 +246,14 @@ Implemented v1 on branch `feature/pdf-annotation`:
 - Show a PDF annotation summary in the sidebar `Notes` tab and jump to an annotation when the user clicks it.
 - Filter the `Notes` sidebar by annotation type: All, Markup, Notes, Text Boxes, Shapes, and Ink.
 - Export a Markdown annotation summary report with page number, annotation type, and summary/details.
+- Detect fillable PDF form edits and enable normal Save after the user types into form fields, checks boxes, or changes PDF widget controls.
+- Save embedded annotations and fillable-form changes back to the current PDF file.
 - Use a reachable sidebar toggle with a stable fixed-width sidebar. Avoid native overlay/sidebar behavior, native segmented sidebar tabs, native sidebar-list row insets, and toolbar intrinsic-width pressure that can clip sidebar contents or cover the PDF page.
+
+Toolbar design note:
+
+- The PDF annotation toolbar is intentionally dense. To preserve room for annotation tools, the toolbar does not show New File, Save, Save As, or Print buttons.
+- These actions remain available from the app menus and shortcuts: New Markdown Document, Save / Command-S, Save As / Command-Shift-S, and Print / Command-P.
 
 Recommended:
 

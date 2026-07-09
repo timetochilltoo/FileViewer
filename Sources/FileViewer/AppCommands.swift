@@ -306,7 +306,7 @@ struct FileViewerCommands: Commands {
 
             Divider()
 
-            Button("Save PDF Annotations") {
+            Button("Save PDF Changes") {
                 activeModel?.savePDFAnnotations()
             }
             .disabled(activeModel?.canSavePDF != true)

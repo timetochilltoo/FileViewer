@@ -66,9 +66,15 @@ Current MVP build includes:
   - browse PDF annotations from the sidebar `Notes` tab and jump back to the selected annotation
   - filter the `Notes` sidebar by annotation type
   - export a Markdown annotation summary report
-  - save embedded PDF annotations back to the PDF file
+  - detect fillable PDF form edits so normal Save becomes available after typing into a form
+  - save embedded PDF annotations and fillable-form changes back to the PDF file
   - save an annotated PDF copy with Save Annotated Copy As / Command-Shift-S
-  - warn before closing a PDF tab/window with unsaved annotations
+  - warn before closing a PDF tab/window with unsaved PDF changes
+- File-management actions are intentionally kept in menus/shortcuts instead of the crowded toolbar:
+  - New Markdown Document
+  - Save / Command-S
+  - Save As / Command-Shift-S
+  - Print / Command-P
 - Print support for PDFs and Markdown source text.
 - Recent files.
 - Light and dark theme.
