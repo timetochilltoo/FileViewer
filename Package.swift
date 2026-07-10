@@ -14,6 +14,11 @@ let package = Package(
         .executableTarget(
             name: "FileViewer",
             path: "Sources/FileViewer"
+        ),
+        .testTarget(
+            name: "FileViewerTests",
+            dependencies: ["FileViewer"],
+            path: "Tests/FileViewerTests"
         )
     ]
 )

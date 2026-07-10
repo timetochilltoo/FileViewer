@@ -96,6 +96,16 @@ Package.swift
 
 The earlier React/Vite prototype remains in the folder for reference, but SwiftUI is the official implementation direction.
 
+## Automated Tests
+
+The Swift package includes an XCTest target for fast safety and document-model checks. Run it with:
+
+```bash
+swift test
+```
+
+The initial suite verifies Markdown dirty-state behavior, file-version change detection, duplicate-open protection, and Markdown file recognition. PDFKit drawing and native window dialogs remain manual/UI-test work for now.
+
 ## Packaged App
 
 The current development app bundle is here:

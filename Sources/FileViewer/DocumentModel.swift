@@ -404,12 +404,14 @@ struct FileVersion: Equatable {
     let fileSize: Int64
 
     static func current(for url: URL) -> FileVersion? {
-        guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey]),
-              let modificationDate = values.contentModificationDate,
-              let fileSize = values.fileSize else {
+        // File URL resource values may be cached. Use fresh filesystem attributes
+        // so a Save never misses a change made by another application moments ago.
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let modificationDate = attributes[.modificationDate] as? Date,
+              let fileSize = attributes[.size] as? NSNumber else {
             return nil
         }
-        return FileVersion(modificationDate: modificationDate, fileSize: Int64(fileSize))
+        return FileVersion(modificationDate: modificationDate, fileSize: fileSize.int64Value)
     }
 }
 

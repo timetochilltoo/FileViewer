@@ -1072,6 +1072,10 @@ Recommended order:
    - optionally restore search text if Patrick later wants it
 5. Add repeatable sample files/tests for PDF outline, PDF search counts, Markdown formatting, PDF annotation, and multi-window restore.
 
+## 10.1 Automated test baseline
+
+`Package.swift` now declares `FileViewerTests`, with initial XCTest coverage in `Tests/FileViewerTests/DocumentSafetyTests.swift`. Run `swift test` before committing changes. The initial tests cover Markdown dirty state, fresh file-version detection, duplicate-open protection, and Markdown extension recognition. They intentionally avoid PDFKit drawing and native modal dialogs; those still require manual or future UI testing.
+
 ## 11. Quick mental model for future agents
 
 Think of the app as:
