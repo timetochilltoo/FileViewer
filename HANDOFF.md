@@ -620,7 +620,7 @@ PDF annotation v1:
     - The baseline signature is captured when a PDF view is created and whenever the PDF document object is replaced.
     - `PDFWorkspace` observes likely AppKit form-control notifications: `NSControl.textDidChangeNotification`, `NSControl.textDidEndEditingNotification`, and `NSComboBox.selectionDidChangeNotification`.
     - `MovableAnnotationPDFView.mouseUp(with:)` also schedules a form-field check after normal PDFKit mouse handling, which catches checkbox/radio/button-style widget changes that may not emit text-control notifications.
-    - Checks are debounced briefly on the main queue. If the current signature differs from the baseline, the coordinator posts `.pdfAnnotationDidChange`; the existing PDF dirty/save/close-warning path is reused.
+    - Checks are debounced briefly on the main queue. A lightweight 0.35-second check also runs while the PDF view is attached to a window because PDFKit can host form controls in private AppKit views that do not reliably publish text-control notifications. It compares only form widget properties, not the PDF data. If the current signature differs from the baseline, the coordinator posts `.pdfAnnotationDidChange`; the existing PDF dirty/save/close-warning path is reused.
     - After a successful PDF save, `AppModel.savePDFTab(at:)` posts `.pdfFormFieldBaselineDidReset` with the PDF URL so the live coordinator can reset its form-field baseline and avoid immediately marking the just-saved file dirty again.
     - Limitation: fillable-form edits currently do not create FileViewer undo/redo entries. Use Save to persist them, or close without saving to discard changes.
 - Known limitations:

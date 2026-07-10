@@ -177,7 +177,7 @@ struct PDFKitView: NSViewRepresentable {
         }
     }
 
-    final class Coordinator: NSObject {
+    @MainActor final class Coordinator: NSObject {
         var parent: PDFKitView
         weak var pdfView: PDFView?
         private var lastSearchText = ""
@@ -186,6 +186,7 @@ struct PDFKitView: NSViewRepresentable {
         private var searchSelections: [PDFSelection] = []
         private var lastFormFieldSignature = ""
         private var formFieldCheckScheduled = false
+        private var formFieldPollingTimer: Timer?
         var isReplacingDocument = false
 
         @MainActor func resetSearchCache() {
@@ -222,6 +223,7 @@ struct PDFKitView: NSViewRepresentable {
             NotificationCenter.default.addObserver(self, selector: #selector(possibleFormFieldChanged(_:)), name: NSControl.textDidEndEditingNotification, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(possibleFormFieldChanged(_:)), name: NSComboBox.selectionDidChangeNotification, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(pageChanged), name: Notification.Name.PDFViewPageChanged, object: pdfView)
+            startFormFieldPolling()
         }
 
         @MainActor @objc private func firstPage() {
@@ -459,6 +461,23 @@ struct PDFKitView: NSViewRepresentable {
                     self.formFieldCheckScheduled = false
                     self.checkForFormFieldChanges()
                 }
+            }
+        }
+
+        /// PDFKit hosts AcroForm controls in private AppKit views. Depending on the
+        /// PDF producer, those views may not publish normal NSControl notifications.
+        /// This compares only form-widget values, not the whole PDF, so Save becomes
+        /// available reliably after any text, checkbox, radio, or choice-field edit.
+        @MainActor private func startFormFieldPolling() {
+            guard formFieldPollingTimer == nil else { return }
+            formFieldPollingTimer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: true) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self, self.pdfView?.window != nil else { return }
+                    self.checkForFormFieldChanges()
+                }
+            }
+            if let formFieldPollingTimer {
+                RunLoop.main.add(formFieldPollingTimer, forMode: .common)
             }
         }
 
