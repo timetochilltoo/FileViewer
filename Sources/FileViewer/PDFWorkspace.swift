@@ -116,6 +116,11 @@ struct PDFKitView: NSViewRepresentable {
         view.onPossibleFormFieldChange = { [weak coordinator = context.coordinator] in
             coordinator?.scheduleFormFieldChangeCheck()
         }
+        view.onFormFieldKeyboardInput = { [weak coordinator = context.coordinator] in
+            Task { @MainActor in
+                coordinator?.markFormFieldEditedByUser()
+            }
+        }
         context.coordinator.pdfView = view
         context.coordinator.installObservers()
         context.coordinator.resetFormFieldSnapshot()
@@ -488,6 +493,15 @@ struct PDFKitView: NSViewRepresentable {
             NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
         }
 
+        /// Some fillable PDFs render a field's text without promptly reflecting the
+        /// new value in PDFAnnotation.widgetStringValue. When PDFKit's active form
+        /// editor receives a text keystroke, that is still an unambiguous user edit
+        /// and must enable normal Save immediately.
+        @MainActor func markFormFieldEditedByUser() {
+            NotificationCenter.default.post(name: .pdfAnnotationDidChange, object: parent.documentURL)
+            scheduleFormFieldChangeCheck()
+        }
+
         @MainActor private func formFieldSignature() -> String {
             var parts: [String] = []
             for pageIndex in 0..<parent.document.pageCount {
@@ -849,6 +863,8 @@ private final class MovableAnnotationPDFView: PDFView {
     var onLineDrawingFinished: (() -> Void)?
     var onViewStateChanged: (() -> Void)?
     var onPossibleFormFieldChange: (() -> Void)?
+    var onFormFieldKeyboardInput: (() -> Void)?
+    private var formFieldKeyboardEventMonitor: Any?
     private weak var draggedAnnotation: PDFAnnotation?
     private weak var draggedPage: PDFPage?
     private var dragOffset = CGPoint.zero
@@ -862,6 +878,40 @@ private final class MovableAnnotationPDFView: PDFView {
     private weak var inkPreviewView: InkPreviewView?
     private weak var resizeHandleOverlayView: ResizeHandleOverlayView?
     private var resizeHandleOverlayUpdateScheduled = false
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        installFormFieldKeyboardEventMonitorIfNeeded()
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if newWindow == nil, let formFieldKeyboardEventMonitor {
+            NSEvent.removeMonitor(formFieldKeyboardEventMonitor)
+            self.formFieldKeyboardEventMonitor = nil
+        }
+        super.viewWillMove(toWindow: newWindow)
+    }
+
+    /// PDFKit may embed the field editor below PDFView, so overriding keyDown on
+    /// PDFView alone does not see the text entry. A local monitor does; it is then
+    /// limited to text responders that are descendants of this PDF view.
+    private func installFormFieldKeyboardEventMonitorIfNeeded() {
+        guard formFieldKeyboardEventMonitor == nil else { return }
+        formFieldKeyboardEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            self?.handlePossibleFormFieldKeystroke()
+            return event
+        }
+    }
+
+    private func handlePossibleFormFieldKeystroke() {
+        guard let window,
+              let focusedView = window.firstResponder as? NSView,
+              focusedView is NSTextView || focusedView is NSTextField,
+              focusedView.isDescendant(of: self) else {
+            return
+        }
+        onFormFieldKeyboardInput?()
+    }
 
     private enum LineEndpoint {
         case start
