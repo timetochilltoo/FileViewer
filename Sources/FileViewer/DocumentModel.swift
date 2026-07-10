@@ -349,6 +349,10 @@ struct DocumentTab: Identifiable, Equatable {
     var pdfHasUnsavedAnnotations: Bool
     var pdfAnnotationUndoStack: [Data]
     var pdfAnnotationRedoStack: [Data]
+    /// Version of the on-disk file when it was opened or last saved by FileViewer.
+    /// This prevents an in-memory document from silently overwriting changes made
+    /// by another app.
+    var fileVersion: FileVersion?
 
     init(document: ViewerDocument) {
         id = UUID()
@@ -371,6 +375,7 @@ struct DocumentTab: Identifiable, Equatable {
         pdfHasUnsavedAnnotations = false
         pdfAnnotationUndoStack = []
         pdfAnnotationRedoStack = []
+        fileVersion = document.url.flatMap(FileVersion.current)
     }
 
     init(document: ViewerDocument, pdfPage: Int, pdfScale: CGFloat) {
@@ -391,6 +396,20 @@ struct DocumentTab: Identifiable, Equatable {
         self.markdownPreviewScrollY = max(0, markdownPreviewScrollY)
         self.markdownSourceVisibleLocation = max(0, markdownSourceVisibleLocation)
         self.markdownPreviewVisibleLocation = max(0, markdownPreviewVisibleLocation)
+    }
+}
+
+struct FileVersion: Equatable {
+    let modificationDate: Date
+    let fileSize: Int64
+
+    static func current(for url: URL) -> FileVersion? {
+        guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey]),
+              let modificationDate = values.contentModificationDate,
+              let fileSize = values.fileSize else {
+            return nil
+        }
+        return FileVersion(modificationDate: modificationDate, fileSize: Int64(fileSize))
     }
 }
 
@@ -786,6 +805,17 @@ final class AppModel: ObservableObject {
         return pdf.url
     }
 
+    /// PDF controls are scoped to the selected tab rather than broadcast to all
+    /// PDF views in every window.
+    func postPDFCommand(_ name: Notification.Name, object: Any? = nil) {
+        guard let selectedTabID else { return }
+        NotificationCenter.default.post(
+            name: name,
+            object: object,
+            userInfo: [PDFNotificationUserInfo.tabID: selectedTabID]
+        )
+    }
+
     func newMarkdownDocument() {
         let untitledCount = tabs.reduce(0) { count, tab in
             if case .markdown(let markdown) = tab.document,
@@ -817,6 +847,10 @@ final class AppModel: ObservableObject {
     func open(url: URL) {
         syncVisibleDocumentState()
         statusMessage = ""
+        if selectOpenDocument(url: url) {
+            statusMessage = "This file is already open in this window."
+            return
+        }
         do {
             if Self.isMarkdown(url) {
                 let text = try String(contentsOf: url, encoding: .utf8)
@@ -855,6 +889,26 @@ final class AppModel: ObservableObject {
             statusMessage = "This file type is not supported yet."
         } catch {
             statusMessage = "Could not open this file."
+        }
+    }
+
+    /// Keeps one writable instance of a file in a window. Multiple independent
+    /// PDFDocument objects for the same URL can otherwise overwrite each other.
+    @discardableResult
+    func selectOpenDocument(url: URL) -> Bool {
+        let normalizedURL = url.standardizedFileURL.resolvingSymlinksInPath()
+        guard let tab = tabs.first(where: {
+            $0.document.url?.standardizedFileURL.resolvingSymlinksInPath() == normalizedURL
+        }) else {
+            return false
+        }
+        selectTab(tab.id)
+        return true
+    }
+
+    func containsOpenDocument(url: URL) -> Bool {
+        tabs.contains {
+            $0.document.url?.standardizedFileURL.resolvingSymlinksInPath() == url.standardizedFileURL.resolvingSymlinksInPath()
         }
     }
 
@@ -939,10 +993,12 @@ final class AppModel: ObservableObject {
             return
         }
 
+        guard canSafelyOverwriteTab(at: selectedTabIndex ?? -1) else { return }
         do {
             try markdown.text.write(to: url, atomically: true, encoding: .utf8)
             markdown.savedText = markdown.text
             document = .markdown(markdown)
+            updateFileVersion(at: selectedTabIndex ?? -1)
             statusMessage = "Saved."
         } catch {
             statusMessage = "Could not save this Markdown file."
@@ -1003,10 +1059,12 @@ final class AppModel: ObservableObject {
             return saveMarkdownTabAs(at: index)
         }
 
+        guard canSafelyOverwriteTab(at: index) else { return false }
         do {
             try markdown.text.write(to: url, atomically: true, encoding: .utf8)
             markdown.savedText = markdown.text
             tabs[index].document = .markdown(markdown)
+            updateFileVersion(at: index)
             statusMessage = "Saved."
             return true
         } catch {
@@ -1039,6 +1097,7 @@ final class AppModel: ObservableObject {
                 savedText: markdown.text
             )
             tabs[index].document = .markdown(markdown)
+            updateFileVersion(at: index)
             addRecent(name: url.lastPathComponent, kind: .markdown, url: url)
             statusMessage = "Saved as new Markdown file."
             return true
@@ -1110,7 +1169,7 @@ final class AppModel: ObservableObject {
     }
 
     func undoPDFAnnotation() {
-        NotificationCenter.default.post(name: .pdfSyncCurrentState, object: nil)
+        postPDFCommand(.pdfSyncCurrentState)
         guard let index = selectedTabIndex,
               tabs.indices.contains(index),
               case .pdf(let pdf) = tabs[index].document,
@@ -1154,7 +1213,7 @@ final class AppModel: ObservableObject {
     }
 
     func redoPDFAnnotation() {
-        NotificationCenter.default.post(name: .pdfSyncCurrentState, object: nil)
+        postPDFCommand(.pdfSyncCurrentState)
         guard let index = selectedTabIndex,
               tabs.indices.contains(index),
               case .pdf(let pdf) = tabs[index].document,
@@ -1274,7 +1333,7 @@ final class AppModel: ObservableObject {
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
-        guard pdf.document.write(to: url) else {
+        guard writePDFAtomically(pdf.document, to: url) else {
             statusMessage = "Could not save annotated PDF copy."
             showPDFSaveFailedAlert(for: url.lastPathComponent)
             return
@@ -1283,6 +1342,7 @@ final class AppModel: ObservableObject {
         objectWillChange.send()
         tabs[index].document = .pdf(PDFViewerDocument(url: url, document: pdf.document))
         tabs[index].pdfHasUnsavedAnnotations = false
+        updateFileVersion(at: index)
         addRecent(name: url.lastPathComponent, kind: .pdf, url: url)
         savePDFStateIfNeeded(for: tabs[index])
         saveCurrentSession()
@@ -1424,7 +1484,8 @@ final class AppModel: ObservableObject {
             return true
         }
 
-        guard pdf.document.write(to: pdf.url) else {
+        guard canSafelyOverwriteTab(at: index) else { return false }
+        guard writePDFAtomically(pdf.document, to: pdf.url) else {
             statusMessage = "Could not save PDF changes."
             showPDFSaveFailedAlert(for: pdf.url.lastPathComponent)
             return false
@@ -1432,9 +1493,52 @@ final class AppModel: ObservableObject {
 
         objectWillChange.send()
         tabs[index].pdfHasUnsavedAnnotations = false
+        updateFileVersion(at: index)
         statusMessage = "Saved PDF changes."
         NotificationCenter.default.post(name: .pdfFormFieldBaselineDidReset, object: pdf.url)
         return true
+    }
+
+    private func writePDFAtomically(_ document: PDFDocument, to url: URL) -> Bool {
+        let temporaryURL = url.deletingLastPathComponent()
+            .appendingPathComponent(".FileViewer-\(UUID().uuidString)")
+            .appendingPathExtension("pdf")
+        defer { try? FileManager.default.removeItem(at: temporaryURL) }
+
+        guard document.write(to: temporaryURL), PDFDocument(url: temporaryURL) != nil else {
+            return false
+        }
+        do {
+            if FileManager.default.fileExists(atPath: url.path) {
+                _ = try FileManager.default.replaceItemAt(url, withItemAt: temporaryURL, backupItemName: nil, options: [])
+            } else {
+                try FileManager.default.moveItem(at: temporaryURL, to: url)
+            }
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func canSafelyOverwriteTab(at index: Int) -> Bool {
+        guard tabs.indices.contains(index), let url = tabs[index].document.url else { return true }
+        let currentVersion = FileVersion.current(for: url)
+        guard currentVersion == tabs[index].fileVersion else {
+            let alert = NSAlert()
+            alert.messageText = "File changed outside FileViewer"
+            alert.informativeText = "“\(url.lastPathComponent)” changed on disk after it was opened. Save As a new copy, or reload the file, so those external changes are not overwritten."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+            statusMessage = "Save blocked because the file changed outside FileViewer."
+            return false
+        }
+        return true
+    }
+
+    private func updateFileVersion(at index: Int) {
+        guard tabs.indices.contains(index), let url = tabs[index].document.url else { return }
+        tabs[index].fileVersion = FileVersion.current(for: url)
     }
 
     private func showPDFSaveFailedAlert(for name: String) {
@@ -1463,6 +1567,9 @@ final class AppModel: ObservableObject {
                     savedText: markdown.text
                 )
                 document = .markdown(markdown)
+                if let index = selectedTabIndex {
+                    updateFileVersion(at: index)
+                }
                 addRecent(name: url.lastPathComponent, kind: .markdown, url: url)
                 statusMessage = "Saved as new Markdown file."
             } catch {
@@ -2246,7 +2353,7 @@ final class AppModel: ObservableObject {
 
     private func syncVisiblePDFState() {
         guard isPDFDocument else { return }
-        NotificationCenter.default.post(name: .pdfSyncCurrentState, object: nil)
+        postPDFCommand(.pdfSyncCurrentState)
     }
 
     func restoreSavedSession(window: SavedSessionWindow) {

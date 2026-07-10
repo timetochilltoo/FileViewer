@@ -58,7 +58,7 @@ Expected behavior:
 - Opening multiple supported files inside one app window keeps them available as tabs.
 - Opening files from Finder / Open With uses separate windows when existing windows already contain documents, so comparing two Markdown/PDF files side-by-side is practical.
 - Opening document A from Finder, then document B from Finder, should leave the A window showing A and open/show B in a different window.
-- Opening the same supported file more than once is allowed. The app should create another tab/window copy rather than jump to an existing one.
+- Opening the same supported file again should bring its existing FileViewer tab/window forward. FileViewer intentionally keeps one writable in-memory instance per file to prevent two windows from silently overwriting each other.
 - Each open tab keeps its own search text, current search match, PDF page, and zoom state during the current session.
 - File-backed tabs/windows restore after app restart.
 - Session windows restore saved size and position when possible.
@@ -313,7 +313,8 @@ The app should clearly distinguish between true content editing and annotation/p
 
 ## 7.3 Reliability
 
-- Never overwrite the original file without clear user confirmation.
+- Before overwriting an opened file, detect whether it changed outside FileViewer. If it did, block Save and direct the user to Save As or reload, rather than silently overwriting external changes.
+- PDF Save must write and verify a temporary file before atomically replacing the original.
 - For PDF edits, default to saving a new copy.
 - Recover gracefully if a file cannot be opened.
 - Show useful errors for corrupted, encrypted, or unsupported documents.

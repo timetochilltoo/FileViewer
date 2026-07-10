@@ -74,8 +74,12 @@ struct ContentView: View {
         .onAppear {
             FileViewerWindowRegistry.shared.register(model)
         }
-        .onReceive(NotificationCenter.default.publisher(for: .toggleSidebar)) { _ in
-            toggleSidebar()
+        .onReceive(NotificationCenter.default.publisher(for: .toggleSidebar)) { notification in
+            // The menu command carries its owning model. A global sidebar toggle
+            // made every open window change at once.
+            if let requestedModel = notification.object as? AppModel, requestedModel === model {
+                toggleSidebar()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .pdfAnnotationDidChange)) { notification in
             guard let url = notification.object as? URL else { return }
@@ -297,14 +301,14 @@ struct PDFToolbar: View {
     var body: some View {
         HStack(spacing: 6) {
             Button {
-                NotificationCenter.default.post(name: .pdfFirstPage, object: nil)
+                model.postPDFCommand(.pdfFirstPage)
             } label: {
                 Image(systemName: "backward.end")
             }
             .help("First Page")
 
             Button {
-                NotificationCenter.default.post(name: .pdfPreviousPage, object: nil)
+                model.postPDFCommand(.pdfPreviousPage)
             } label: {
                 Image(systemName: "chevron.left")
             }
@@ -317,46 +321,46 @@ struct PDFToolbar: View {
                 .frame(width: 48)
                 .multilineTextAlignment(.trailing)
                 .onSubmit {
-                    NotificationCenter.default.post(name: .pdfGoToPage, object: model.pdfPage)
+                    model.postPDFCommand(.pdfGoToPage, object: model.pdfPage)
                 }
 
             Button {
-                NotificationCenter.default.post(name: .pdfNextPage, object: nil)
+                model.postPDFCommand(.pdfNextPage)
             } label: {
                 Image(systemName: "chevron.right")
             }
             .help("Next Page")
 
             Button {
-                NotificationCenter.default.post(name: .pdfLastPage, object: nil)
+                model.postPDFCommand(.pdfLastPage)
             } label: {
                 Image(systemName: "forward.end")
             }
             .help("Last Page")
 
             Button {
-                NotificationCenter.default.post(name: .pdfZoomOut, object: nil)
+                model.postPDFCommand(.pdfZoomOut)
             } label: {
                 Image(systemName: "minus.magnifyingglass")
             }
             .help("Zoom Out")
 
             Button {
-                NotificationCenter.default.post(name: .pdfZoomIn, object: nil)
+                model.postPDFCommand(.pdfZoomIn)
             } label: {
                 Image(systemName: "plus.magnifyingglass")
             }
             .help("Zoom In")
 
             Button {
-                NotificationCenter.default.post(name: .pdfFitWidth, object: nil)
+                model.postPDFCommand(.pdfFitWidth)
             } label: {
                 Image(systemName: "arrow.left.and.right")
             }
             .help("Fit Width")
 
             Button {
-                NotificationCenter.default.post(name: .pdfFitPage, object: nil)
+                model.postPDFCommand(.pdfFitPage)
             } label: {
                 Image(systemName: "arrow.up.left.and.down.right.magnifyingglass")
             }
@@ -656,6 +660,10 @@ extension Notification.Name {
     static let pdfFormFieldBaselineDidReset = Notification.Name("FileViewer.pdfFormFieldBaselineDidReset")
     static let markdownSyncCurrentState = Notification.Name("FileViewer.markdownSyncCurrentState")
     static let toggleSidebar = Notification.Name("FileViewer.toggleSidebar")
+}
+
+enum PDFNotificationUserInfo {
+    static let tabID = "FileViewer.pdfTabID"
 }
 
 private struct WindowRegistrationView: NSViewRepresentable {

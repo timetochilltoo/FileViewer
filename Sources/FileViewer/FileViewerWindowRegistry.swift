@@ -119,6 +119,20 @@ final class FileViewerWindowRegistry {
     }
 
     private func openExternal(_ url: URL) {
+        // A file must have one writable in-memory owner across all FileViewer
+        // windows. Reusing the existing tab avoids two independent PDFDocument
+        // instances silently saving over one another.
+        if let existingModel = registeredModels
+            .compactMap(\.value)
+            .first(where: { $0.containsOpenDocument(url: url) }) {
+            _ = existingModel.selectOpenDocument(url: url)
+            if let window = registeredWindows[ObjectIdentifier(existingModel)]?.value {
+                window.makeKeyAndOrderFront(nil)
+            }
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
         if let reusableModel = registeredModels
             .compactMap(\.value)
             .first(where: { $0.canAcceptExternalOpenInCurrentWindow }) {
@@ -182,7 +196,22 @@ final class FileViewerWindowRegistry {
             self.sessionRestoreScheduled = false
             guard !self.suppressSessionRestore,
                   model.canAcceptExternalOpenInCurrentWindow else { return }
-            let savedWindows = AppModel.loadSavedSessionWindows()
+            // Older sessions may contain the same path in several windows. Keep
+            // the first occurrence so restoring a previous session cannot revive
+            // conflicting writable copies.
+            var seenPaths = Set<String>()
+            let savedWindows = AppModel.loadSavedSessionWindows().map { savedWindow in
+                var window = savedWindow
+                window.tabs.removeAll { tab in
+                    guard !tab.path.isEmpty else { return false }
+                    return !seenPaths.insert(tab.path).inserted
+                }
+                window.selectedTabIndex = min(
+                    max(0, window.selectedTabIndex),
+                    max(0, window.tabs.count - 1)
+                )
+                return window
+            }.filter { !$0.tabs.isEmpty }
             guard let firstWindow = savedWindows.first else { return }
             if let frameString = firstWindow.frameString,
                let window = self.registeredWindows[ObjectIdentifier(model)]?.value {
@@ -216,7 +245,17 @@ final class FileViewerWindowRegistry {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
             guard let self else { return }
             self.windowDelegates.removeValue(forKey: key)
+            self.retainedWindows.removeAll { $0 === window }
         }
+    }
+
+    /// Used by the application delegate before Command-Q is allowed to proceed.
+    func canCloseAllDocuments() -> Bool {
+        cleanupModels()
+        for model in registeredModels.compactMap(\.value) {
+            guard model.canCloseAllDocuments() else { return false }
+        }
+        return true
     }
 }
 

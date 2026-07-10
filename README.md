@@ -6,7 +6,7 @@ Current MVP build includes:
 
 - Open Markdown and PDF files.
 - New unsaved Markdown documents.
-- Open multiple Markdown/PDF documents in tabs or separate windows, including multiple copies of the same file.
+- Open multiple Markdown/PDF documents in tabs or separate windows. A file already open in FileViewer is brought forward instead of creating a second writable copy.
 - Restore previously open file-backed tabs/windows after app restart.
 - Restore session window size/position when possible.
 - Restore PDF page/zoom and Markdown Source/Preview scroll position for reopened files.
@@ -67,9 +67,10 @@ Current MVP build includes:
   - filter the `Notes` sidebar by annotation type
   - export a Markdown annotation summary report
   - detect fillable PDF form edits; normal Save is available whenever a PDF is open so macOS menu-refresh timing cannot block saving a form
-  - save embedded PDF annotations and fillable-form changes back to the PDF file
+- save embedded PDF annotations and fillable-form changes back to the PDF file
   - save an annotated PDF copy with Save Annotated Copy As / Command-Shift-S
-  - warn before closing a PDF tab/window with unsaved PDF changes
+- warn before closing a PDF tab/window with unsaved PDF changes
+- confirm unsaved documents before Command-Q, block overwriting files changed outside FileViewer, and write PDF saves through a verified temporary file before replacing the original
 - File-management actions are intentionally kept in menus/shortcuts instead of the crowded toolbar:
   - New Markdown Document
   - Save / Command-S

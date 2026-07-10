@@ -24,4 +24,10 @@ final class FileViewerAppDelegate: NSObject, NSApplicationDelegate {
     @MainActor func applicationWillTerminate(_ notification: Notification) {
         FileViewerWindowRegistry.shared.saveCurrentSession()
     }
+
+    @MainActor func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // Window delegates are not guaranteed to receive a close request during
+        // Command-Q. Ask every document session explicitly before terminating.
+        FileViewerWindowRegistry.shared.canCloseAllDocuments() ? .terminateNow : .terminateCancel
+    }
 }

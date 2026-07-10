@@ -102,7 +102,7 @@ struct SidebarView: View {
                 List(model.pdfOutlineEntries) { entry in
                     Button {
                         if let page = entry.page {
-                            NotificationCenter.default.post(name: .pdfGoToPage, object: page)
+                            model.postPDFCommand(.pdfGoToPage, object: page)
                         }
                     } label: {
                         HStack(spacing: 8) {
@@ -138,7 +138,7 @@ struct SidebarView: View {
     private var pdfPages: some View {
         if case .pdf(let viewerDocument) = model.document {
             PDFThumbnailSidebar(document: viewerDocument.document) { page in
-                NotificationCenter.default.post(name: .pdfGoToPage, object: page)
+                model.postPDFCommand(.pdfGoToPage, object: page)
             }
         } else {
             ContentUnavailableView("No PDF Open", systemImage: "doc.richtext")

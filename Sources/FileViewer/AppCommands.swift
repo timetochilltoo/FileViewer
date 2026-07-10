@@ -66,7 +66,9 @@ struct FileViewerCommands: Commands {
 
         CommandMenu("Display") {
             Button("Toggle Sidebar") {
-                NotificationCenter.default.post(name: .toggleSidebar, object: nil)
+                if let activeModel {
+                    NotificationCenter.default.post(name: .toggleSidebar, object: activeModel)
+                }
             }
             .keyboardShortcut("0", modifiers: [.command, .option])
 
@@ -93,25 +95,25 @@ struct FileViewerCommands: Commands {
             Divider()
 
             Button("Fit Page") {
-                NotificationCenter.default.post(name: .pdfFitPage, object: nil)
+                activeModel?.postPDFCommand(.pdfFitPage)
             }
             .keyboardShortcut("0", modifiers: .command)
             .disabled(activeModel?.isPDFDocument != true)
 
             Button("Fit Width") {
-                NotificationCenter.default.post(name: .pdfFitWidth, object: nil)
+                activeModel?.postPDFCommand(.pdfFitWidth)
             }
             .keyboardShortcut("9", modifiers: .command)
             .disabled(activeModel?.isPDFDocument != true)
 
             Button("Zoom In") {
-                NotificationCenter.default.post(name: .pdfZoomIn, object: nil)
+                activeModel?.postPDFCommand(.pdfZoomIn)
             }
             .keyboardShortcut("+", modifiers: .command)
             .disabled(activeModel?.isPDFDocument != true)
 
             Button("Zoom Out") {
-                NotificationCenter.default.post(name: .pdfZoomOut, object: nil)
+                activeModel?.postPDFCommand(.pdfZoomOut)
             }
             .keyboardShortcut("-", modifiers: .command)
             .disabled(activeModel?.isPDFDocument != true)
@@ -119,13 +121,13 @@ struct FileViewerCommands: Commands {
 
         CommandMenu("Navigate") {
             Button("Previous Page") {
-                NotificationCenter.default.post(name: .pdfPreviousPage, object: nil)
+                activeModel?.postPDFCommand(.pdfPreviousPage)
             }
             .keyboardShortcut(.leftArrow, modifiers: .command)
             .disabled(activeModel?.isPDFDocument != true)
 
             Button("Next Page") {
-                NotificationCenter.default.post(name: .pdfNextPage, object: nil)
+                activeModel?.postPDFCommand(.pdfNextPage)
             }
             .keyboardShortcut(.rightArrow, modifiers: .command)
             .disabled(activeModel?.isPDFDocument != true)

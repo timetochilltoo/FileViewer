@@ -96,6 +96,7 @@ Current behavior is window-based:
 - The registry reuses an empty startup window for the first external file if one exists.
 - If existing windows already contain documents, each later Finder/Open With URL opens in a fresh `NSWindow` with its own `ContentView(initialURLs:)` and own `AppModel`.
 - If macOS delivers a file-open event before the startup window registers, the registry briefly stores the URL in `pendingExternalURLs`; the first registering empty window consumes it. If no window registers on the next main-loop pass, the registry creates a new window itself.
+- A file already open in any FileViewer window is selected and brought forward instead of being opened as another writable instance. This is intentional data-loss protection: two independent `PDFDocument` instances for one URL can otherwise overwrite each other.
 - Do not reintroduce a global `.openFileURLs` notification unless it is targeted to a specific window/model; otherwise every open window will respond and show the same newest document.
 
 ### `FileViewerWindowRegistry.swift`

@@ -7,6 +7,7 @@ struct PDFWorkspace: View {
 
     var body: some View {
         PDFKitView(
+            tabID: model.selectedTabID ?? UUID(),
             documentURL: viewerDocument.url,
             document: viewerDocument.document,
             searchText: model.searchText,
@@ -66,6 +67,7 @@ struct PDFWorkspace: View {
 }
 
 struct PDFKitView: NSViewRepresentable {
+    let tabID: UUID
     let documentURL: URL
     let document: PDFDocument
     let searchText: String
@@ -206,17 +208,17 @@ struct PDFKitView: NSViewRepresentable {
         }
 
         func installObservers() {
-            NotificationCenter.default.addObserver(self, selector: #selector(firstPage), name: .pdfFirstPage, object: nil)
-            NotificationCenter.default.addObserver(self, selector: #selector(previousPage), name: .pdfPreviousPage, object: nil)
-            NotificationCenter.default.addObserver(self, selector: #selector(nextPage), name: .pdfNextPage, object: nil)
-            NotificationCenter.default.addObserver(self, selector: #selector(lastPage), name: .pdfLastPage, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(firstPage(_:)), name: .pdfFirstPage, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(previousPage(_:)), name: .pdfPreviousPage, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(nextPage(_:)), name: .pdfNextPage, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(lastPage(_:)), name: .pdfLastPage, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(goToPage(_:)), name: .pdfGoToPage, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(goToAnnotation(_:)), name: .pdfGoToAnnotation, object: nil)
-            NotificationCenter.default.addObserver(self, selector: #selector(zoomIn), name: .pdfZoomIn, object: nil)
-            NotificationCenter.default.addObserver(self, selector: #selector(zoomOut), name: .pdfZoomOut, object: nil)
-            NotificationCenter.default.addObserver(self, selector: #selector(fitWidth), name: .pdfFitWidth, object: nil)
-            NotificationCenter.default.addObserver(self, selector: #selector(fitPage), name: .pdfFitPage, object: nil)
-            NotificationCenter.default.addObserver(self, selector: #selector(syncCurrentState), name: .pdfSyncCurrentState, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(zoomIn(_:)), name: .pdfZoomIn, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(zoomOut(_:)), name: .pdfZoomOut, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(fitWidth(_:)), name: .pdfFitWidth, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(fitPage(_:)), name: .pdfFitPage, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(syncCurrentState(_:)), name: .pdfSyncCurrentState, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(applyAnnotation(_:)), name: .pdfApplyAnnotation, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(removeAnnotationsInSelection(_:)), name: .pdfRemoveAnnotationsInSelection, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(addStickyNote(_:)), name: .pdfAddStickyNote, object: nil)
@@ -231,23 +233,31 @@ struct PDFKitView: NSViewRepresentable {
             startFormFieldPolling()
         }
 
-        @MainActor @objc private func firstPage() {
+        private func receivesCommand(_ notification: Notification) -> Bool {
+            notification.userInfo?[PDFNotificationUserInfo.tabID] as? UUID == parent.tabID
+        }
+
+        @MainActor @objc private func firstPage(_ notification: Notification) {
+            guard receivesCommand(notification) else { return }
             guard let firstPage = parent.document.page(at: 0) else { return }
             pdfView?.go(to: firstPage)
             syncPage()
         }
 
-        @MainActor @objc private func previousPage() {
+        @MainActor @objc private func previousPage(_ notification: Notification) {
+            guard receivesCommand(notification) else { return }
             pdfView?.goToPreviousPage(nil)
             syncPage()
         }
 
-        @MainActor @objc private func nextPage() {
+        @MainActor @objc private func nextPage(_ notification: Notification) {
+            guard receivesCommand(notification) else { return }
             pdfView?.goToNextPage(nil)
             syncPage()
         }
 
-        @MainActor @objc private func lastPage() {
+        @MainActor @objc private func lastPage(_ notification: Notification) {
+            guard receivesCommand(notification) else { return }
             guard parent.document.pageCount > 0,
                   let lastPage = parent.document.page(at: parent.document.pageCount - 1) else { return }
             pdfView?.go(to: lastPage)
@@ -255,6 +265,7 @@ struct PDFKitView: NSViewRepresentable {
         }
 
         @MainActor @objc private func goToPage(_ notification: Notification) {
+            guard receivesCommand(notification) else { return }
             let requestedPage = notification.object as? Int ?? parent.page
             guard let page = parent.document.page(at: max(0, min(parent.document.pageCount - 1, requestedPage - 1))) else { return }
             pdfView?.go(to: page)
@@ -274,17 +285,20 @@ struct PDFKitView: NSViewRepresentable {
             syncPage()
         }
 
-        @MainActor @objc private func zoomIn() {
+        @MainActor @objc private func zoomIn(_ notification: Notification) {
+            guard receivesCommand(notification) else { return }
             pdfView?.zoomIn(nil)
             syncScale()
         }
 
-        @MainActor @objc private func zoomOut() {
+        @MainActor @objc private func zoomOut(_ notification: Notification) {
+            guard receivesCommand(notification) else { return }
             pdfView?.zoomOut(nil)
             syncScale()
         }
 
-        @MainActor @objc private func fitWidth() {
+        @MainActor @objc private func fitWidth(_ notification: Notification) {
+            guard receivesCommand(notification) else { return }
             guard let view = pdfView,
                   let page = view.currentPage else { return }
             view.autoScales = false
@@ -294,7 +308,8 @@ struct PDFKitView: NSViewRepresentable {
             syncScale()
         }
 
-        @MainActor @objc private func fitPage() {
+        @MainActor @objc private func fitPage(_ notification: Notification) {
+            guard receivesCommand(notification) else { return }
             guard let view = pdfView else { return }
             view.autoScales = true
             view.scaleFactor = view.scaleFactorForSizeToFit
@@ -305,7 +320,8 @@ struct PDFKitView: NSViewRepresentable {
             syncPage()
         }
 
-        @MainActor @objc private func syncCurrentState() {
+        @MainActor @objc private func syncCurrentState(_ notification: Notification) {
+            guard receivesCommand(notification) else { return }
             syncPage()
             syncScale()
             checkForFormFieldChanges()
