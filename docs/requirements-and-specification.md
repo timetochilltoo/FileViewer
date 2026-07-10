@@ -252,7 +252,7 @@ Implemented v1 on branch `feature/pdf-annotation`:
 
 Toolbar design note:
 
-- The PDF annotation toolbar is intentionally dense. To preserve room for annotation tools, the toolbar does not show New File, Save, Save As, or Print buttons.
+- The PDF top toolbar should stay compact: navigation, zoom, search, Undo/Redo, and a single `Annotate` menu. Group markup, creation, edit modes, color, and stroke-width controls inside that menu rather than crowding the window with icon-only buttons.
 - These actions remain available from the app menus and shortcuts: New Markdown Document, Save / Command-S, Save As / Command-Shift-S, and Print / Command-P.
 
 Recommended:

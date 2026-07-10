@@ -369,160 +369,56 @@ struct PDFToolbar: View {
             Divider()
                 .frame(height: 18)
 
-            Button {
-                postAnnotation(.highlight)
-            } label: {
-                Image(systemName: "highlighter")
-            }
-            .help("Highlight Selected PDF Text")
-
-            Button {
-                postAnnotation(.underline)
-            } label: {
-                Image(systemName: "underline")
-            }
-            .help("Underline Selected PDF Text")
-
-            Button {
-                postAnnotation(.strikeout)
-            } label: {
-                Image(systemName: "strikethrough")
-            }
-            .help("Strike Through Selected PDF Text")
-
-            ColorPicker("Annotation Color", selection: $model.pdfAnnotationColor, supportsOpacity: false)
-                .labelsHidden()
-                .frame(width: 32)
-                .help("Choose PDF Annotation Color")
-
-            Picker("Stroke Width", selection: $model.pdfAnnotationStrokeWidth) {
-                ForEach(PDFAnnotationStrokeWidth.allCases) { width in
-                    Text(width.title).tag(width)
+            Menu {
+                Section("Markup") {
+                    Button("Highlight", systemImage: "highlighter") { postAnnotation(.highlight) }
+                    Button("Underline", systemImage: "underline") { postAnnotation(.underline) }
+                    Button("Strike Through", systemImage: "strikethrough") { postAnnotation(.strikeout) }
+                    Button("Remove Selected Markup", systemImage: "eraser") { removeSelectedMarkup() }
                 }
-            }
-            .labelsHidden()
-            .frame(width: 76)
-            .help("Choose Shape and Pen Stroke Width")
 
-            Button {
-                model.resetPDFAnnotationColor()
-            } label: {
-                Image(systemName: "arrow.counterclockwise.circle")
-            }
-            .help("Reset Annotation Color to Yellow")
+                Section("Add") {
+                    Button("Sticky Note", systemImage: "note.text.badge.plus") { addStickyNote() }
+                    Button("Text Box", systemImage: "text.badge.plus") { addTextBox() }
+                    Button("Rectangle", systemImage: "rectangle") { postShape(.rectangle) }
+                    Button("Oval", systemImage: "oval") { postShape(.oval) }
+                    Button("Line", systemImage: "line.diagonal") { model.beginPDFLineDrawingMode(.line) }
+                    Button("Arrow", systemImage: "arrow.up.right") { model.beginPDFLineDrawingMode(.arrow) }
+                    Button(model.isPDFInkDrawingModeEnabled ? "Stop Pen" : "Freehand Pen", systemImage: "pencil.tip") {
+                        model.togglePDFInkDrawingMode()
+                    }
+                }
 
-            Button {
-                model.togglePDFAnnotationRecolorMode()
-            } label: {
-                Image(systemName: "paintpalette")
-                    .foregroundStyle(model.isPDFAnnotationRecolorModeEnabled ? Color.white : Color.primary)
-                    .padding(5)
-                    .background(
-                        Capsule()
-                            .fill(model.isPDFAnnotationRecolorModeEnabled ? Color.accentColor : Color.clear)
-                    )
-            }
-            .help(model.isPDFAnnotationRecolorModeEnabled ? "Recolor Annotation Mode On" : "Recolor Existing Annotation")
+                Section("Edit") {
+                    Button(model.isPDFAnnotationRecolorModeEnabled ? "Stop Recolor" : "Recolor Existing Annotation", systemImage: "paintpalette") {
+                        model.togglePDFAnnotationRecolorMode()
+                    }
+                    Button(model.isPDFNoteMoveModeEnabled ? "Stop Moving" : "Move Note or Text Box", systemImage: "hand.draw") {
+                        model.togglePDFNoteMoveMode()
+                    }
+                    Button(model.isPDFAnnotationEditModeEnabled ? "Stop Editing" : "Edit Note or Text Box", systemImage: "square.and.pencil") {
+                        model.togglePDFAnnotationEditMode()
+                    }
+                    Button(model.isPDFAnnotationDeleteModeEnabled ? "Stop Deleting" : "Delete Note or Text Box", systemImage: "trash") {
+                        model.togglePDFAnnotationDeleteMode()
+                    }
+                }
 
-            Button {
-                model.pdfLineDrawingMode = nil
-                model.isPDFAnnotationRecolorModeEnabled = false
-                model.isPDFInkDrawingModeEnabled = false
-                guard let url = model.selectedPDFURL else { return }
-                NotificationCenter.default.post(name: .pdfRemoveAnnotationsInSelection, object: url)
+                Divider()
+                ColorPicker("Color", selection: $model.pdfAnnotationColor, supportsOpacity: false)
+                Picker("Stroke Width", selection: $model.pdfAnnotationStrokeWidth) {
+                    ForEach(PDFAnnotationStrokeWidth.allCases) { width in
+                        Text(width.title).tag(width)
+                    }
+                }
+                Button("Reset Color to Yellow", systemImage: "arrow.counterclockwise.circle") {
+                    model.resetPDFAnnotationColor()
+                }
             } label: {
-                Image(systemName: "eraser")
+                Label("Annotate", systemImage: "pencil.and.outline")
+                    .foregroundStyle(annotationModeIsActive ? Color.accentColor : Color.primary)
             }
-            .help("Remove Markup from Selected PDF Text")
-
-            Button {
-                model.pdfLineDrawingMode = nil
-                model.isPDFAnnotationRecolorModeEnabled = false
-                model.isPDFInkDrawingModeEnabled = false
-                guard let url = model.selectedPDFURL else { return }
-                NotificationCenter.default.post(name: .pdfAddStickyNote, object: url)
-            } label: {
-                Image(systemName: "note.text.badge.plus")
-            }
-            .help("Add Sticky Note")
-
-            Button {
-                model.pdfLineDrawingMode = nil
-                model.isPDFAnnotationRecolorModeEnabled = false
-                model.isPDFInkDrawingModeEnabled = false
-                guard let url = model.selectedPDFURL else { return }
-                NotificationCenter.default.post(name: .pdfAddTextBox, object: url)
-            } label: {
-                Image(systemName: "text.badge.plus")
-            }
-            .help("Add Text Box")
-
-            Button {
-                postShape(.rectangle)
-            } label: {
-                Image(systemName: "rectangle")
-            }
-            .help("Add Rectangle")
-
-            Button {
-                postShape(.oval)
-            } label: {
-                Image(systemName: "oval")
-            }
-            .help("Add Oval")
-
-            Button {
-                model.beginPDFLineDrawingMode(.line)
-            } label: {
-                Image(systemName: "line.diagonal")
-                    .foregroundStyle(model.pdfLineDrawingMode == .line ? Color.accentColor : Color.primary)
-            }
-            .help(model.pdfLineDrawingMode == .line ? "Line Drawing Mode On" : "Draw Line")
-
-            Button {
-                model.beginPDFLineDrawingMode(.arrow)
-            } label: {
-                Image(systemName: "arrow.up.right")
-                    .foregroundStyle(model.pdfLineDrawingMode == .arrow ? Color.accentColor : Color.primary)
-            }
-            .help(model.pdfLineDrawingMode == .arrow ? "Arrow Drawing Mode On" : "Draw Arrow")
-
-            Button {
-                model.togglePDFInkDrawingMode()
-            } label: {
-                Image(systemName: "pencil.tip")
-                    .foregroundStyle(model.isPDFInkDrawingModeEnabled ? Color.white : Color.primary)
-                    .padding(5)
-                    .background(
-                        Capsule()
-                            .fill(model.isPDFInkDrawingModeEnabled ? Color.accentColor : Color.clear)
-                    )
-            }
-            .help(model.isPDFInkDrawingModeEnabled ? "Pen Drawing Mode On" : "Draw Freehand Ink")
-
-            Button {
-                model.togglePDFNoteMoveMode()
-            } label: {
-                Image(systemName: "hand.draw")
-                    .foregroundStyle(model.isPDFNoteMoveModeEnabled ? Color.accentColor : Color.primary)
-            }
-            .help(model.isPDFNoteMoveModeEnabled ? "Move Annotation Mode On" : "Move Sticky Note or Text Box")
-
-            Button {
-                model.togglePDFAnnotationEditMode()
-            } label: {
-                Image(systemName: "square.and.pencil")
-                    .foregroundStyle(model.isPDFAnnotationEditModeEnabled ? Color.accentColor : Color.primary)
-            }
-            .help(model.isPDFAnnotationEditModeEnabled ? "Edit Annotation Mode On" : "Edit Sticky Note or Text Box")
-
-            Button {
-                model.togglePDFAnnotationDeleteMode()
-            } label: {
-                Image(systemName: "trash")
-                    .foregroundStyle(model.isPDFAnnotationDeleteModeEnabled ? Color.red : Color.primary)
-            }
-            .help(model.isPDFAnnotationDeleteModeEnabled ? "Delete Annotation Mode On" : "Delete Sticky Note or Text Box")
+            .help("PDF annotation tools")
 
             Button {
                 model.undoPDFAnnotation()
@@ -540,6 +436,39 @@ struct PDFToolbar: View {
             .disabled(!model.canRedoPDFAnnotation)
             .help("Redo PDF Annotation Change")
         }
+    }
+
+    private var annotationModeIsActive: Bool {
+        model.isPDFNoteMoveModeEnabled ||
+        model.isPDFAnnotationDeleteModeEnabled ||
+        model.isPDFAnnotationEditModeEnabled ||
+        model.isPDFAnnotationRecolorModeEnabled ||
+        model.isPDFInkDrawingModeEnabled ||
+        model.pdfLineDrawingMode != nil
+    }
+
+    private func removeSelectedMarkup() {
+        model.pdfLineDrawingMode = nil
+        model.isPDFAnnotationRecolorModeEnabled = false
+        model.isPDFInkDrawingModeEnabled = false
+        guard let url = model.selectedPDFURL else { return }
+        NotificationCenter.default.post(name: .pdfRemoveAnnotationsInSelection, object: url)
+    }
+
+    private func addStickyNote() {
+        model.pdfLineDrawingMode = nil
+        model.isPDFAnnotationRecolorModeEnabled = false
+        model.isPDFInkDrawingModeEnabled = false
+        guard let url = model.selectedPDFURL else { return }
+        NotificationCenter.default.post(name: .pdfAddStickyNote, object: url)
+    }
+
+    private func addTextBox() {
+        model.pdfLineDrawingMode = nil
+        model.isPDFAnnotationRecolorModeEnabled = false
+        model.isPDFInkDrawingModeEnabled = false
+        guard let url = model.selectedPDFURL else { return }
+        NotificationCenter.default.post(name: .pdfAddTextBox, object: url)
     }
 
     private func postAnnotation(_ kind: PDFAnnotationKind) {

@@ -67,10 +67,11 @@ Current MVP build includes:
   - filter the `Notes` sidebar by annotation type
   - export a Markdown annotation summary report
   - detect fillable PDF form edits; normal Save is available whenever a PDF is open so macOS menu-refresh timing cannot block saving a form
-- save embedded PDF annotations and fillable-form changes back to the PDF file
+  - save embedded PDF annotations and fillable-form changes back to the PDF file
   - save an annotated PDF copy with Save Annotated Copy As / Command-Shift-S
-- warn before closing a PDF tab/window with unsaved PDF changes
-- confirm unsaved documents before Command-Q, block overwriting files changed outside FileViewer, and write PDF saves through a verified temporary file before replacing the original
+  - warn before closing a PDF tab/window with unsaved PDF changes
+  - confirm unsaved documents before Command-Q, block overwriting files changed outside FileViewer, and write PDF saves through a verified temporary file before replacing the original
+  - keep PDF controls compact with navigation/search/Undo/Redo in the toolbar and a grouped `Annotate` menu for markup, notes, shapes, drawing, edit modes, color, and stroke width
 - File-management actions are intentionally kept in menus/shortcuts instead of the crowded toolbar:
   - New Markdown Document
   - Save / Command-S
