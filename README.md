@@ -43,7 +43,7 @@ Current MVP build includes:
 - PDF outline/table-of-contents sidebar when the PDF provides one.
 - PDF search highlighting with current/total count and previous/next navigation.
 - Stable fixed-width sidebar with custom sidebar tabs and a sidebar toggle that stays reachable.
-- PDF annotation v1 on the `feature/pdf-annotation` branch:
+- PDF annotation v1 on `main`:
   - highlight selected PDF text
   - underline selected PDF text
   - strike through selected PDF text
@@ -126,4 +126,5 @@ scripts/package_app.sh
 ## Documentation
 
 - Requirements and specification: `docs/requirements-and-specification.md`
+- AI assistant panel specification: `docs/ai-assistant-specification.md`
 - MVP task list: `docs/mvp-task-list.md`

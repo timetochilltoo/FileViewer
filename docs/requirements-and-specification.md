@@ -217,7 +217,7 @@ Recommended:
 
 ## 6.4 PDF Annotation
 
-Implemented v1 on branch `feature/pdf-annotation`:
+Implemented v1 on `main`:
 
 - Highlight selected text.
 - Underline selected text.
@@ -475,3 +475,7 @@ Possible storage options:
 - Should PDF annotations be saved as a separate project file first, or directly embedded into exported PDFs?
 - Should there be a file browser panel, or only open/recent files?
 - Should the design target technical users first, general office users first, or both?
+
+## 14. Proposed AI Assistant
+
+A provider-neutral right-side AI panel is proposed for document questions, summaries, translation, and selected-text assistance. It must use explicit context scopes, page/heading citations, local extraction and retrieval, Keychain credentials, cloud-upload disclosure, per-tab conversation state, cancellation, and a mock provider for tests. The detailed specification is maintained in `docs/ai-assistant-specification.md`.

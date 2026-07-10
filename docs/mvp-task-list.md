@@ -288,6 +288,8 @@ Acceptance criteria:
 
 ## 19. Out of Scope for MVP
 
+This section records the boundary of the original viewer MVP. Some items, including PDF annotation, were implemented in later iterations.
+
 - PDF text editing.
 - PDF annotation.
 - PDF page reorder/delete/merge.
@@ -298,6 +300,7 @@ Acceptance criteria:
 - Office document preview.
 - Markdown to PDF export.
 - Mermaid and math rendering.
+- AI assistant integration.
 
 ## 20. Suggested Build Order
 
@@ -340,6 +343,8 @@ Acceptance criteria:
 - Unsaved Markdown tab/window close confirmation has been implemented.
 - A packaged `.app` bundle with icon and document type registration has been implemented.
 - The app builds successfully with Swift 6.3.2 / Xcode 26.5.
+- PDF annotations, drawing, notes, form editing, safe PDF save, and annotation reports have been implemented after the original MVP.
+- A provider-neutral right-side AI assistant has been specified in `docs/ai-assistant-specification.md`; implementation has not started.
 
 Next implementation work:
 
@@ -347,3 +352,4 @@ Next implementation work:
   - add author name and timestamp metadata for annotations
 - Improve Markdown preview fidelity for richer GitHub-flavored tables, local images, and task-list polish if needed later.
 - Add tests or sample files for repeatable verification.
+- Implement the AI assistant specification in phases, beginning with the panel, per-tab state, selected-text capture, and a mock provider before choosing a production provider.

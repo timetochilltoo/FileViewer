@@ -1061,6 +1061,8 @@ Patrick is newer to Markdown and wants the app to teach/assist him. The Help gui
 
 Recommended order:
 
+An AI assistant panel is now specified, but not implemented. See `docs/ai-assistant-specification.md`. Its architecture is intentionally provider-neutral; implement the panel and mock provider before selecting a cloud vendor.
+
 1. Continue PDF annotation:
    - author/timestamp metadata in annotation reports
 2. Improve Markdown preview rendering if Patrick relies heavily on richer tables/checklists.
