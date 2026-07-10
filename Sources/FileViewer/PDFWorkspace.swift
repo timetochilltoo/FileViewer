@@ -32,6 +32,14 @@ struct PDFWorkspace: View {
                 get: { model.searchMatchCount },
                 set: { model.searchMatchCount = $0 }
             ),
+            selectedText: Binding(
+                get: { model.pdfSelectedText },
+                set: { model.pdfSelectedText = $0 }
+            ),
+            selectedTextPage: Binding(
+                get: { model.pdfSelectedPage },
+                set: { model.pdfSelectedPage = $0 }
+            ),
             isNoteMoveModeEnabled: Binding(
                 get: { model.isPDFNoteMoveModeEnabled },
                 set: { model.isPDFNoteMoveModeEnabled = $0 }
@@ -77,6 +85,8 @@ struct PDFKitView: NSViewRepresentable {
     @Binding var scale: CGFloat
     @Binding var searchMatchIndex: Int
     @Binding var searchMatchCount: Int
+    @Binding var selectedText: String
+    @Binding var selectedTextPage: Int
     @Binding var isNoteMoveModeEnabled: Bool
     @Binding var isAnnotationDeleteModeEnabled: Bool
     @Binding var isAnnotationEditModeEnabled: Bool
@@ -229,6 +239,7 @@ struct PDFKitView: NSViewRepresentable {
             NotificationCenter.default.addObserver(self, selector: #selector(possibleFormFieldChanged(_:)), name: NSControl.textDidEndEditingNotification, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(possibleFormFieldChanged(_:)), name: NSComboBox.selectionDidChangeNotification, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(pageChanged), name: Notification.Name.PDFViewPageChanged, object: pdfView)
+            NotificationCenter.default.addObserver(self, selector: #selector(selectionChanged), name: Notification.Name.PDFViewSelectionChanged, object: pdfView)
         }
 
         private func receivesCommand(_ notification: Notification) -> Bool {
@@ -316,6 +327,17 @@ struct PDFKitView: NSViewRepresentable {
 
         @MainActor @objc private func pageChanged() {
             syncPage()
+        }
+
+        @MainActor @objc private func selectionChanged() {
+            let text = pdfView?.currentSelection?.string ?? ""
+            let selectedPage = pdfView?.currentSelection?.pages.first
+            let pageNumber = selectedPage.map { parent.document.index(for: $0) + 1 } ?? parent.page
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.parent.selectedText = text
+                self.parent.selectedTextPage = max(1, pageNumber)
+            }
         }
 
         @MainActor @objc private func syncCurrentState(_ notification: Notification) {

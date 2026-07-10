@@ -1,6 +1,25 @@
 # FileViewer AI Assistant Panel Specification
 
-Status: Proposed
+Status: Phase 1 implemented on `feature/ai-assistant` (LM Studio local adapter)
+
+## Implementation Note — 2026-07-11
+
+The first functional vertical slice is implemented on the separate branch `feature/ai-assistant`:
+
+- a toolbar sparkle button opens a resizable 280–600 point right panel;
+- conversations are in memory and isolated by document tab;
+- LM Studio is discovered through `GET http://127.0.0.1:1234/v1/models`;
+- chat responses stream through the OpenAI-compatible `/v1/chat/completions` endpoint;
+- the transport rejects non-loopback hosts in this local-only phase;
+- PDF text selection and its page number are captured from PDFKit;
+- Markdown source/preview selection is read from the active or most recently active text view;
+- Selected Text, Current Page/Section, Relevant Sections, and Whole Document scopes are implemented;
+- PDF pages and Markdown headings are used as context labels;
+- question, summary, translation, cancellation, errors, basic Markdown response rendering, and model selection are implemented;
+- the manager depends on an `AIProvider` protocol, so another adapter can replace LM Studio without changing panel or document-context code;
+- automated tests cover context chunking, selection isolation, basic retrieval, and rejection of remote hosts.
+
+This is intentionally not the complete specification. Remaining work includes clickable citations, selection context-menu commands, hierarchical summaries for very large documents, persistent settings/conversations, Ollama/cloud adapters, a mock streaming provider test, accessibility review, and narrow-window overlay behavior. Current whole-document context is capped at 60,000 characters and reports when it is truncated. No document text is sent until the user presses Send, Summarize, or Translate.
 
 This document defines a provider-neutral AI assistant for FileViewer. It describes the user experience, document-context rules, privacy and security controls, internal interfaces, failure handling, and acceptance criteria. The choice of AI provider and model is intentionally deferred.
 
@@ -471,4 +490,3 @@ Unsaved document text and conversations must not be restored silently after a cr
 The provider can be chosen later because the product UI, context extraction, chunking, citations, and conversation model should be provider-independent.
 
 However, changing providers is not guaranteed to be only a configuration change. If two providers expose compatible request and streaming formats, they can share one transport with different base URL, model, and credential settings. Providers with different authentication, streaming, limits, or on-device APIs require a small adapter. The architecture above keeps that difference contained so it does not affect the rest of FileViewer.
-

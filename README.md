@@ -80,6 +80,14 @@ Current MVP build includes:
 - Print support for PDFs and Markdown source text.
 - Recent files.
 - Light and dark theme.
+- Local AI assistant (feature branch `feature/ai-assistant`):
+  - resizable right-side panel with per-document conversations
+  - ask, summarize, and translate PDF or Markdown content
+  - explicit Selected Text, Current Page/Section, Relevant Sections, and Whole Document scopes
+  - PDF page and Markdown heading context labels for grounded answers
+  - streaming responses, Stop, model discovery, and connection status
+  - local-only LM Studio transport at `127.0.0.1:1234`; remote hosts are rejected by the current adapter
+  - provider-neutral internal protocol so Ollama or cloud adapters can be added later without redesigning the panel
 
 ## Run Locally
 
@@ -105,7 +113,7 @@ The Swift package includes an XCTest target for fast safety and document-model c
 swift test
 ```
 
-The initial suite verifies Markdown dirty-state behavior, file-version change detection, duplicate-open protection, and Markdown file recognition. PDFKit drawing and native window dialogs remain manual/UI-test work for now.
+The suite verifies Markdown dirty-state behavior, file-version change detection, duplicate-open protection, Markdown file recognition, AI context chunking/retrieval, selected-text isolation, and local-only AI transport enforcement. PDFKit drawing and native window dialogs remain manual/UI-test work for now.
 
 ## Packaged App
 

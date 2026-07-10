@@ -346,6 +346,8 @@ struct DocumentTab: Identifiable, Equatable {
     var pdfPage: Int
     var pdfPageCount: Int
     var pdfScale: CGFloat
+    var pdfSelectedText: String
+    var pdfSelectedPage: Int
     var pdfHasUnsavedAnnotations: Bool
     var pdfAnnotationUndoStack: [Data]
     var pdfAnnotationRedoStack: [Data]
@@ -372,6 +374,8 @@ struct DocumentTab: Identifiable, Equatable {
             pdfPageCount = 0
         }
         pdfScale = 1.0
+        pdfSelectedText = ""
+        pdfSelectedPage = 1
         pdfHasUnsavedAnnotations = false
         pdfAnnotationUndoStack = []
         pdfAnnotationRedoStack = []
@@ -536,6 +540,9 @@ final class AppModel: ObservableObject {
     @Published var pdfAnnotationStrokeWidth: PDFAnnotationStrokeWidth = .medium
     @Published var pdfAnnotationFilter: PDFAnnotationFilter = .all
     @Published var markdownEditorFocusRequest = UUID()
+    @Published var aiPanelVisible = false
+    @Published var aiPanelWidth: CGFloat = 380
+    let aiAssistant = AIAssistantManager()
 
     private let recentsKey = "FileViewer.recents"
     private let markdownModeKey = "FileViewer.markdownMode"
@@ -552,6 +559,22 @@ final class AppModel: ObservableObject {
 
     var pdfAnnotationLineWidth: CGFloat {
         pdfAnnotationStrokeWidth.lineWidth
+    }
+
+    var pdfSelectedText: String {
+        get { selectedTab?.pdfSelectedText ?? "" }
+        set {
+            guard let index = selectedTabIndex else { return }
+            tabs[index].pdfSelectedText = newValue
+        }
+    }
+
+    var pdfSelectedPage: Int {
+        get { selectedTab?.pdfSelectedPage ?? pdfPage }
+        set {
+            guard let index = selectedTabIndex else { return }
+            tabs[index].pdfSelectedPage = max(1, newValue)
+        }
     }
 
     func resetPDFAnnotationColor() {
@@ -974,6 +997,7 @@ final class AppModel: ObservableObject {
         let id = tabs[index].id
         pdfAnnotationActionUndoStacks[id] = nil
         pdfAnnotationActionRedoStacks[id] = nil
+        aiAssistant.closeSession(for: id)
         tabs.remove(at: index)
         if selectedTabID == id {
             selectedTabID = tabs.indices.contains(index) ? tabs[index].id : tabs.last?.id
@@ -1686,6 +1710,25 @@ final class AppModel: ObservableObject {
     func rememberMarkdownPreviewTextView(_ textView: NSTextView) {
         lastActiveMarkdownPreviewTextView = textView
         lastActiveMarkdownSelectionKind = .preview
+    }
+
+    func currentMarkdownSelectedText() -> String {
+        let candidates = [
+            NSApp.keyWindow?.firstResponder as? NSTextView,
+            lastActiveMarkdownSelectionKind == .preview ? lastActiveMarkdownPreviewTextView : lastActiveMarkdownTextView,
+            lastActiveMarkdownTextView,
+            lastActiveMarkdownPreviewTextView
+        ]
+        for candidate in candidates {
+            guard let textView = candidate,
+                  textView.window != nil else { continue }
+            let range = textView.selectedRange()
+            guard range.length > 0,
+                  range.location != NSNotFound,
+                  NSMaxRange(range) <= (textView.string as NSString).length else { continue }
+            return (textView.string as NSString).substring(with: range)
+        }
+        return ""
     }
 
     func recordMarkdownSourceViewport(scrollY: Double, visibleLocation: Int) {

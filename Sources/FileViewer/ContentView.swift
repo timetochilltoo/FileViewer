@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @StateObject private var model: AppModel
     @State private var sidebarVisible = true
+    @State private var aiPanelDragStartWidth: CGFloat?
     private let sidebarWidth: CGFloat = 320
     private let dividerWidth: CGFloat = 1
 
@@ -21,7 +22,12 @@ struct ContentView: View {
         GeometryReader { proxy in
             let reservedSidebarWidth = sidebarVisible ? min(sidebarWidth, max(0, proxy.size.width - 360)) : 0
             let reservedDividerWidth = sidebarVisible ? dividerWidth : 0
-            let documentWidth = max(0, proxy.size.width - reservedSidebarWidth - reservedDividerWidth)
+            let availableWidth = max(0, proxy.size.width - reservedSidebarWidth - reservedDividerWidth)
+            let showsAI = model.aiPanelVisible && model.document != nil
+            let maximumAIWidth = max(280, availableWidth - 320)
+            let reservedAIWidth = showsAI ? min(max(280, model.aiPanelWidth), maximumAIWidth) : 0
+            let aiDividerWidth: CGFloat = showsAI ? 6 : 0
+            let documentWidth = max(0, availableWidth - reservedAIWidth - aiDividerWidth)
 
             ZStack(alignment: .topLeading) {
                 HStack(spacing: 0) {
@@ -46,6 +52,26 @@ struct ContentView: View {
                     }
                     .frame(width: documentWidth, height: proxy.size.height)
                     .clipped()
+
+                    if showsAI {
+                        Rectangle()
+                            .fill(Color.secondary.opacity(0.18))
+                            .frame(width: aiDividerWidth, height: proxy.size.height)
+                            .contentShape(Rectangle())
+                            .gesture(
+                                DragGesture()
+                                    .onChanged { value in
+                                        let startingWidth = aiPanelDragStartWidth ?? model.aiPanelWidth
+                                        if aiPanelDragStartWidth == nil { aiPanelDragStartWidth = startingWidth }
+                                        model.aiPanelWidth = min(600, max(280, startingWidth - value.translation.width))
+                                    }
+                                    .onEnded { _ in aiPanelDragStartWidth = nil }
+                            )
+                            .help("Drag to resize the AI Assistant")
+                        AIAssistantPanel(model: model, manager: model.aiAssistant)
+                            .frame(width: reservedAIWidth, height: proxy.size.height)
+                            .clipped()
+                    }
                 }
 
                 if sidebarVisible {
@@ -139,6 +165,24 @@ struct ContentView: View {
 
             Spacer()
                 .frame(minWidth: 0)
+
+            Button {
+                model.aiPanelVisible.toggle()
+                if model.aiPanelVisible {
+                    model.aiAssistant.ensureSession(
+                        for: model.selectedTabID,
+                        hasSelection: !model.pdfSelectedText.isEmpty || !model.currentMarkdownSelectedText().isEmpty
+                    )
+                    if model.aiAssistant.connectionStatus == .notChecked {
+                        Task { await model.aiAssistant.refreshModels() }
+                    }
+                }
+            } label: {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(model.aiPanelVisible ? Color.purple : Color.primary)
+            }
+            .disabled(model.document == nil)
+            .help(model.aiPanelVisible ? "Hide AI Assistant" : "Show AI Assistant")
 
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")

@@ -344,7 +344,7 @@ This section records the boundary of the original viewer MVP. Some items, includ
 - A packaged `.app` bundle with icon and document type registration has been implemented.
 - The app builds successfully with Swift 6.3.2 / Xcode 26.5.
 - PDF annotations, drawing, notes, form editing, safe PDF save, and annotation reports have been implemented after the original MVP.
-- A provider-neutral right-side AI assistant has been specified in `docs/ai-assistant-specification.md`; implementation has not started.
+- AI assistant Phase 1 is implemented on `feature/ai-assistant`: resizable right panel, per-tab conversations, PDF/Markdown selection capture, four explicit context scopes, local retrieval, streaming LM Studio chat, model discovery, stop/error handling, and local-only host enforcement.
 
 Next implementation work:
 
@@ -352,4 +352,4 @@ Next implementation work:
   - add author name and timestamp metadata for annotations
 - Improve Markdown preview fidelity for richer GitHub-flavored tables, local images, and task-list polish if needed later.
 - Add tests or sample files for repeatable verification.
-- Implement the AI assistant specification in phases, beginning with the panel, per-tab state, selected-text capture, and a mock provider before choosing a production provider.
+- Manually acceptance-test the Phase 1 AI panel, then add clickable citations, selection context-menu actions, large-document hierarchical summaries, and an Ollama adapter. Cloud providers remain deferred.

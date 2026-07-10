@@ -476,6 +476,6 @@ Possible storage options:
 - Should there be a file browser panel, or only open/recent files?
 - Should the design target technical users first, general office users first, or both?
 
-## 14. Proposed AI Assistant
+## 14. AI Assistant
 
-A provider-neutral right-side AI panel is proposed for document questions, summaries, translation, and selected-text assistance. It must use explicit context scopes, page/heading citations, local extraction and retrieval, Keychain credentials, cloud-upload disclosure, per-tab conversation state, cancellation, and a mock provider for tests. The detailed specification is maintained in `docs/ai-assistant-specification.md`.
+Phase 1 is implemented on `feature/ai-assistant`. It provides a provider-neutral, resizable right-side panel for document questions, summaries, translation, and selected-text assistance. It uses explicit context scopes, local extraction and keyword retrieval, PDF page/Markdown heading context labels, per-tab in-memory conversations, streaming, cancellation, and a loopback-only LM Studio adapter. The current phase rejects remote hosts and therefore needs no API credentials or cloud-upload flow. Keychain credentials and cloud disclosure become mandatory only if a future remote provider is enabled. Clickable citations, selection context-menu commands, large-document hierarchical summarization, and additional provider adapters remain planned. The detailed specification and current limitations are maintained in `docs/ai-assistant-specification.md`.
