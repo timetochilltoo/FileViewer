@@ -39,7 +39,11 @@ struct FileViewerCommands: Commands {
                 }
             }
             .keyboardShortcut("s", modifiers: .command)
-            .disabled(activeModel?.canSaveMarkdown != true && activeModel?.canSavePDF != true)
+            // SwiftUI Commands can defer menu revalidation until the app regains
+            // focus. A PDF may always be safely written, so keep Save available for
+            // any open PDF rather than relying on its asynchronously updated dirty
+            // flag. Markdown retains its normal dirty-state behavior.
+            .disabled(activeModel?.canSaveMarkdown != true && activeModel?.isPDFDocument != true)
 
             Button("Save As...") {
                 if activeModel?.isPDFDocument == true {
@@ -309,7 +313,7 @@ struct FileViewerCommands: Commands {
             Button("Save PDF Changes") {
                 activeModel?.savePDFAnnotations()
             }
-            .disabled(activeModel?.canSavePDF != true)
+            .disabled(activeModel?.isPDFDocument != true)
 
             Button("Save Annotated Copy As...") {
                 activeModel?.savePDFAnnotatedCopyAs()
