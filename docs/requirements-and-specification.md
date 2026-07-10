@@ -217,24 +217,47 @@ Recommended:
 
 ## 6.4 PDF Annotation
 
-Required after MVP:
+Implemented v1 on branch `feature/pdf-annotation`:
 
 - Highlight selected text.
-- Add text boxes.
+- Underline selected text.
+- Strike through selected text.
+- Choose the color used for newly-created annotations.
+- Recolor existing annotations.
+- Remove highlight/underline/strikeout markup from selected text.
 - Add sticky note comments.
-- Draw freehand ink.
-- Add rectangle, ellipse, line, and arrow shapes.
-- Select, move, edit, and delete annotations.
-- Undo and redo annotation actions.
-- Save annotated copy as PDF.
+  - Sticky notes use the standard PDF note icon.
+  - The app uses an expanded sticky-note hit target in Move/Edit/Delete modes because PDFKit keeps the visible native note icon small.
+- Add text boxes.
+- Resize text boxes.
+- Add rectangle, oval, line, and arrow shape annotations.
+- Draw freehand ink annotations.
+- Choose Thin, Medium, or Thick stroke width for new shapes, lines, arrows, and freehand ink.
+- Move sticky note icons and text boxes with a dedicated Move Annotation mode.
+- Show resize/endpoint handles while Move Annotation mode is on.
+- Edit sticky note and text box text with a dedicated Edit Annotation mode.
+- Delete sticky note and text box annotations with a dedicated Delete Annotation mode.
+- Undo and redo recent PDF annotation changes.
+  - Newly-created annotations should undo/redo object-by-object so repeated shape undo does not reload the whole PDF or mix stale PDFKit appearances.
+  - Existing-annotation mutations may continue to use a whole-PDF snapshot fallback until more granular inverse operations are implemented.
+- Save embedded annotations back to the PDF file.
+- Save an annotated PDF copy without overwriting the original.
+- Warn before closing a PDF tab/window with unsaved annotations.
+- Show a PDF annotation summary in the sidebar `Notes` tab and jump to an annotation when the user clicks it.
+- Filter the `Notes` sidebar by annotation type: All, Markup, Notes, Text Boxes, Shapes, and Ink.
+- Export a Markdown annotation summary report with page number, annotation type, and summary/details.
+- Detect fillable PDF form edits after the user types into form fields, checks boxes, or changes PDF widget controls. Normal Save must remain available whenever a PDF is open, avoiding macOS menu-refresh timing from blocking a form save.
+- Save embedded annotations and fillable-form changes back to the current PDF file.
+- Use a reachable sidebar toggle with a stable fixed-width sidebar. Avoid native overlay/sidebar behavior, native segmented sidebar tabs, native sidebar-list row insets, and toolbar intrinsic-width pressure that can clip sidebar contents or cover the PDF page.
+
+Toolbar design note:
+
+- The PDF annotation toolbar is intentionally dense. To preserve room for annotation tools, the toolbar does not show New File, Save, Save As, or Print buttons.
+- These actions remain available from the app menus and shortcuts: New Markdown Document, Save / Command-S, Save As / Command-Shift-S, and Print / Command-P.
 
 Recommended:
 
-- Annotation sidebar.
-- Filter annotations by type.
-- Export annotation summary.
 - Author name and timestamp for annotations.
-- Color picker and stroke width controls.
 
 ## 6.5 PDF Page Operations
 

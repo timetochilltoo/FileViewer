@@ -314,16 +314,21 @@ Main pieces:
   - detail: toolbar, tab bar, status bar, document body
 - toolbar:
 - Open button
-- New button
 - sidebar toggle button
   - Markdown mode control when Markdown tab is selected
-  - Save / Save As buttons when Markdown tab is selected
 - PDF toolbar when PDF tab is selected
-- Print button when any document is selected
 - search field
   - implemented as `SearchTextField`, a small AppKit `NSTextField` bridge, because SwiftUI `TextField.onSubmit` did not reliably fire Return in the toolbar on macOS
   - shows current match / total matches while searching
   - up/down buttons move to previous/next match
+- 2026-07-09 toolbar simplification:
+  - Removed New File, Save, Save As, and Print icons from the toolbar because the PDF annotation toolbar became too crowded on Patrick's screen.
+  - The functions still exist in menus and shortcuts:
+    - New Markdown Document
+    - Save / Command-S
+    - Save As / Command-Shift-S
+    - Print / Command-P
+  - Do not re-add these as toolbar icons unless the toolbar layout is redesigned with overflow/adaptive grouping.
   - Return in the search field moves to next match
 - tab bar:
   - horizontal list of open tabs
@@ -444,13 +449,17 @@ PDF support uses PDFKit.
 
 PDF toolbar controls communicate through `NotificationCenter` names defined in `ContentView.swift`:
 
+- `.pdfFirstPage`
 - `.pdfPreviousPage`
 - `.pdfNextPage`
+- `.pdfLastPage`
 - `.pdfGoToPage`
 - `.pdfZoomIn`
 - `.pdfZoomOut`
 - `.pdfFitWidth`
 - `.pdfFitPage`
+- `.pdfApplyAnnotation`
+- `.pdfAnnotationDidChange`
 
 Crash fix already implemented:
 
@@ -473,12 +482,160 @@ PDF search:
 
 - `applySearch(_:)` uses `parent.document.findString(text, withOptions: [.caseInsensitive])`.
 - Highlights results through `pdfView?.highlightedSelections`.
-- Jumps to the first result.
+- Search highlighting and search navigation are intentionally separate.
+- `DocumentTab.searchNavigationRequestID` changes only when the search text changes or the user explicitly requests previous/next/Return search navigation.
+- `PDFKitView.Coordinator.applySearch(_:)` rebuilds the PDFKit highlighted selections and match count, but no longer scrolls the PDF by itself.
+- `PDFKitView.Coordinator.goToSearchMatch(_:requestID:)` scrolls only when it receives a new navigation request ID. This prevents normal SwiftUI/PDFKit refreshes, annotation redraws, resizing, or manual scrolling from pulling the user back to the active search hit.
 - `PDFKitView` binds `searchMatchIndex` and `searchMatchCount` back to `AppModel`.
 - Search count updates are dispatched through stored `Binding` values on the next main-queue tick. This avoids mutating SwiftUI state directly during `PDFKitView.updateNSView`, which previously prevented the toolbar from reliably showing current/total matches.
 - 2026-06-29 follow-up: PDF match count is also calculated immediately in `AppModel.searchText` using the selected `PDFDocument.findString(...)`. This makes the toolbar count deterministic even if the `PDFKitView` binding callback is delayed or skipped by SwiftUI/PDFKit refresh timing.
 - PDF search status text is prefixed with `PDF:` so it is visually clear that the count is coming from PDF search, e.g. `PDF: 1 of 6`.
-- Previous/next search buttons update `searchMatchIndex`; `PDFKitView.Coordinator.goToSearchMatch(_:)` selects and scrolls to the requested `PDFSelection`.
+- Previous/next search buttons update `searchMatchIndex` and the search navigation request ID; `PDFKitView.Coordinator.goToSearchMatch(_:requestID:)` selects and scrolls to the requested `PDFSelection`.
+
+PDF annotation v1:
+
+- Implemented on branch `feature/pdf-annotation`.
+- User flow:
+  1. Open a PDF.
+  2. Select text in the PDF view.
+  3. Optionally choose an annotation color from the PDF toolbar color picker.
+  4. Click Highlight, Underline, or Strikeout in the PDF toolbar, or use the PDF menu.
+  5. The selected text receives a real PDFKit annotation.
+  6. The tab/window is marked as having unsaved PDF changes.
+  7. Use Command-S, File > Save, or PDF > Save PDF Changes to embed the annotation in the PDF file.
+  8. To remove v1 text markup, select the marked text and use Remove Markup from Selection / the eraser toolbar button.
+  9. To add a sticky note, click Add Sticky Note, enter the note text, then save the PDF.
+  10. To add visible page text, click Add Text Box, enter the text, then save the PDF.
+  11. To add a rectangle or oval, click the matching toolbar button, then save the PDF.
+  12. To add a line or arrow, click Line or Arrow, drag on the PDF from start to end, then save the PDF.
+  13. To draw freehand ink, click Pen Drawing Mode, drag on the PDF, release to create the ink annotation, then save the PDF.
+  14. To move a sticky note, text box, rectangle, oval, line, arrow, or ink annotation, turn on Move Annotation mode, drag the annotation, then save the PDF.
+  15. To edit a sticky note or text box, turn on Edit Annotation mode, click the annotation, update the text, then save the PDF.
+  16. To delete a sticky note, text box, rectangle, oval, line, arrow, or ink annotation, turn on Delete Annotation mode, click the annotation, confirm, then save the PDF.
+  17. To undo/redo recent annotation changes, use the PDF toolbar undo/redo buttons or PDF > Undo/Redo PDF Annotation Change.
+  18. To review annotations, switch the left sidebar to `Notes`. The list shows supported PDF annotations with type, page number, and note/text summary where available. Clicking a row jumps the PDF view to that annotation.
+  19. Use the `Notes` filter dropdown to show All, Markup, Notes, Text Boxes, Shapes, or Ink.
+  20. Use the export button in the `Notes` sidebar or PDF > Export Annotation Summary to save a Markdown report of the PDF annotations.
+- Supported annotation types:
+  - highlight: `PDFAnnotationSubtype.highlight`
+  - underline: `PDFAnnotationSubtype.underline`
+  - strikeout: `PDFAnnotationSubtype.strikeOut`
+- Implementation details:
+  - `PDFAnnotationKind` and `PDFAnnotationCommand` live in `DocumentModel.swift`.
+  - `AppModel.pdfAnnotationColor` stores the SwiftUI color selected in the toolbar. `AppModel.pdfAnnotationNSColor` bridges it to `NSColor` for PDFKit.
+  - `PDFToolbar.postAnnotation(_:)` posts `.pdfApplyAnnotation` with the selected PDF URL, annotation kind, and current annotation color.
+  - The PDF toolbar color picker affects newly-created annotations and existing annotations recolored through Recolor Annotation mode.
+  - `AppModel.resetPDFAnnotationColor()` resets the annotation color to yellow and is exposed from the toolbar reset button and PDF menu.
+  - `AppModel.isPDFAnnotationRecolorModeEnabled` stores Recolor Annotation mode. Turning it on turns off Move, Delete, Edit, and line/arrow drawing modes. It is toggled from the toolbar paint-palette button or PDF > Recolor Annotation Mode.
+  - `PDFKitView.Coordinator.applyAnnotation(_:)` checks that `command.url == parent.documentURL` before modifying the PDF. This protects multi-window use.
+  - Annotation bounds come from `PDFSelection.selectionsByLine()` and `bounds(for:)`, so multi-line selected text becomes one annotation per selected line/page.
+  - Text markup applies the selected color with alpha adjusted by type: highlight uses 55% opacity, underline/strikeout use 85%.
+  - `PDFKitView.Coordinator.removeAnnotationsInSelection(_:)` removes only text-markup annotations whose bounds intersect the selected text bounds.
+  - The remove command is intentionally scoped to `highlight`, `underline`, and `strikeOut` annotation types. It does not try to delete arbitrary notes/shapes yet.
+  - Eraser limitation: it removes the whole overlapping annotation. If 10 words were highlighted as one annotation and the user selects 2 words inside it, the whole 10-word markup is removed. This is acceptable for v1; partial erasing would require creating smaller annotations or splitting annotation geometry.
+  - `PDFKitView.Coordinator.addStickyNote(_:)` asks for note text with an `NSAlert` and creates a `.text` PDF annotation.
+  - Sticky note placement: if text is selected, the note is placed near the selected text bounds; otherwise it is placed near the center of the current visible page area.
+  - Sticky notes use the selected annotation color with high opacity and the standard PDF note icon (`annotation.iconType = .note`).
+  - 2026-07-05 follow-up: PDFKit keeps the native sticky-note icon visually small even when its bounds are enlarged, so do not promise a visibly larger icon. The note is now created with a 44×44 point bounds rectangle and `MovableAnnotationPDFView.annotationHit(for:matching:)` uses a larger 20-point hit padding for sticky notes in FileViewer's Move/Edit/Delete/Recolor modes. If Patrick later wants a visibly larger note marker, implement it as a custom visible text/shape annotation rather than native `.text`.
+  - `PDFKitView.Coordinator.addTextBox(_:)` asks for text with an `NSAlert` and creates a `.freeText` PDF annotation.
+  - Text box placement: if text is selected, the box is placed below the selected text; otherwise it is placed near the center of the current visible page area.
+  - Text boxes use the selected annotation color as a translucent background.
+  - 2026-07-01 fix: sticky note/text box creation now clamps the annotation rectangle inside the PDF page bounds. Before this, adding a text box below selected text near the bottom of a page could create it off-page, making it look like the user needed to retry several times.
+  - `PDFShapeAnnotationKind` and `PDFShapeAnnotationCommand` live in `DocumentModel.swift`.
+  - `PDFAnnotationStrokeWidth` lives in `DocumentModel.swift` and currently offers `Thin` = 1 pt, `Medium` = 2 pt, and `Thick` = 4 pt.
+  - `AppModel.pdfAnnotationStrokeWidth` stores the current stroke width. `ContentView.PDFToolbar` exposes it through a compact picker beside the annotation color picker.
+  - Rectangle/oval shape creation posts `.pdfAddShapeAnnotation`. The coordinator creates real PDFKit `.square` or `.circle` annotations.
+  - Line/arrow toolbar buttons call `AppModel.beginPDFLineDrawingMode(_:)`, which stores `.line` or `.arrow` in `AppModel.pdfLineDrawingMode`, turns off move/delete/edit modes, and tells the user to drag on the PDF.
+  - `PDFKitView` passes `pdfLineDrawingMode` into `MovableAnnotationPDFView`. The custom PDF view intercepts mouse down/up while the mode is active, converts the drag start/end to PDF page coordinates, creates a `.line` annotation, marks the PDF dirty, and clears the drawing mode after release.
+  - Arrow annotations are PDFKit line annotations with `endLineStyle = .closedArrow`; plain lines use no line ending.
+  - Pen Drawing Mode is stored in `AppModel.isPDFInkDrawingModeEnabled`. Turning it on turns off move, delete, edit, recolor, and line/arrow drawing modes.
+  - `PDFKitView` passes `isPDFInkDrawingModeEnabled` into `MovableAnnotationPDFView`. The custom PDF view captures mouse drag points in PDF page coordinates, draws a temporary live preview stroke during the drag, creates a real PDFKit `.ink` annotation on mouse release, marks the PDF dirty, and keeps the ink as a normal embedded PDF annotation.
+  - Shape/line/arrow/ink annotations use the selected annotation stroke width. Existing v1 Move, Delete, and Recolor modes can target ink annotations.
+  - Live ink preview is drawn by a transparent `InkPreviewView` overlay added above the PDF view during the drag. The captured PDF page points are converted back to view coordinates for the overlay. The preview is not saved; it disappears when the real `.ink` annotation is added on mouse release.
+  - Live ink preview uses the selected stroke width so the user sees the same width while dragging and after the real PDF annotation is created.
+  - 2026-07-04 fix: `InkPreviewView` must use the normal unflipped AppKit coordinate system. A flipped overlay mirrored the temporary stroke vertically, so drawing near the bottom of a page showed a matching preview near the top.
+  - Rectangle/oval placement: if PDF text is selected, the shape is placed around the selected bounds with padding. Otherwise it is placed near the center of the visible page. Current v1 rectangle/oval shapes have a fixed default size when no selection is available.
+  - Line/arrow placement: the user now drags from start point to end point. This replaced the earlier fixed diagonal line/arrow behavior.
+  - Shapes use the selected annotation color as a strong border plus a light transparent fill, so marked table cells or document areas remain readable.
+  - `MovableAnnotationPDFView` subclasses `PDFView` to support sticky-note, free-text-box, rectangle, oval, line, and arrow dragging when `isNoteMoveModeEnabled` is true. Normal PDF mouse handling is left alone when the mode is off.
+  - Line/arrow endpoint adjustment is also handled in Move Annotation mode. If the click is close to a line annotation's start or end point, the drag moves only that endpoint. If the click is on the body/bounds instead, the whole line/arrow moves.
+  - Text box and rectangle/oval resizing is also handled in Move Annotation mode. If the click is close to a text box/shape edge or corner, the drag resizes that side/corner. If the click is inside the annotation but not near an edge, the whole annotation moves.
+  - Move Annotation mode shows a transparent `ResizeHandleOverlayView` above the PDF. It draws small blue/white handles around resizable text boxes, rectangles, and ovals, plus endpoint handles for lines/arrows. These handles are UI-only and are not saved into the PDF.
+  - 2026-07-04 crash fix: overlays must not be repeatedly removed/re-added from SwiftUI/PDFKit layout refresh paths. That caused an AppKit constraint/layout recursion crash when clicking after handles were introduced. `updateNSView` now schedules handle refresh on the next main-loop tick, and the ink/handle overlays are hidden/shown instead of constantly removed/reinserted.
+  - Recolor Annotation mode is handled in `MovableAnnotationPDFView.mouseDown(with:)`. It targets FileViewer-supported annotation types: highlight, underline, strikeout, sticky note, free text box, rectangle, oval, line, and arrow. It applies the currently selected toolbar color using type-appropriate opacity/fill rules and marks the PDF dirty.
+  - `AppModel.isPDFNoteMoveModeEnabled` stores the mode. It is toggled from the toolbar hand button or PDF > Move Annotation Mode, and disabled when switching away from PDF content. The internal name still says “Note” for historical reasons.
+  - `AppModel.isPDFAnnotationEditModeEnabled` stores Edit Annotation mode. Turning it on turns off Move and Delete modes. It is toggled from the toolbar pencil button or PDF > Edit Annotation Mode.
+  - Edit Annotation mode is handled in `MovableAnnotationPDFView.mouseDown(with:)` before delete/move logic. It only targets `.text` sticky notes and `.freeText` text boxes, opens a small text-entry alert seeded with the existing annotation contents, updates `annotation.contents`, redraws the PDF view, and posts the dirty-state callback.
+  - `AppModel.isPDFAnnotationDeleteModeEnabled` stores Delete Annotation mode. Turning it on turns off Move and Edit modes.
+  - Delete Annotation mode is handled in `MovableAnnotationPDFView.mouseDown(with:)`. It targets `.text` sticky notes, `.freeText` text boxes, `.square` rectangles, `.circle` ovals, and `.line` line/arrow annotations, shows a confirmation alert, removes the annotation from its page, and posts the same dirty-state callback used by moves.
+  - After a successful annotation, `PDFKitView` posts `.pdfAnnotationDidChange` with the PDF URL.
+  - `ContentView` receives `.pdfAnnotationDidChange` and calls `model.markPDFAnnotationsChanged(for:)`.
+  - PDF annotation undo/redo is now hybrid:
+    - Newly-created annotation objects are undone/redone object-by-object. This path is used for text markup annotations, sticky notes, text boxes, rectangle/oval shapes, line/arrow shapes, and freehand ink. `PDFKitView.Coordinator.recordAddedAnnotations(_:)` posts `.pdfAnnotationDidAddObjects`, `ContentView` passes the object list into `AppModel.recordPDFAnnotationObjectChange(_:)`, and `AppModel.undoPDFAnnotation()` removes/re-adds the exact `PDFAnnotation` instances from their original `PDFPage`.
+    - Mutating existing annotations still uses the snapshot fallback. Before move, resize, recolor, edit, delete, or erase operations, `PDFKitView.Coordinator.prepareAnnotationUndoSnapshot()` posts `.pdfAnnotationWillChange` with `PDFAnnotationUndoSnapshot(url:data:)`. `ContentView` receives it and calls `AppModel.preparePDFAnnotationUndoSnapshot(_:)`, which stores the current `PDFDocument.dataRepresentation()` in the selected PDF tab's snapshot undo stack and clears the snapshot redo stack.
+    - Both paths share one chronological undo/redo timeline in `AppModel.pdfAnnotationActionUndoStacks` / `pdfAnnotationActionRedoStacks`. Do not split object actions and snapshot actions into separate priority queues; that would undo changes in the wrong order after mixed workflows such as draw → move → undo.
+  - Why the hybrid design exists: the original all-snapshot approach fixed page-jump issues but PDFKit could still display stale/mixed shape appearances after repeated undo of overlapping or nearby rectangle/oval annotations. Object-level undo for newly-created annotations avoids replacing/reloading the whole PDF document and removes the exact object that was just created, so tests such as “draw bottom rectangle, middle oval, top rectangle, then undo twice” do not blend the oval and rectangle together.
+  - 2026-07-04 follow-up 6: after switching newly-created annotations to object-level undo, some sessions could still contain stale/no-op snapshot or object entries in the chronological undo timeline. The visible symptom was that the first Undo removed the newest rectangle, but the second/third Undo sometimes appeared to do nothing unless the user clicked Undo several more times. `AppModel.undoPDFAnnotation()` and `redoPDFAnnotation()` now loop through no-op actions until one actually changes the visible PDF. Object actions report whether they really removed/re-added at least one annotation. Snapshot actions whose data matches the current PDF data are skipped.
+  - 2026-07-04 follow-up 7: object-level undo originally checked whether the exact same `PDFAnnotation` object instance still existed in `PDFPage.annotations`. With more shapes, PDFKit can sometimes expose a different in-memory wrapper for the same visible annotation, making Undo skip the entry even though the annotation is still on the page. Newly-created annotations now receive a hidden `FileViewerUndoID` annotation key through `PDFAnnotation.ensureFileViewerUndoID()`. Object undo first tries identity and then falls back to matching this ID, so 5+ rectangle/oval sequences should behave the same as 3-item tests.
+  - 2026-07-04 follow-up 8: when the app stayed open, the user could close a PDF tab, reopen the same PDF from Finder, draw annotations, and then need several Undo clicks again. Root cause: old PDFKit coordinators can briefly remain registered for global annotation notifications after their tab closes. If the same file URL is reopened, the old coordinator could record undo entries for the closed PDF document. `PDFAnnotationObjectChange` now carries the exact `PDFDocument` instance and `AppModel.recordPDFAnnotationObjectChange(_:)` only accepts the change when both the URL and live `PDFDocument` identity match the current tab. `PDFAnnotationObjectItem` also stores `pageIndex`, so object undo/redo resolves the page against the current PDF document before falling back to the original page reference.
+  - 2026-07-04 follow-up 9: snapshot undo/redo for existing-annotation mutations, such as recoloring a rectangle, could restore the correct annotation color but shift the visible continuous-scroll position upward. `PDFKitView.updateNSView` now captures the enclosing PDF document scroll view's visible origin before swapping `view.document`, reapplies page/scale, and then reapplies the exact visible origin immediately and across the two delayed restoration ticks.
+  - Snapshot undo/redo restore whole-PDF snapshots by constructing a new `PDFDocument(data:)` and replacing the current tab's `PDFViewerDocument`. Keep this only for existing-annotation mutations unless a later change implements object-level inverse operations for moves/resizes/recolors/deletes.
+  - 2026-07-04 fix: restored PDF snapshots must force the viewer to refresh even though the file URL is unchanged. `PDFViewerDocument.==` now includes PDF object identity. A brief experiment keyed `PDFWorkspace` with `ObjectIdentifier(pdfDocument.document)`, but that recreated the whole viewer and caused an ugly full-document blink on undo/redo. The current approach keeps the existing PDF view alive and lets `PDFKitView.updateNSView` swap `view.document` when the in-memory PDF object changes.
+  - 2026-07-04 follow-up: do not call `applyRestoredPageAndScale()` on every SwiftUI update. That caused manual scrolling to page 2, drawing an annotation, then pressing undo/redo to jump back to stale page 1. Restoration now runs only when the in-memory PDF document changes, and annotation snapshot/change paths sync the current PDF page/scale before posting model updates. `MovableAnnotationPDFView.scrollWheel(with:)` also tells the coordinator to sync page/scale after manual scrolling.
+  - 2026-07-04 follow-up 2: PDFKit fires page-change notifications while replacing the in-memory PDF document for undo/redo, and those notifications can briefly report page 1. `PDFKitView.updateNSView` now captures the current visible page/scale before assigning `view.document`, suppresses page sync during the document replacement, and restores the captured page/scale after replacement. This prevents undo/redo from jumping back to page 1.
+  - 2026-07-04 follow-up 3: the earlier `.pdfAnnotationWillChange` notification only sent the URL and let `AppModel` read `PDFDocument.dataRepresentation()` afterward. In practice this could capture the already-mutated PDF, so Undo restored a snapshot that still contained the new rectangle/annotation. `.pdfAnnotationWillChange` now carries `PDFAnnotationUndoSnapshot(url:data:)`, where the coordinator captures `parent.document.dataRepresentation()` immediately before mutation and sends that exact data to the model.
+  - 2026-07-04 follow-up 4: keep `Coordinator.isReplacingDocument` true until the next main-loop tick after swapping `view.document`; delayed PDFKit page notifications can otherwise still overwrite the page with temporary page 1. `updateNSView` also sets `context.coordinator.parent = self` before the document swap so page restoration uses the new document.
+  - 2026-07-04 follow-up 5: before Undo/Redo, `AppModel` now posts `.pdfSyncCurrentState` so the PDF view synchronously updates current page/scale before the snapshot restore. During restore, `PDFKitView.updateNSView` clears current selection/highlights, sets `view.document = nil`, assigns the restored document, skips search navigation while replacing, and restores the captured page/scale across two main-loop ticks. This is intentionally more conservative to avoid stale annotation drawing and page-1 jumps.
+  - Each tab keeps its own PDF annotation undo/redo history. Object-level add history is capped at 50 actions per PDF tab. Snapshot history is capped at 10 snapshots per PDF tab to limit memory use.
+  - Move/resize/line-endpoint changes capture the undo snapshot only when the first actual drag mutation occurs, not when the user merely clicks in Move Annotation mode.
+  - PDF annotation sidebar:
+    - `SidebarMode.annotations` is the sidebar `Notes` mode.
+    - `AppModel.pdfAnnotationEntries` scans the selected PDF document and returns `PDFAnnotationEntry` values for supported annotation types.
+    - `AppModel.pdfAnnotationFilter` stores the current annotation sidebar filter. `AppModel.filteredPDFAnnotationEntries` applies `PDFAnnotationFilter.includes(_:)`.
+    - `PDFAnnotationFilter` groups annotations into All, Markup (`Highlight`, `Underline`, `Strikeout`), Notes (`Sticky Note`), Text Boxes, Shapes (`Rectangle`, `Oval`, `Line`), and Ink.
+    - `DocumentModel.extractPDFAnnotations(from:)` currently includes highlight, underline, strikeout, sticky note, free-text box, rectangle, oval, line/arrow, and ink annotations.
+    - `SidebarView.pdfAnnotations` renders the filter dropdown, export button, and list. Each row shows an SF Symbol, annotation type, page number, and a short summary. For sticky notes/text boxes, the summary is `annotation.contents`. For markup/shapes without text, it falls back to the annotation type.
+    - Clicking a sidebar row posts `.pdfGoToAnnotation` with `PDFAnnotationNavigationTarget(url:page:bounds:)`.
+    - `PDFKitView.Coordinator.goToAnnotation(_:)` verifies the URL matches the live PDF tab/window, then scrolls to a padded copy of the annotation bounds.
+    - `AppModel.exportPDFAnnotationSummary()` presents an `NSSavePanel`, defaults to `<pdf name> annotation summary.md`, and writes a Markdown report generated by `AppModel.pdfAnnotationSummaryMarkdown(pdfName:pdfPath:entries:)`.
+    - The exported report includes basic metadata, a table with Page / Type / Summary, and a Details section. It exports all supported annotations, not only the current sidebar filter. This avoids accidentally omitting annotations because a filter was left active.
+    - Performance note: the sidebar currently scans PDF page annotations on demand whenever the sidebar renders. That is okay for v1, but if large annotated PDFs feel slow, add a per-document cache invalidated by `.pdfAnnotationDidChange`, document replacement, and tab close.
+  - 2026-07-05 sidebar toggle cleanup:
+    - The app briefly showed two sidebar-looking icons: the native title-bar sidebar toggle and a custom in-content toolbar button.
+    - A follow-up attempt kept only the native title-bar sidebar using `NavigationSplitViewVisibility`, but on Patrick's screen the sidebar could slide over the content and clip the left edge of sidebar rows while also changing the PDF page margin unexpectedly.
+    - Current design: `ContentView` uses a plain `HStack` with a fixed-width 320-point `SidebarView`, a divider, and the document area. The only visible sidebar button is the app toolbar button. This is less “native magic” but much more predictable for this app.
+    - 2026-07-06 follow-up: on a maximized window the sidebar could still compress to roughly 190 points and clip the left side of the `Notes` rows. `ContentView` now gives the sidebar a fixed min/ideal/max width of 320 points and a higher layout priority. `SidebarView` also has the same fixed width.
+    - The sidebar mode control is no longer a native segmented picker. It is a custom `HStack` of buttons so `Recent / Contents / Pages / Notes` will not slide/clamp sideways inside a squeezed segmented control.
+    - The `Notes` annotation list is no longer a native `List`; it is a `ScrollView` + `LazyVStack` with explicit horizontal padding. This avoids macOS sidebar-list row insets/clipping where only the page numbers were visible.
+    - 2026-07-06 follow-up 2: the sidebar still compressed because the PDF annotation toolbar has a very large intrinsic minimum width. SwiftUI protected that toolbar by shrinking the sidebar. `ContentView.body` now uses `GeometryReader` to explicitly reserve 320 points for the sidebar and assign the remaining width to the document area. The document/toolbar side is clipped if necessary; the sidebar should no longer be sacrificed.
+    - 2026-07-06 follow-up 3: after the document/toolbar side became clipped, the toolbar sidebar button could disappear. The toggle now lives in the sidebar header while the sidebar is open, and only appears in the main toolbar when the sidebar is hidden. This avoids duplicate buttons while keeping the control reachable.
+    - 2026-07-07 follow-up: after shrink/enlarge window cycles, the sidebar-header button could visually remain but its hit target could behave stale; clicking it sometimes activated the PDF pages/thumbnails and jumped page instead of hiding the sidebar. The open-sidebar toggle is now a top-level `ContentView` overlay positioned above the sidebar (`zIndex(50)`) with a fixed 32×32 hit area. `SidebarView` no longer owns the hide button. The closed-sidebar toggle remains in the main toolbar.
+    - If this is revisited later, make sure the PDF page never sits under the sidebar and the left edge of `Notes` rows is never clipped.
+  - `DocumentTab.pdfHasUnsavedAnnotations` is now the general PDF dirty flag. The name is historical; it drives the orange unsaved status, Command-S behavior, and close warning for both annotations and fillable-form edits.
+  - `AppModel.savePDFAnnotations()` / `savePDFTab(at:)` writes through `PDFDocument.write(to:)`.
+  - `AppModel.savePDFAnnotatedCopyAs()` presents an `NSSavePanel`, defaults the filename to `<original> annotated.pdf`, writes the same `PDFDocument` to the chosen URL, then switches the current tab to that new PDF URL. After this, normal Save writes to the annotated copy rather than the original.
+  - Fillable PDF form support:
+    - 2026-07-09: Patrick tested a fillable PDF where typing into form fields worked, but Save stayed disabled and only Save As could preserve the filled form. The app now treats PDF widget/form edits as PDF changes.
+    - `PDFKitView.Coordinator.formFieldSignature()` scans every page for widget annotations and builds a lightweight signature from page index, field name, widget field type, rounded bounds, `widgetStringValue`, `buttonWidgetState`, and `buttonWidgetStateString`.
+    - The baseline signature is captured when a PDF view is created and whenever the PDF document object is replaced.
+    - `PDFWorkspace` observes likely AppKit form-control notifications: `NSControl.textDidChangeNotification`, `NSControl.textDidEndEditingNotification`, and `NSComboBox.selectionDidChangeNotification`.
+    - `MovableAnnotationPDFView.mouseUp(with:)` also schedules a form-field check after normal PDFKit mouse handling, which catches checkbox/radio/button-style widget changes that may not emit text-control notifications.
+    - Checks are debounced briefly on the main queue. A lightweight 0.35-second check also runs while the PDF view is attached to a window because PDFKit can host form controls in private AppKit views that do not reliably publish text-control notifications. It compares only form widget properties, not the PDF data. If the current signature differs from the baseline, the coordinator posts `.pdfAnnotationDidChange`; the existing PDF dirty/save/close-warning path is reused.
+    - 2026-07-10 follow-up: a Transport Department form visibly accepted typing but did not update its exposed widget signature, so Save still remained disabled. `MovableAnnotationPDFView` now adds a local key-event monitor while attached to a window. If the focused responder is an `NSTextView` or `NSTextField` inside that PDF view, it calls `Coordinator.markFormFieldEditedByUser()` immediately. This is deliberately scoped to text form controls, so page navigation and app shortcuts do not mark the PDF dirty.
+    - The orange dirty status updated immediately, but the SwiftUI `Commands` menu did not revalidate until FileViewer lost and regained focus. To remove that macOS menu-refresh dependency, File > Save and PDF > Save PDF Changes are enabled whenever a PDF tab is open (writing an unchanged PDF is safe). Markdown Save remains enabled only for a new/dirty Markdown document.
+    - After a successful PDF save, `AppModel.savePDFTab(at:)` posts `.pdfFormFieldBaselineDidReset` with the PDF URL so the live coordinator can reset its form-field baseline and avoid immediately marking the just-saved file dirty again.
+    - Limitation: fillable-form edits currently do not create FileViewer undo/redo entries. Use Save to persist them, or close without saving to discard changes.
+- Known limitations:
+  - Freehand ink is implemented and shows a live preview while dragging.
+  - Text boxes can be added, moved, resized, edited, recolored, and deleted.
+  - Sticky notes can be added, moved, edited, and deleted.
+  - Rectangle, oval, line, arrow, and freehand ink shapes are implemented.
+- Existing annotation recoloring, text box resizing, rectangle/oval edge/corner resizing, and line/arrow endpoint adjustment are implemented.
+- Visible resize/endpoint handles are shown while Move Annotation mode is on.
+  - Text markup is still erased through selected text overlap, not direct object-click deletion.
+  - No undo/redo for annotations yet.
+  - Normal Save still writes back to the current PDF file. Use Save Annotated Copy As before marking important source PDFs if you want to preserve the original untouched.
+  - The current implementation depends on PDF text selection. Scanned-image PDFs without OCR text cannot be highlighted this way.
 
 ### `SidebarView.swift`
 
@@ -508,11 +665,13 @@ Focused model:
 
 - Uses custom `FocusedValueKey` `FileViewerModelKey`.
 - `ContentView` sets `.focusedSceneValue(\.fileViewerModel, model)`.
+- 2026-07-02 fix: app menu commands now use `activeModel`, which falls back to `FileViewerWindowRegistry.shared.activeModel` when SwiftUI `@FocusedValue` is nil. Patrick reported that toolbar Save / Save As / Print worked, but File menu Save / Save As / Print were greyed out. The fallback uses the key window/main window to find the correct registered `AppModel`.
 
 Menus:
 
 - File/New replacement:
   - New Markdown Document
+  - 2026-07-05 fix: New Markdown switches to Split mode and requests focus for the source editor. This avoids the confusing case where a new blank Markdown document opens while the app is still in Preview mode, making it look like typing is broken.
   - Open...
 - Save group:
   - Save
@@ -632,6 +791,13 @@ Recent commits on `main`:
   - Replaced the toolbar search `TextField` with native `SearchTextField` so pressing Return reliably advances to the next Markdown/PDF search match.
   - Changed PDF search result count updates to write back through `Binding` values asynchronously after PDFKit finishes finding selections, so the toolbar shows current/total PDF matches.
   - Follow-up fix after Patrick confirmed PDF count was still missing: `AppModel.searchText` now computes PDF match count directly from the open PDF document, and PDF status text displays with a `PDF:` prefix.
+- 2026-07-01 — PDF annotation v1 on branch `feature/pdf-annotation`
+  - Added selection-based PDF text annotations: Highlight, Underline, and Strikeout.
+  - Added a PDF Save button and wired Command-S so annotated PDFs can be saved back to the original file.
+  - Added Save Annotated Copy As / Command-Shift-S for PDFs. This writes a new PDF and switches the active tab to the copy.
+  - Added close confirmation for PDFs with unsaved annotations.
+  - Annotation commands are routed with a `PDFAnnotationCommand(url:kind:)` payload, so a toolbar/menu action targets the active PDF URL instead of blindly applying to every open PDF window.
+  - This is intentionally not freehand drawing, shape annotation, or full annotation management yet.
 
 This handoff document itself should be committed after creation.
 
@@ -689,7 +855,8 @@ Recommended manual test:
 If toolbar works but keyboard/menu does not:
 
 - Check `FocusedValue` propagation in `ContentView`.
-- Check whether menu command can see `model?.isMarkdownDocument == true`.
+- Check whether menu command can see `activeModel?.isMarkdownDocument == true` or `activeModel?.isPDFDocument == true`.
+- Check `FileViewerWindowRegistry.activeModel`, especially if multiple windows are open.
 
 If none works:
 
@@ -759,14 +926,20 @@ The Contents sidebar lists Markdown headings but clicking a heading does not scr
 PDF search:
 
 - highlights all matches
-- jumps to first match
+- jumps to first match only when the search text changes
 - shows current result and total results in the shared search field
 - supports previous/next result navigation
 
 Missing:
 
-- clearing search highlights more predictably
 - search result sidebar/list
+
+Known bug reported by Patrick on 2026-07-02:
+
+- Search can keep pulling the document back to the active match after the user scrolls away to keep reading. Example: search for `chapter 17.1`, the app jumps to the correct match, then manual scrolling may jump back to that same match.
+- Clearing the search field can sometimes jump back to the top of the document/page unexpectedly. Patrick said this is intermittent, not every time.
+- 2026-07-05 fix: `PDFKitView.updateNSView` still calls `goToSearchMatch(searchMatchIndex)`, but `goToSearchMatch(_:)` now only navigates when the requested match index actually changes. Normal SwiftUI/PDFKit refreshes should no longer pull the document back to the same search match after the user manually scrolls away. Search text changes still jump to the first match, and Return/next/previous still jump intentionally.
+- 2026-07-08 fix: the PDF search jump behavior was tightened again. Search text changes and previous/next/Return now create an explicit per-tab navigation request ID. `applySearch(_:)` only updates highlights/counts, while `goToSearchMatch(_:requestID:)` performs scrolling only once per new request. Clearing search removes highlights/counts without issuing a fresh PDF scroll.
 
 ### 6.8 PDF outline support is basic
 
@@ -787,7 +960,39 @@ Known limitations:
 - It only navigates to a page, not an exact coordinate within the page.
 - Some unusual PDFs may encode outline actions differently; if a PDF shows disabled entries even though Preview can jump from them, inspect the `PDFOutline.action` type and add support for that action.
 
-### 6.9 App lifecycle and document model
+### 6.9 PDF annotation v1 limitations
+
+PDF annotation v1 is intentionally conservative. Text markup is selection-based; notes, text boxes, shapes, and pen ink are object/page-based.
+
+Implemented:
+
+- highlight selected text
+- underline selected text
+- strike through selected text
+- choose the color for newly-created annotations
+- remove highlight/underline/strikeout markup from selected text
+- add sticky note comments
+- add visible text box annotations
+- add rectangle, oval, line, and arrow shape annotations
+- draw freehand ink annotations
+- move sticky note icons and text boxes with Move Annotation mode
+- edit sticky note and text box text with Edit Annotation mode
+- delete sticky notes and text boxes with Delete Annotation mode
+- show resize/endpoint handles while Move Annotation mode is on
+- mark PDF tab/window as dirty after annotation
+- detect fillable PDF form edits and mark the PDF tab/window dirty
+- save annotations and fillable-form edits back into the PDF file
+- save an annotated copy through Save Annotated Copy As
+- close warning for unsaved PDF changes
+- undo/redo recent annotation changes
+- sidebar `Notes` list for jumping to annotations
+- basic sticky-note styling polish: standard note icon plus larger FileViewer Move/Edit/Delete hit target
+
+Important caution:
+
+Normal Save writes into the current PDF file. Use Save Annotated Copy As first when you want to protect an original PDF.
+
+### 6.10 App lifecycle and document model
 
 This app is a custom tabbed viewer, not a macOS `DocumentGroup` app. That makes tab control simpler, but it means native document lifecycle features are manual:
 
@@ -855,14 +1060,16 @@ Patrick is newer to Markdown and wants the app to teach/assist him. The Help gui
 
 Recommended order:
 
-1. Improve Markdown preview rendering if Patrick relies heavily on richer tables/checklists.
-2. Add remaining Markdown formatting polish:
+1. Continue PDF annotation:
+   - author/timestamp metadata in annotation reports
+2. Improve Markdown preview rendering if Patrick relies heavily on richer tables/checklists.
+3. Add remaining Markdown formatting polish:
    - smarter link editing/toggling for arbitrary existing Markdown links
    - more precise preview-to-source mapping when repeated phrases exist
-3. Add restore polish if needed:
+4. Add restore polish if needed:
    - restore exact window positions/sizes
    - optionally restore search text if Patrick later wants it
-4. Add repeatable sample files/tests for PDF outline, PDF search counts, Markdown formatting, and multi-window restore.
+5. Add repeatable sample files/tests for PDF outline, PDF search counts, Markdown formatting, PDF annotation, and multi-window restore.
 
 ## 11. Quick mental model for future agents
 

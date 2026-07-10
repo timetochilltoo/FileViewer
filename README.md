@@ -42,6 +42,39 @@ Current MVP build includes:
 - PDF thumbnails.
 - PDF outline/table-of-contents sidebar when the PDF provides one.
 - PDF search highlighting with current/total count and previous/next navigation.
+- Stable fixed-width sidebar with custom sidebar tabs and a sidebar toggle that stays reachable.
+- PDF annotation v1 on the `feature/pdf-annotation` branch:
+  - highlight selected PDF text
+  - underline selected PDF text
+  - strike through selected PDF text
+  - choose the color used for newly-created PDF annotations
+  - choose Thin, Medium, or Thick stroke width for new shapes, lines, arrows, and freehand ink
+  - recolor existing PDF annotations
+  - remove highlight/underline/strikeout markup from selected PDF text
+  - add sticky note comments to the current PDF page
+  - sticky notes use the standard PDF note icon and a larger Move/Edit/Delete hit target
+  - add visible text box annotations
+  - add rectangle, oval, line, and arrow shape annotations
+  - draw freehand ink annotations
+  - move sticky note icons and text boxes with Move Annotation mode
+  - resize text boxes with Move Annotation mode
+  - resize rectangle and oval annotations with Move Annotation mode
+  - show resize/endpoint handles while Move Annotation mode is on
+  - edit sticky note and text box text with Edit Annotation mode
+  - delete sticky notes and text boxes with Delete Annotation mode
+  - undo/redo recent PDF annotation changes
+  - browse PDF annotations from the sidebar `Notes` tab and jump back to the selected annotation
+  - filter the `Notes` sidebar by annotation type
+  - export a Markdown annotation summary report
+  - detect fillable PDF form edits; normal Save is available whenever a PDF is open so macOS menu-refresh timing cannot block saving a form
+  - save embedded PDF annotations and fillable-form changes back to the PDF file
+  - save an annotated PDF copy with Save Annotated Copy As / Command-Shift-S
+  - warn before closing a PDF tab/window with unsaved PDF changes
+- File-management actions are intentionally kept in menus/shortcuts instead of the crowded toolbar:
+  - New Markdown Document
+  - Save / Command-S
+  - Save As / Command-Shift-S
+  - Print / Command-P
 - Print support for PDFs and Markdown source text.
 - Recent files.
 - Light and dark theme.

@@ -1,6 +1,7 @@
 import Foundation
 import PDFKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 enum DocumentKind: String, Codable, CaseIterable {
     case markdown
@@ -112,12 +113,14 @@ enum SidebarMode: String, CaseIterable {
     case recent
     case contents
     case pages
+    case annotations
 
     var title: String {
         switch self {
         case .recent: "Recent"
         case .contents: "Contents"
         case .pages: "Pages"
+        case .annotations: "Notes"
         }
     }
 }
@@ -141,6 +144,166 @@ struct PDFOutlineEntry: Identifiable, Equatable {
     let level: Int
     let title: String
     let page: Int?
+}
+
+struct PDFAnnotationEntry: Identifiable, Equatable {
+    let id: String
+    let page: Int
+    let kind: String
+    let summary: String
+    let bounds: CGRect
+
+    var iconName: String {
+        switch kind {
+        case "Highlight": "highlighter"
+        case "Underline": "underline"
+        case "Strikeout": "strikethrough"
+        case "Sticky Note": "note.text"
+        case "Text Box": "text.bubble"
+        case "Rectangle": "rectangle"
+        case "Oval": "oval"
+        case "Line": "line.diagonal"
+        case "Ink": "pencil.and.scribble"
+        default: "pencil.tip"
+        }
+    }
+}
+
+enum PDFAnnotationFilter: String, CaseIterable {
+    case all
+    case markup
+    case stickyNotes
+    case textBoxes
+    case shapes
+    case ink
+
+    var title: String {
+        switch self {
+        case .all: "All"
+        case .markup: "Markup"
+        case .stickyNotes: "Notes"
+        case .textBoxes: "Text Boxes"
+        case .shapes: "Shapes"
+        case .ink: "Ink"
+        }
+    }
+
+    func includes(_ entry: PDFAnnotationEntry) -> Bool {
+        switch self {
+        case .all:
+            true
+        case .markup:
+            ["Highlight", "Underline", "Strikeout"].contains(entry.kind)
+        case .stickyNotes:
+            entry.kind == "Sticky Note"
+        case .textBoxes:
+            entry.kind == "Text Box"
+        case .shapes:
+            ["Rectangle", "Oval", "Line"].contains(entry.kind)
+        case .ink:
+            entry.kind == "Ink"
+        }
+    }
+}
+
+struct PDFAnnotationNavigationTarget {
+    let url: URL
+    let page: Int
+    let bounds: CGRect
+}
+
+enum PDFAnnotationKind: String, CaseIterable, Equatable {
+    case highlight
+    case underline
+    case strikeout
+
+    var title: String {
+        switch self {
+        case .highlight: "Highlight"
+        case .underline: "Underline"
+        case .strikeout: "Strikeout"
+        }
+    }
+}
+
+struct PDFAnnotationCommand {
+    let url: URL
+    let kind: PDFAnnotationKind
+    let color: NSColor
+}
+
+enum PDFShapeAnnotationKind: String, CaseIterable, Equatable {
+    case rectangle
+    case oval
+    case line
+    case arrow
+
+    var title: String {
+        switch self {
+        case .rectangle: "Rectangle"
+        case .oval: "Oval"
+        case .line: "Line"
+        case .arrow: "Arrow"
+        }
+    }
+
+    var isLineBased: Bool {
+        self == .line || self == .arrow
+    }
+}
+
+struct PDFShapeAnnotationCommand {
+    let url: URL
+    let kind: PDFShapeAnnotationKind
+    let color: NSColor
+}
+
+enum PDFAnnotationStrokeWidth: Double, CaseIterable, Identifiable {
+    case thin = 1.0
+    case medium = 2.0
+    case thick = 4.0
+
+    var id: Double { rawValue }
+
+    var title: String {
+        switch self {
+        case .thin: "Thin"
+        case .medium: "Medium"
+        case .thick: "Thick"
+        }
+    }
+
+    var lineWidth: CGFloat {
+        CGFloat(rawValue)
+    }
+}
+
+struct PDFAnnotationUndoSnapshot {
+    let url: URL
+    let data: Data
+}
+
+struct PDFAnnotationObjectChange {
+    let url: URL
+    let document: PDFDocument
+    let items: [PDFAnnotationObjectItem]
+}
+
+struct PDFAnnotationObjectItem {
+    let page: PDFPage
+    let pageIndex: Int
+    let annotation: PDFAnnotation
+    let annotationID: String
+}
+
+private struct PDFAnnotationObjectUndoAction {
+    let url: URL
+    let items: [PDFAnnotationObjectItem]
+}
+
+private enum PDFAnnotationUndoAction {
+    case addedObjects(PDFAnnotationObjectUndoAction)
+    case snapshot(url: URL, data: Data)
 }
 
 enum ViewerDocument: Equatable {
@@ -175,6 +338,7 @@ struct DocumentTab: Identifiable, Equatable {
     var searchText: String
     var searchMatchIndex: Int
     var searchMatchCount: Int
+    var searchNavigationRequestID: UUID
     var markdownSourceScrollY: Double
     var markdownPreviewScrollY: Double
     var markdownSourceVisibleLocation: Int
@@ -182,6 +346,9 @@ struct DocumentTab: Identifiable, Equatable {
     var pdfPage: Int
     var pdfPageCount: Int
     var pdfScale: CGFloat
+    var pdfHasUnsavedAnnotations: Bool
+    var pdfAnnotationUndoStack: [Data]
+    var pdfAnnotationRedoStack: [Data]
 
     init(document: ViewerDocument) {
         id = UUID()
@@ -189,6 +356,7 @@ struct DocumentTab: Identifiable, Equatable {
         searchText = ""
         searchMatchIndex = 0
         searchMatchCount = 0
+        searchNavigationRequestID = UUID()
         markdownSourceScrollY = 0
         markdownPreviewScrollY = 0
         markdownSourceVisibleLocation = 0
@@ -200,6 +368,9 @@ struct DocumentTab: Identifiable, Equatable {
             pdfPageCount = 0
         }
         pdfScale = 1.0
+        pdfHasUnsavedAnnotations = false
+        pdfAnnotationUndoStack = []
+        pdfAnnotationRedoStack = []
     }
 
     init(document: ViewerDocument, pdfPage: Int, pdfScale: CGFloat) {
@@ -274,7 +445,55 @@ struct PDFViewerDocument: Equatable {
     let document: PDFDocument
 
     static func == (lhs: PDFViewerDocument, rhs: PDFViewerDocument) -> Bool {
-        lhs.url == rhs.url
+        lhs.url == rhs.url && lhs.document === rhs.document
+    }
+}
+
+extension PDFAnnotation {
+    private static let fileViewerUndoIDKey = PDFAnnotationKey(rawValue: "FileViewerUndoID")
+
+    var fileViewerUndoID: String? {
+        value(forAnnotationKey: Self.fileViewerUndoIDKey) as? String
+    }
+
+    @discardableResult
+    func ensureFileViewerUndoID() -> String {
+        if let existingID = fileViewerUndoID, !existingID.isEmpty {
+            return existingID
+        }
+
+        let id = UUID().uuidString
+        setValue(id, forAnnotationKey: Self.fileViewerUndoIDKey)
+        return id
+    }
+
+    var fileViewerSummaryKind: String? {
+        switch normalizedFileViewerType {
+        case "highlight": "Highlight"
+        case "underline": "Underline"
+        case "strikeout": "Strikeout"
+        case "text": "Sticky Note"
+        case "freetext": "Text Box"
+        case "square": "Rectangle"
+        case "circle": "Oval"
+        case "line": "Line"
+        case "ink": "Ink"
+        default: nil
+        }
+    }
+
+    var fileViewerSummaryText: String {
+        let text = (contents ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\n", with: " ")
+        guard !text.isEmpty else {
+            return fileViewerSummaryKind ?? "Annotation"
+        }
+        return text.count > 120 ? "\(text.prefix(117))..." : text
+    }
+
+    private var normalizedFileViewerType: String {
+        (type ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
     }
 }
 
@@ -286,6 +505,16 @@ final class AppModel: ObservableObject {
     @Published var markdownMode: MarkdownMode = .split
     @Published var statusMessage = ""
     @Published var recents: [RecentDocument] = []
+    @Published var isPDFNoteMoveModeEnabled = false
+    @Published var isPDFAnnotationDeleteModeEnabled = false
+    @Published var isPDFAnnotationEditModeEnabled = false
+    @Published var isPDFAnnotationRecolorModeEnabled = false
+    @Published var isPDFInkDrawingModeEnabled = false
+    @Published var pdfLineDrawingMode: PDFShapeAnnotationKind?
+    @Published var pdfAnnotationColor = Color.yellow
+    @Published var pdfAnnotationStrokeWidth: PDFAnnotationStrokeWidth = .medium
+    @Published var pdfAnnotationFilter: PDFAnnotationFilter = .all
+    @Published var markdownEditorFocusRequest = UUID()
 
     private let recentsKey = "FileViewer.recents"
     private let markdownModeKey = "FileViewer.markdownMode"
@@ -293,6 +522,21 @@ final class AppModel: ObservableObject {
     private static let pdfStateKey = "FileViewer.pdf.lastStates"
     private static let markdownStateKey = "FileViewer.markdown.lastStates"
     private weak var lastActiveMarkdownTextView: NSTextView?
+    private var pdfAnnotationActionUndoStacks: [DocumentTab.ID: [PDFAnnotationUndoAction]] = [:]
+    private var pdfAnnotationActionRedoStacks: [DocumentTab.ID: [PDFAnnotationUndoAction]] = [:]
+
+    var pdfAnnotationNSColor: NSColor {
+        NSColor(pdfAnnotationColor)
+    }
+
+    var pdfAnnotationLineWidth: CGFloat {
+        pdfAnnotationStrokeWidth.lineWidth
+    }
+
+    func resetPDFAnnotationColor() {
+        pdfAnnotationColor = .yellow
+        statusMessage = "PDF annotation color reset to yellow."
+    }
     private weak var lastActiveMarkdownPreviewTextView: NSTextView?
     private var lastActiveMarkdownSelectionKind: MarkdownSelectionKind = .source
     private var isSavingSessionSnapshot = false
@@ -347,9 +591,13 @@ final class AppModel: ObservableObject {
         set {
             guard let index = selectedTabIndex else { return }
             objectWillChange.send()
+            let didChange = tabs[index].searchText != newValue
             tabs[index].searchText = newValue
             tabs[index].searchMatchIndex = 0
             tabs[index].searchMatchCount = searchMatchCount(for: newValue, in: tabs[index].document)
+            if didChange {
+                tabs[index].searchNavigationRequestID = UUID()
+            }
         }
     }
 
@@ -360,6 +608,10 @@ final class AppModel: ObservableObject {
             objectWillChange.send()
             tabs[index].searchMatchIndex = max(0, newValue)
         }
+    }
+
+    var searchNavigationRequestID: UUID {
+        selectedTab?.searchNavigationRequestID ?? UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
     }
 
     var searchMatchCount: Int {
@@ -397,14 +649,18 @@ final class AppModel: ObservableObject {
 
     func previousSearchMatch() {
         let count = searchMatchCount
-        guard count > 0 else { return }
-        searchMatchIndex = (searchMatchIndex - 1 + count) % count
+        guard count > 0, let index = selectedTabIndex else { return }
+        objectWillChange.send()
+        tabs[index].searchMatchIndex = (tabs[index].searchMatchIndex - 1 + count) % count
+        tabs[index].searchNavigationRequestID = UUID()
     }
 
     func nextSearchMatch() {
         let count = searchMatchCount
-        guard count > 0 else { return }
-        searchMatchIndex = (searchMatchIndex + 1) % count
+        guard count > 0, let index = selectedTabIndex else { return }
+        objectWillChange.send()
+        tabs[index].searchMatchIndex = (tabs[index].searchMatchIndex + 1) % count
+        tabs[index].searchNavigationRequestID = UUID()
     }
 
     private func searchMatchCount(for searchText: String, in document: ViewerDocument) -> Int {
@@ -482,9 +738,33 @@ final class AppModel: ObservableObject {
         return Self.extractPDFOutline(from: document.document)
     }
 
+    var pdfAnnotationEntries: [PDFAnnotationEntry] {
+        guard case .pdf(let document) = document else { return [] }
+        return Self.extractPDFAnnotations(from: document.document)
+    }
+
+    var filteredPDFAnnotationEntries: [PDFAnnotationEntry] {
+        pdfAnnotationEntries.filter { pdfAnnotationFilter.includes($0) }
+    }
+
     var canSaveMarkdown: Bool {
         guard case .markdown(let document) = document else { return false }
         return document.url == nil || document.hasUnsavedChanges
+    }
+
+    var canSavePDF: Bool {
+        guard isPDFDocument else { return false }
+        return selectedTab?.pdfHasUnsavedAnnotations == true
+    }
+
+    var canUndoPDFAnnotation: Bool {
+        guard isPDFDocument else { return false }
+        return selectedTabID.flatMap { pdfAnnotationActionUndoStacks[$0]?.isEmpty == false } ?? false
+    }
+
+    var canRedoPDFAnnotation: Bool {
+        guard isPDFDocument else { return false }
+        return selectedTabID.flatMap { pdfAnnotationActionRedoStacks[$0]?.isEmpty == false } ?? false
     }
 
     var isMarkdownDocument: Bool {
@@ -501,6 +781,11 @@ final class AppModel: ObservableObject {
         document != nil
     }
 
+    var selectedPDFURL: URL? {
+        guard case .pdf(let pdf) = document else { return nil }
+        return pdf.url
+    }
+
     func newMarkdownDocument() {
         let untitledCount = tabs.reduce(0) { count, tab in
             if case .markdown(let markdown) = tab.document,
@@ -511,8 +796,10 @@ final class AppModel: ObservableObject {
         }
         let name = untitledCount == 0 ? "Untitled.md" : "Untitled \(untitledCount + 1).md"
         appendTab(.markdown(MarkdownDocument(url: nil, untitledName: name, text: "", savedText: "")))
+        markdownMode = .split
         sidebarMode = .contents
         statusMessage = "New Markdown document."
+        markdownEditorFocusRequest = UUID()
     }
 
     func openWithPanel() {
@@ -598,18 +885,28 @@ final class AppModel: ObservableObject {
 
     private func canCloseTab(at index: Int) -> Bool {
         guard tabs.indices.contains(index) else { return true }
-        guard case .markdown(let markdown) = tabs[index].document,
-              markdown.hasUnsavedChanges else {
-            return true
-        }
 
-        switch closeConfirmation(for: markdown) {
-        case .save:
-            return saveMarkdownTab(at: index)
-        case .discard:
+        switch tabs[index].document {
+        case .markdown(let markdown) where markdown.hasUnsavedChanges:
+            switch closeConfirmation(for: markdown) {
+            case .save:
+                return saveMarkdownTab(at: index)
+            case .discard:
+                return true
+            case .cancel:
+                return false
+            }
+        case .pdf(let pdf) where tabs[index].pdfHasUnsavedAnnotations:
+            switch closeConfirmation(forPDFNamed: pdf.url.lastPathComponent) {
+            case .save:
+                return savePDFTab(at: index)
+            case .discard:
+                return true
+            case .cancel:
+                return false
+            }
+        default:
             return true
-        case .cancel:
-            return false
         }
     }
 
@@ -619,6 +916,8 @@ final class AppModel: ObservableObject {
         savePDFStateIfNeeded(for: tabs[index])
         saveMarkdownStateIfNeeded(for: tabs[index])
         let id = tabs[index].id
+        pdfAnnotationActionUndoStacks[id] = nil
+        pdfAnnotationActionRedoStacks[id] = nil
         tabs.remove(at: index)
         if selectedTabID == id {
             selectedTabID = tabs.indices.contains(index) ? tabs[index].id : tabs.last?.id
@@ -660,6 +959,25 @@ final class AppModel: ObservableObject {
         let alert = NSAlert()
         alert.messageText = "Save changes to “\(markdown.name)” before closing?"
         alert.informativeText = "If you don’t save, your changes will be lost."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Don’t Save")
+        alert.addButton(withTitle: "Cancel")
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            return .save
+        case .alertSecondButtonReturn:
+            return .discard
+        default:
+            return .cancel
+        }
+    }
+
+    private func closeConfirmation(forPDFNamed name: String) -> CloseConfirmationAction {
+        let alert = NSAlert()
+        alert.messageText = "Save PDF changes to “\(name)” before closing?"
+        alert.informativeText = "If you don’t save, your PDF annotations or form edits will be lost."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Save")
         alert.addButton(withTitle: "Don’t Save")
@@ -735,6 +1053,394 @@ final class AppModel: ObservableObject {
         let alert = NSAlert()
         alert.messageText = "Could not save “\(markdown.name)”"
         alert.informativeText = "The document was not closed, so your unsaved changes are still open."
+        alert.alertStyle = .critical
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
+    func markPDFAnnotationsChanged(for url: URL) {
+        guard let index = tabs.firstIndex(where: { tab in
+            guard case .pdf(let pdf) = tab.document else { return false }
+            return pdf.url == url
+        }) else { return }
+        objectWillChange.send()
+        tabs[index].pdfHasUnsavedAnnotations = true
+        statusMessage = "PDF changes detected. Save to keep them."
+    }
+
+    func preparePDFAnnotationUndoSnapshot(_ snapshot: PDFAnnotationUndoSnapshot) {
+        guard let index = tabs.firstIndex(where: { tab in
+            guard case .pdf(let pdf) = tab.document else { return false }
+            return pdf.url == snapshot.url
+        }) else { return }
+
+        let tabID = tabs[index].id
+        objectWillChange.send()
+        tabs[index].pdfAnnotationUndoStack.append(snapshot.data)
+        if tabs[index].pdfAnnotationUndoStack.count > maxSnapshots {
+            tabs[index].pdfAnnotationUndoStack.removeFirst(tabs[index].pdfAnnotationUndoStack.count - maxSnapshots)
+        }
+        tabs[index].pdfAnnotationRedoStack.removeAll()
+        pdfAnnotationActionUndoStacks[tabID, default: []].append(.snapshot(url: snapshot.url, data: snapshot.data))
+        trimPDFAnnotationUndoStack(for: tabID)
+        pdfAnnotationActionRedoStacks[tabID] = []
+        statusMessage = "PDF annotation undo point saved."
+    }
+
+    func recordPDFAnnotationObjectChange(_ change: PDFAnnotationObjectChange) {
+        guard let index = tabs.firstIndex(where: { tab in
+            guard case .pdf(let pdf) = tab.document else { return false }
+            return pdf.url == change.url && pdf.document === change.document
+        }) else { return }
+
+        let maxObjectActions = 50
+        let tabID = tabs[index].id
+        objectWillChange.send()
+        pdfAnnotationActionUndoStacks[tabID, default: []].append(
+            .addedObjects(PDFAnnotationObjectUndoAction(url: change.url, items: change.items))
+        )
+        if let count = pdfAnnotationActionUndoStacks[tabID]?.count, count > maxObjectActions {
+            pdfAnnotationActionUndoStacks[tabID]?.removeFirst(count - maxObjectActions)
+        }
+        trimPDFAnnotationUndoStack(for: tabID)
+        pdfAnnotationActionRedoStacks[tabID] = []
+        tabs[index].pdfAnnotationRedoStack.removeAll()
+        tabs[index].pdfHasUnsavedAnnotations = true
+        statusMessage = "PDF annotation undo point saved."
+    }
+
+    func undoPDFAnnotation() {
+        NotificationCenter.default.post(name: .pdfSyncCurrentState, object: nil)
+        guard let index = selectedTabIndex,
+              tabs.indices.contains(index),
+              case .pdf(let pdf) = tabs[index].document,
+              let tabID = selectedTabID,
+              var undoStack = pdfAnnotationActionUndoStacks[tabID] else {
+            NSSound.beep()
+            return
+        }
+
+        objectWillChange.send()
+        while let action = undoStack.popLast() {
+            switch action {
+            case .addedObjects(let objectAction):
+                if removePDFAnnotationObjects(objectAction.items, from: pdf.document) {
+                    pdfAnnotationActionUndoStacks[tabID] = undoStack
+                    pdfAnnotationActionRedoStacks[tabID, default: []].append(action)
+                    tabs[index].pdfHasUnsavedAnnotations = true
+                    statusMessage = "Undid PDF annotation change."
+                    NotificationCenter.default.post(name: .pdfAnnotationDisplayNeedsRefresh, object: objectAction.url)
+                    return
+                }
+            case .snapshot(_, let undoData):
+                guard let currentData = pdf.document.dataRepresentation(),
+                      currentData != undoData,
+                      let restoredDocument = PDFDocument(data: undoData) else {
+                    continue
+                }
+                pdfAnnotationActionUndoStacks[tabID] = undoStack
+                tabs[index].pdfAnnotationRedoStack.append(currentData)
+                pdfAnnotationActionRedoStacks[tabID, default: []].append(.snapshot(url: pdf.url, data: currentData))
+                tabs[index].document = .pdf(PDFViewerDocument(url: pdf.url, document: restoredDocument))
+                tabs[index].pdfPageCount = restoredDocument.pageCount
+                tabs[index].pdfHasUnsavedAnnotations = true
+                statusMessage = "Undid PDF annotation change."
+                return
+            }
+        }
+
+        pdfAnnotationActionUndoStacks[tabID] = []
+        NSSound.beep()
+    }
+
+    func redoPDFAnnotation() {
+        NotificationCenter.default.post(name: .pdfSyncCurrentState, object: nil)
+        guard let index = selectedTabIndex,
+              tabs.indices.contains(index),
+              case .pdf(let pdf) = tabs[index].document,
+              let tabID = selectedTabID,
+              var redoStack = pdfAnnotationActionRedoStacks[tabID] else {
+            NSSound.beep()
+            return
+        }
+
+        objectWillChange.send()
+        while let action = redoStack.popLast() {
+            switch action {
+            case .addedObjects(let objectAction):
+                if addPDFAnnotationObjects(objectAction.items, to: pdf.document) {
+                    pdfAnnotationActionRedoStacks[tabID] = redoStack
+                    pdfAnnotationActionUndoStacks[tabID, default: []].append(action)
+                    trimPDFAnnotationUndoStack(for: tabID)
+                    tabs[index].pdfHasUnsavedAnnotations = true
+                    statusMessage = "Redid PDF annotation change."
+                    NotificationCenter.default.post(name: .pdfAnnotationDisplayNeedsRefresh, object: objectAction.url)
+                    return
+                }
+            case .snapshot(_, let redoData):
+                guard let currentData = pdf.document.dataRepresentation(),
+                      currentData != redoData,
+                      let restoredDocument = PDFDocument(data: redoData) else {
+                    continue
+                }
+                pdfAnnotationActionRedoStacks[tabID] = redoStack
+                tabs[index].pdfAnnotationUndoStack.append(currentData)
+                pdfAnnotationActionUndoStacks[tabID, default: []].append(.snapshot(url: pdf.url, data: currentData))
+                trimPDFAnnotationUndoStack(for: tabID)
+                tabs[index].document = .pdf(PDFViewerDocument(url: pdf.url, document: restoredDocument))
+                tabs[index].pdfPageCount = restoredDocument.pageCount
+                tabs[index].pdfHasUnsavedAnnotations = true
+                statusMessage = "Redid PDF annotation change."
+                return
+            }
+        }
+
+        pdfAnnotationActionRedoStacks[tabID] = []
+        NSSound.beep()
+    }
+
+    private func removePDFAnnotationObjects(_ items: [PDFAnnotationObjectItem], from document: PDFDocument) -> Bool {
+        var didRemove = false
+        for item in items.reversed() {
+            let page = document.page(at: item.pageIndex) ?? item.page
+            if page.annotations.contains(where: { $0 === item.annotation }) {
+                page.removeAnnotation(item.annotation)
+                didRemove = true
+            } else if let matchingAnnotation = page.annotations.first(where: { $0.fileViewerUndoID == item.annotationID }) {
+                page.removeAnnotation(matchingAnnotation)
+                didRemove = true
+            }
+            page.displaysAnnotations = true
+        }
+        return didRemove
+    }
+
+    private func addPDFAnnotationObjects(_ items: [PDFAnnotationObjectItem], to document: PDFDocument) -> Bool {
+        var didAdd = false
+        for item in items {
+            let page = document.page(at: item.pageIndex) ?? item.page
+            let alreadyExists = page.annotations.contains { annotation in
+                annotation === item.annotation || annotation.fileViewerUndoID == item.annotationID
+            }
+            if !alreadyExists {
+                page.addAnnotation(item.annotation)
+                didAdd = true
+            }
+            page.displaysAnnotations = true
+        }
+        return didAdd
+    }
+
+    private var maxSnapshots: Int { 10 }
+
+    private func trimPDFAnnotationUndoStack(for tabID: DocumentTab.ID) {
+        guard var stack = pdfAnnotationActionUndoStacks[tabID] else { return }
+
+        let maxActions = 50
+        if stack.count > maxActions {
+            stack.removeFirst(stack.count - maxActions)
+        }
+
+        let snapshotIndices = stack.indices.filter { index in
+            if case .snapshot = stack[index] {
+                return true
+            }
+            return false
+        }
+        let excessSnapshotCount = snapshotIndices.count - maxSnapshots
+        if excessSnapshotCount > 0 {
+            for index in snapshotIndices.prefix(excessSnapshotCount).reversed() {
+                stack.remove(at: index)
+            }
+        }
+
+        pdfAnnotationActionUndoStacks[tabID] = stack
+    }
+
+    func savePDFAnnotations() {
+        guard let index = selectedTabIndex else { return }
+        _ = savePDFTab(at: index)
+    }
+
+    func savePDFAnnotatedCopyAs() {
+        guard let index = selectedTabIndex,
+              tabs.indices.contains(index),
+              case .pdf(let pdf) = tabs[index].document else { return }
+
+        let panel = NSSavePanel()
+        let baseName = pdf.url.deletingPathExtension().lastPathComponent
+        panel.nameFieldStringValue = "\(baseName) annotated.pdf"
+        panel.allowedContentTypes = [.pdf]
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        guard pdf.document.write(to: url) else {
+            statusMessage = "Could not save annotated PDF copy."
+            showPDFSaveFailedAlert(for: url.lastPathComponent)
+            return
+        }
+
+        objectWillChange.send()
+        tabs[index].document = .pdf(PDFViewerDocument(url: url, document: pdf.document))
+        tabs[index].pdfHasUnsavedAnnotations = false
+        addRecent(name: url.lastPathComponent, kind: .pdf, url: url)
+        savePDFStateIfNeeded(for: tabs[index])
+        saveCurrentSession()
+        statusMessage = "Saved annotated PDF copy."
+    }
+
+    func exportPDFAnnotationSummary() {
+        guard case .pdf(let pdf) = document else { return }
+
+        let entries = pdfAnnotationEntries
+        guard !entries.isEmpty else {
+            statusMessage = "No PDF annotations to export."
+            let alert = NSAlert()
+            alert.messageText = "No PDF Annotations"
+            alert.informativeText = "This PDF does not have FileViewer-supported annotations to export."
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+            return
+        }
+
+        let panel = NSSavePanel()
+        let baseName = pdf.url.deletingPathExtension().lastPathComponent
+        panel.nameFieldStringValue = "\(baseName) annotation summary.md"
+        panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        let markdown = Self.pdfAnnotationSummaryMarkdown(
+            pdfName: pdf.url.lastPathComponent,
+            pdfPath: pdf.url.path,
+            entries: entries
+        )
+
+        do {
+            try markdown.write(to: url, atomically: true, encoding: .utf8)
+            statusMessage = "Exported PDF annotation summary."
+            addRecent(name: url.lastPathComponent, kind: .markdown, url: url)
+        } catch {
+            statusMessage = "Could not export PDF annotation summary."
+            let alert = NSAlert()
+            alert.messageText = "Could Not Export Annotation Summary"
+            alert.informativeText = "FileViewer could not write the annotation summary to \(url.lastPathComponent)."
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+    }
+
+    func togglePDFNoteMoveMode() {
+        guard isPDFDocument else { return }
+        isPDFNoteMoveModeEnabled.toggle()
+        if isPDFNoteMoveModeEnabled {
+            isPDFAnnotationDeleteModeEnabled = false
+            isPDFAnnotationEditModeEnabled = false
+            isPDFAnnotationRecolorModeEnabled = false
+            isPDFInkDrawingModeEnabled = false
+            pdfLineDrawingMode = nil
+        }
+        statusMessage = isPDFNoteMoveModeEnabled
+            ? "Move Annotation mode on. Drag an annotation to reposition it."
+            : "Move Annotation mode off."
+    }
+
+    func togglePDFAnnotationDeleteMode() {
+        guard isPDFDocument else { return }
+        isPDFAnnotationDeleteModeEnabled.toggle()
+        if isPDFAnnotationDeleteModeEnabled {
+            isPDFNoteMoveModeEnabled = false
+            isPDFAnnotationEditModeEnabled = false
+            isPDFAnnotationRecolorModeEnabled = false
+            isPDFInkDrawingModeEnabled = false
+            pdfLineDrawingMode = nil
+        }
+        statusMessage = isPDFAnnotationDeleteModeEnabled
+            ? "Delete Annotation mode on. Click an annotation to remove it."
+            : "Delete Annotation mode off."
+    }
+
+    func togglePDFAnnotationEditMode() {
+        guard isPDFDocument else { return }
+        isPDFAnnotationEditModeEnabled.toggle()
+        if isPDFAnnotationEditModeEnabled {
+            isPDFNoteMoveModeEnabled = false
+            isPDFAnnotationDeleteModeEnabled = false
+            isPDFAnnotationRecolorModeEnabled = false
+            isPDFInkDrawingModeEnabled = false
+            pdfLineDrawingMode = nil
+        }
+        statusMessage = isPDFAnnotationEditModeEnabled
+            ? "Edit Annotation mode on. Click a sticky note or text box to edit it."
+            : "Edit Annotation mode off."
+    }
+
+    func beginPDFLineDrawingMode(_ kind: PDFShapeAnnotationKind) {
+        guard isPDFDocument, kind.isLineBased else { return }
+        pdfLineDrawingMode = kind
+        isPDFNoteMoveModeEnabled = false
+        isPDFAnnotationDeleteModeEnabled = false
+        isPDFAnnotationEditModeEnabled = false
+        isPDFAnnotationRecolorModeEnabled = false
+        isPDFInkDrawingModeEnabled = false
+        statusMessage = kind == .arrow
+            ? "Arrow mode on. Drag on the PDF to draw an arrow."
+            : "Line mode on. Drag on the PDF to draw a line."
+    }
+
+    func togglePDFAnnotationRecolorMode() {
+        guard isPDFDocument else { return }
+        isPDFAnnotationRecolorModeEnabled.toggle()
+        if isPDFAnnotationRecolorModeEnabled {
+            isPDFNoteMoveModeEnabled = false
+            isPDFAnnotationDeleteModeEnabled = false
+            isPDFAnnotationEditModeEnabled = false
+            isPDFInkDrawingModeEnabled = false
+            pdfLineDrawingMode = nil
+        }
+        statusMessage = isPDFAnnotationRecolorModeEnabled
+            ? "Recolor Annotation mode on. Click an annotation to apply the selected color."
+            : "Recolor Annotation mode off."
+    }
+
+    func togglePDFInkDrawingMode() {
+        guard isPDFDocument else { return }
+        isPDFInkDrawingModeEnabled.toggle()
+        if isPDFInkDrawingModeEnabled {
+            isPDFNoteMoveModeEnabled = false
+            isPDFAnnotationDeleteModeEnabled = false
+            isPDFAnnotationEditModeEnabled = false
+            isPDFAnnotationRecolorModeEnabled = false
+            pdfLineDrawingMode = nil
+        }
+        statusMessage = isPDFInkDrawingModeEnabled
+            ? "Pen mode on. Drag on the PDF to draw freehand ink."
+            : "Pen mode off."
+    }
+
+    private func savePDFTab(at index: Int) -> Bool {
+        guard tabs.indices.contains(index),
+              case .pdf(let pdf) = tabs[index].document else {
+            return true
+        }
+
+        guard pdf.document.write(to: pdf.url) else {
+            statusMessage = "Could not save PDF changes."
+            showPDFSaveFailedAlert(for: pdf.url.lastPathComponent)
+            return false
+        }
+
+        objectWillChange.send()
+        tabs[index].pdfHasUnsavedAnnotations = false
+        statusMessage = "Saved PDF changes."
+        NotificationCenter.default.post(name: .pdfFormFieldBaselineDidReset, object: pdf.url)
+        return true
+    }
+
+    private func showPDFSaveFailedAlert(for name: String) {
+        let alert = NSAlert()
+        alert.messageText = "Could not save “\(name)”"
+        alert.informativeText = "The PDF was not closed, so your unsaved annotations are still open."
         alert.alertStyle = .critical
         alert.addButton(withTitle: "OK")
         alert.runModal()
@@ -1609,10 +2315,21 @@ final class AppModel: ObservableObject {
     private func updateSidebarForSelectedDocument() {
         switch document {
         case .markdown:
+            isPDFNoteMoveModeEnabled = false
+            isPDFAnnotationDeleteModeEnabled = false
+            isPDFAnnotationEditModeEnabled = false
+            isPDFAnnotationRecolorModeEnabled = false
+            pdfLineDrawingMode = nil
             sidebarMode = .contents
         case .pdf:
             sidebarMode = .pages
         case nil:
+            isPDFNoteMoveModeEnabled = false
+            isPDFAnnotationDeleteModeEnabled = false
+            isPDFAnnotationEditModeEnabled = false
+            isPDFAnnotationRecolorModeEnabled = false
+            isPDFInkDrawingModeEnabled = false
+            pdfLineDrawingMode = nil
             sidebarMode = .recent
         }
     }
@@ -1670,6 +2387,56 @@ final class AppModel: ObservableObject {
         appendChildren(of: root, level: 1, path: "root")
         return entries
     }
+
+    static func extractPDFAnnotations(from document: PDFDocument) -> [PDFAnnotationEntry] {
+        var entries: [PDFAnnotationEntry] = []
+        for pageIndex in 0..<document.pageCount {
+            guard let page = document.page(at: pageIndex) else { continue }
+            for (annotationIndex, annotation) in page.annotations.enumerated() {
+                guard let kind = annotation.fileViewerSummaryKind else { continue }
+                entries.append(PDFAnnotationEntry(
+                    id: "\(pageIndex)-\(annotationIndex)-\(annotation.fileViewerUndoID ?? annotation.bounds.debugDescription)",
+                    page: pageIndex + 1,
+                    kind: kind,
+                    summary: annotation.fileViewerSummaryText,
+                    bounds: annotation.bounds
+                ))
+            }
+        }
+        return entries
+    }
+
+    static func pdfAnnotationSummaryMarkdown(pdfName: String, pdfPath: String, entries: [PDFAnnotationEntry]) -> String {
+        let generated = Date().formatted(date: .abbreviated, time: .shortened)
+        var lines: [String] = [
+            "# PDF Annotation Summary",
+            "",
+            "- PDF: \(pdfName.escapedForMarkdownListValue)",
+            "- Path: `\(pdfPath.replacingOccurrences(of: "`", with: "\\`"))`",
+            "- Generated: \(generated)",
+            "- Total annotations: \(entries.count)",
+            "",
+            "| Page | Type | Summary |",
+            "|---:|---|---|"
+        ]
+
+        for entry in entries {
+            lines.append("| \(entry.page) | \(entry.kind.escapedForMarkdownTableCell) | \(entry.summary.escapedForMarkdownTableCell) |")
+        }
+
+        lines.append("")
+        lines.append("## Details")
+        lines.append("")
+
+        for entry in entries {
+            lines.append("### Page \(entry.page) — \(entry.kind)")
+            lines.append("")
+            lines.append(entry.summary)
+            lines.append("")
+        }
+
+        return lines.joined(separator: "\n")
+    }
 }
 
 extension String {
@@ -1678,6 +2445,18 @@ extension String {
             .filter { $0.isLetter || $0.isNumber || $0.isWhitespace || $0 == "-" }
             .split(separator: " ")
             .joined(separator: "-")
+    }
+
+    var escapedForMarkdownTableCell: String {
+        replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "|", with: "\\|")
+            .replacingOccurrences(of: "\n", with: "<br>")
+            .replacingOccurrences(of: "\r", with: "")
+    }
+
+    var escapedForMarkdownListValue: String {
+        replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: "")
     }
 }
 

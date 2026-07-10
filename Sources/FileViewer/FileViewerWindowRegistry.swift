@@ -17,6 +17,25 @@ final class FileViewerWindowRegistry {
 
     private init() {}
 
+    var activeModel: AppModel? {
+        cleanupModels()
+        if let keyWindow = NSApp.keyWindow,
+           let match = registeredWindows.first(where: { $0.value.value === keyWindow }) {
+            return registeredModels
+                .compactMap(\.value)
+                .first { ObjectIdentifier($0) == match.key }
+        }
+
+        if let mainWindow = NSApp.mainWindow,
+           let match = registeredWindows.first(where: { $0.value.value === mainWindow }) {
+            return registeredModels
+                .compactMap(\.value)
+                .first { ObjectIdentifier($0) == match.key }
+        }
+
+        return registeredModels.compactMap(\.value).last
+    }
+
     func register(_ model: AppModel) {
         cleanupModels()
         if !registeredModels.contains(where: { $0.value === model }) {

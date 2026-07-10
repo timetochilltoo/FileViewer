@@ -6,6 +6,8 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @StateObject private var model: AppModel
     @State private var sidebarVisible = true
+    private let sidebarWidth: CGFloat = 320
+    private let dividerWidth: CGFloat = 1
 
     init(initialURLs: [URL] = []) {
         _model = StateObject(wrappedValue: AppModel(opening: initialURLs))
@@ -16,22 +18,41 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
-            if sidebarVisible {
-                SidebarView(model: model)
-                    .navigationSplitViewColumnWidth(min: 240, ideal: 280, max: 360)
-            }
-        } detail: {
-            VStack(spacing: 0) {
-                toolbar
-                Divider()
-                tabBar
-                if !model.tabs.isEmpty {
-                    Divider()
+        GeometryReader { proxy in
+            let reservedSidebarWidth = sidebarVisible ? min(sidebarWidth, max(0, proxy.size.width - 360)) : 0
+            let reservedDividerWidth = sidebarVisible ? dividerWidth : 0
+            let documentWidth = max(0, proxy.size.width - reservedSidebarWidth - reservedDividerWidth)
+
+            ZStack(alignment: .topLeading) {
+                HStack(spacing: 0) {
+                    if sidebarVisible {
+                        SidebarView(model: model)
+                            .frame(width: reservedSidebarWidth, height: proxy.size.height)
+                            .clipped()
+                        Divider()
+                            .frame(width: reservedDividerWidth)
+                    }
+
+                    VStack(spacing: 0) {
+                        toolbar
+                        Divider()
+                        tabBar
+                        if !model.tabs.isEmpty {
+                            Divider()
+                        }
+                        statusBar
+                        Divider()
+                        documentBody
+                    }
+                    .frame(width: documentWidth, height: proxy.size.height)
+                    .clipped()
                 }
-                statusBar
-                Divider()
-                documentBody
+
+                if sidebarVisible {
+                    sidebarOverlayToggle
+                        .position(x: max(32, reservedSidebarWidth - 36), y: 42)
+                        .zIndex(50)
+                }
             }
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
@@ -54,20 +75,24 @@ struct ContentView: View {
             FileViewerWindowRegistry.shared.register(model)
         }
         .onReceive(NotificationCenter.default.publisher(for: .toggleSidebar)) { _ in
-            sidebarVisible.toggle()
+            toggleSidebar()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .pdfAnnotationDidChange)) { notification in
+            guard let url = notification.object as? URL else { return }
+            model.markPDFAnnotationsChanged(for: url)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .pdfAnnotationWillChange)) { notification in
+            guard let snapshot = notification.object as? PDFAnnotationUndoSnapshot else { return }
+            model.preparePDFAnnotationUndoSnapshot(snapshot)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .pdfAnnotationDidAddObjects)) { notification in
+            guard let change = notification.object as? PDFAnnotationObjectChange else { return }
+            model.recordPDFAnnotationObjectChange(change)
         }
     }
 
     private var toolbar: some View {
         HStack(spacing: 8) {
-            Button {
-                model.newMarkdownDocument()
-            } label: {
-                Label("New", systemImage: "plus")
-                    .labelStyle(.iconOnly)
-            }
-            .help("New Markdown Document")
-
             Button {
                 model.openWithPanel()
             } label: {
@@ -76,12 +101,14 @@ struct ContentView: View {
             }
             .help("Open")
 
-            Button {
-                sidebarVisible.toggle()
-            } label: {
-                Image(systemName: "sidebar.left")
+            if !sidebarVisible {
+                Button {
+                    toggleSidebar()
+                } label: {
+                    Image(systemName: "sidebar.left")
+                }
+                .help("Show Sidebar")
             }
-            .help("Toggle Sidebar")
 
             if case .markdown = model.document {
                 VStack(alignment: .leading, spacing: 3) {
@@ -100,36 +127,11 @@ struct ContentView: View {
                     .pickerStyle(.segmented)
                 }
                 .frame(minWidth: 170, idealWidth: 220, maxWidth: 260)
-
-                Button {
-                    model.saveMarkdown()
-                } label: {
-                    Image(systemName: "square.and.arrow.down")
-                }
-                .keyboardShortcut("s", modifiers: .command)
-                .disabled(!model.canSaveMarkdown)
-                .help("Save")
-
-                Button {
-                    model.saveMarkdownAs()
-                } label: {
-                    Image(systemName: "doc.badge.plus")
-                }
-                .keyboardShortcut("s", modifiers: [.command, .shift])
-                .help("Save As")
             }
 
             if case .pdf = model.document {
                 PDFToolbar(model: model)
             }
-
-            Button {
-                model.printDocument()
-            } label: {
-                Image(systemName: "printer")
-            }
-            .disabled(!model.canPrintDocument)
-            .help("Print")
 
             Spacer()
                 .frame(minWidth: 0)
@@ -175,6 +177,23 @@ struct ContentView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    private func toggleSidebar() {
+        sidebarVisible.toggle()
+    }
+
+    private var sidebarOverlayToggle: some View {
+        Button {
+            toggleSidebar()
+        } label: {
+            Image(systemName: "sidebar.left")
+                .frame(width: 32, height: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(.quaternary.opacity(0.55), in: RoundedRectangle(cornerRadius: 8))
+        .help("Hide Sidebar")
     }
 
     @ViewBuilder
@@ -246,6 +265,10 @@ struct ContentView: View {
             if case .pdf = model.document {
                 Text("Page \(model.pdfPage) of \(max(model.pdfPageCount, 1))")
                     .foregroundStyle(.secondary)
+                if model.canSavePDF {
+                    Text("Unsaved PDF changes")
+                        .foregroundStyle(.orange)
+                }
             }
         }
         .font(.caption)
@@ -338,7 +361,203 @@ struct PDFToolbar: View {
                 Image(systemName: "arrow.up.left.and.down.right.magnifyingglass")
             }
             .help("Fit Page")
+
+            Divider()
+                .frame(height: 18)
+
+            Button {
+                postAnnotation(.highlight)
+            } label: {
+                Image(systemName: "highlighter")
+            }
+            .help("Highlight Selected PDF Text")
+
+            Button {
+                postAnnotation(.underline)
+            } label: {
+                Image(systemName: "underline")
+            }
+            .help("Underline Selected PDF Text")
+
+            Button {
+                postAnnotation(.strikeout)
+            } label: {
+                Image(systemName: "strikethrough")
+            }
+            .help("Strike Through Selected PDF Text")
+
+            ColorPicker("Annotation Color", selection: $model.pdfAnnotationColor, supportsOpacity: false)
+                .labelsHidden()
+                .frame(width: 32)
+                .help("Choose PDF Annotation Color")
+
+            Picker("Stroke Width", selection: $model.pdfAnnotationStrokeWidth) {
+                ForEach(PDFAnnotationStrokeWidth.allCases) { width in
+                    Text(width.title).tag(width)
+                }
+            }
+            .labelsHidden()
+            .frame(width: 76)
+            .help("Choose Shape and Pen Stroke Width")
+
+            Button {
+                model.resetPDFAnnotationColor()
+            } label: {
+                Image(systemName: "arrow.counterclockwise.circle")
+            }
+            .help("Reset Annotation Color to Yellow")
+
+            Button {
+                model.togglePDFAnnotationRecolorMode()
+            } label: {
+                Image(systemName: "paintpalette")
+                    .foregroundStyle(model.isPDFAnnotationRecolorModeEnabled ? Color.white : Color.primary)
+                    .padding(5)
+                    .background(
+                        Capsule()
+                            .fill(model.isPDFAnnotationRecolorModeEnabled ? Color.accentColor : Color.clear)
+                    )
+            }
+            .help(model.isPDFAnnotationRecolorModeEnabled ? "Recolor Annotation Mode On" : "Recolor Existing Annotation")
+
+            Button {
+                model.pdfLineDrawingMode = nil
+                model.isPDFAnnotationRecolorModeEnabled = false
+                model.isPDFInkDrawingModeEnabled = false
+                guard let url = model.selectedPDFURL else { return }
+                NotificationCenter.default.post(name: .pdfRemoveAnnotationsInSelection, object: url)
+            } label: {
+                Image(systemName: "eraser")
+            }
+            .help("Remove Markup from Selected PDF Text")
+
+            Button {
+                model.pdfLineDrawingMode = nil
+                model.isPDFAnnotationRecolorModeEnabled = false
+                model.isPDFInkDrawingModeEnabled = false
+                guard let url = model.selectedPDFURL else { return }
+                NotificationCenter.default.post(name: .pdfAddStickyNote, object: url)
+            } label: {
+                Image(systemName: "note.text.badge.plus")
+            }
+            .help("Add Sticky Note")
+
+            Button {
+                model.pdfLineDrawingMode = nil
+                model.isPDFAnnotationRecolorModeEnabled = false
+                model.isPDFInkDrawingModeEnabled = false
+                guard let url = model.selectedPDFURL else { return }
+                NotificationCenter.default.post(name: .pdfAddTextBox, object: url)
+            } label: {
+                Image(systemName: "text.badge.plus")
+            }
+            .help("Add Text Box")
+
+            Button {
+                postShape(.rectangle)
+            } label: {
+                Image(systemName: "rectangle")
+            }
+            .help("Add Rectangle")
+
+            Button {
+                postShape(.oval)
+            } label: {
+                Image(systemName: "oval")
+            }
+            .help("Add Oval")
+
+            Button {
+                model.beginPDFLineDrawingMode(.line)
+            } label: {
+                Image(systemName: "line.diagonal")
+                    .foregroundStyle(model.pdfLineDrawingMode == .line ? Color.accentColor : Color.primary)
+            }
+            .help(model.pdfLineDrawingMode == .line ? "Line Drawing Mode On" : "Draw Line")
+
+            Button {
+                model.beginPDFLineDrawingMode(.arrow)
+            } label: {
+                Image(systemName: "arrow.up.right")
+                    .foregroundStyle(model.pdfLineDrawingMode == .arrow ? Color.accentColor : Color.primary)
+            }
+            .help(model.pdfLineDrawingMode == .arrow ? "Arrow Drawing Mode On" : "Draw Arrow")
+
+            Button {
+                model.togglePDFInkDrawingMode()
+            } label: {
+                Image(systemName: "pencil.tip")
+                    .foregroundStyle(model.isPDFInkDrawingModeEnabled ? Color.white : Color.primary)
+                    .padding(5)
+                    .background(
+                        Capsule()
+                            .fill(model.isPDFInkDrawingModeEnabled ? Color.accentColor : Color.clear)
+                    )
+            }
+            .help(model.isPDFInkDrawingModeEnabled ? "Pen Drawing Mode On" : "Draw Freehand Ink")
+
+            Button {
+                model.togglePDFNoteMoveMode()
+            } label: {
+                Image(systemName: "hand.draw")
+                    .foregroundStyle(model.isPDFNoteMoveModeEnabled ? Color.accentColor : Color.primary)
+            }
+            .help(model.isPDFNoteMoveModeEnabled ? "Move Annotation Mode On" : "Move Sticky Note or Text Box")
+
+            Button {
+                model.togglePDFAnnotationEditMode()
+            } label: {
+                Image(systemName: "square.and.pencil")
+                    .foregroundStyle(model.isPDFAnnotationEditModeEnabled ? Color.accentColor : Color.primary)
+            }
+            .help(model.isPDFAnnotationEditModeEnabled ? "Edit Annotation Mode On" : "Edit Sticky Note or Text Box")
+
+            Button {
+                model.togglePDFAnnotationDeleteMode()
+            } label: {
+                Image(systemName: "trash")
+                    .foregroundStyle(model.isPDFAnnotationDeleteModeEnabled ? Color.red : Color.primary)
+            }
+            .help(model.isPDFAnnotationDeleteModeEnabled ? "Delete Annotation Mode On" : "Delete Sticky Note or Text Box")
+
+            Button {
+                model.undoPDFAnnotation()
+            } label: {
+                Image(systemName: "arrow.uturn.backward")
+            }
+            .disabled(!model.canUndoPDFAnnotation)
+            .help("Undo PDF Annotation Change")
+
+            Button {
+                model.redoPDFAnnotation()
+            } label: {
+                Image(systemName: "arrow.uturn.forward")
+            }
+            .disabled(!model.canRedoPDFAnnotation)
+            .help("Redo PDF Annotation Change")
         }
+    }
+
+    private func postAnnotation(_ kind: PDFAnnotationKind) {
+        model.pdfLineDrawingMode = nil
+        model.isPDFAnnotationRecolorModeEnabled = false
+        model.isPDFInkDrawingModeEnabled = false
+        guard let url = model.selectedPDFURL else { return }
+        NotificationCenter.default.post(
+            name: .pdfApplyAnnotation,
+            object: PDFAnnotationCommand(url: url, kind: kind, color: model.pdfAnnotationNSColor)
+        )
+    }
+
+    private func postShape(_ kind: PDFShapeAnnotationKind) {
+        model.pdfLineDrawingMode = nil
+        model.isPDFAnnotationRecolorModeEnabled = false
+        model.isPDFInkDrawingModeEnabled = false
+        guard let url = model.selectedPDFURL else { return }
+        NotificationCenter.default.post(
+            name: .pdfAddShapeAnnotation,
+            object: PDFShapeAnnotationCommand(url: url, kind: kind, color: model.pdfAnnotationNSColor)
+        )
     }
 }
 
@@ -418,12 +637,23 @@ extension Notification.Name {
     static let pdfNextPage = Notification.Name("FileViewer.pdfNextPage")
     static let pdfLastPage = Notification.Name("FileViewer.pdfLastPage")
     static let pdfGoToPage = Notification.Name("FileViewer.pdfGoToPage")
+    static let pdfGoToAnnotation = Notification.Name("FileViewer.pdfGoToAnnotation")
     static let pdfZoomIn = Notification.Name("FileViewer.pdfZoomIn")
     static let pdfZoomOut = Notification.Name("FileViewer.pdfZoomOut")
     static let pdfFitWidth = Notification.Name("FileViewer.pdfFitWidth")
     static let pdfFitPage = Notification.Name("FileViewer.pdfFitPage")
     static let pdfSearch = Notification.Name("FileViewer.pdfSearch")
     static let pdfSyncCurrentState = Notification.Name("FileViewer.pdfSyncCurrentState")
+    static let pdfApplyAnnotation = Notification.Name("FileViewer.pdfApplyAnnotation")
+    static let pdfRemoveAnnotationsInSelection = Notification.Name("FileViewer.pdfRemoveAnnotationsInSelection")
+    static let pdfAddStickyNote = Notification.Name("FileViewer.pdfAddStickyNote")
+    static let pdfAddTextBox = Notification.Name("FileViewer.pdfAddTextBox")
+    static let pdfAddShapeAnnotation = Notification.Name("FileViewer.pdfAddShapeAnnotation")
+    static let pdfAnnotationWillChange = Notification.Name("FileViewer.pdfAnnotationWillChange")
+    static let pdfAnnotationDidChange = Notification.Name("FileViewer.pdfAnnotationDidChange")
+    static let pdfAnnotationDidAddObjects = Notification.Name("FileViewer.pdfAnnotationDidAddObjects")
+    static let pdfAnnotationDisplayNeedsRefresh = Notification.Name("FileViewer.pdfAnnotationDisplayNeedsRefresh")
+    static let pdfFormFieldBaselineDidReset = Notification.Name("FileViewer.pdfFormFieldBaselineDidReset")
     static let markdownSyncCurrentState = Notification.Name("FileViewer.markdownSyncCurrentState")
     static let toggleSidebar = Notification.Name("FileViewer.toggleSidebar")
 }
