@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct AIAssistantPanel: View {
@@ -100,6 +101,13 @@ struct AIAssistantPanel: View {
             }
             .pickerStyle(.menu)
 
+            Picker("Answer in", selection: sessionBinding(\.answerLanguage)) {
+                ForEach(answerLanguages, id: \.self) { language in
+                    Text(language).tag(language)
+                }
+            }
+            .pickerStyle(.menu)
+
             if session.scope == .selectedText && !hasSelection {
                 Label("Select text in the document first.", systemImage: "selection.pin.in.out")
                     .font(.caption)
@@ -113,14 +121,12 @@ struct AIAssistantPanel: View {
             }
             .disabled(!canSend)
 
-            if session.scope == .selectedText || !session.targetLanguage.isEmpty {
-                Picker("Translate to", selection: sessionBinding(\.targetLanguage)) {
-                    ForEach(["Traditional Chinese", "Simplified Chinese", "English", "Japanese", "Korean"], id: \.self) {
-                        Text($0).tag($0)
-                    }
+            Picker("Translate to", selection: sessionBinding(\.targetLanguage)) {
+                ForEach(answerLanguages, id: \.self) { language in
+                    Text(language).tag(language)
                 }
-                .pickerStyle(.menu)
             }
+            .pickerStyle(.menu)
         }
         .padding(12)
     }
@@ -183,13 +189,16 @@ struct AIAssistantPanel: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            TextEditor(text: sessionBinding(\.draft))
-                .font(.body)
+            AIComposerTextEditor(
+                text: sessionBinding(\.draft),
+                canSend: canSend && !session.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                onSend: { submit(.ask) }
+            )
                 .frame(minHeight: 70, maxHeight: 130)
                 .padding(5)
                 .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
             HStack {
-                Text("Local LM Studio • 127.0.0.1")
+                Text("Return sends • Shift-Return adds a new line")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -203,6 +212,10 @@ struct AIAssistantPanel: View {
             }
         }
         .padding(12)
+    }
+
+    private var answerLanguages: [String] {
+        ["English", "Traditional Chinese", "Simplified Chinese"]
     }
 
     private var canSend: Bool {
@@ -239,5 +252,76 @@ struct AIAssistantPanel: View {
 
     private func rendered(_ text: String) -> AttributedString {
         (try? AttributedString(markdown: text)) ?? AttributedString(text)
+    }
+}
+
+/// An AppKit-backed composer provides normal chat behaviour while retaining a
+/// multiline editor: Return sends, and Shift-Return inserts a line break.
+private struct AIComposerTextEditor: NSViewRepresentable {
+    @Binding var text: String
+    let canSend: Bool
+    let onSend: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.drawsBackground = false
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.borderType = .noBorder
+
+        let textView = SendingTextView()
+        textView.delegate = context.coordinator
+        textView.font = .preferredFont(forTextStyle: .body)
+        textView.isRichText = false
+        textView.allowsUndo = true
+        textView.drawsBackground = false
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainerInset = NSSize(width: 4, height: 5)
+        textView.string = text
+        scrollView.documentView = textView
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let textView = scrollView.documentView as? SendingTextView else { return }
+        if textView.string != text {
+            textView.string = text
+        }
+        textView.canSend = { canSend }
+        textView.onSend = onSend
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        private var text: Binding<String>
+
+        init(text: Binding<String>) {
+            self.text = text
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            text.wrappedValue = textView.string
+        }
+    }
+}
+
+private final class SendingTextView: NSTextView {
+    var canSend: (() -> Bool)?
+    var onSend: (() -> Void)?
+
+    override func keyDown(with event: NSEvent) {
+        let isReturn = event.keyCode == 36 || event.keyCode == 76
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if isReturn, !flags.contains(.shift), !flags.contains(.option), !flags.contains(.control), !hasMarkedText(), canSend?() == true {
+            onSend?()
+            return
+        }
+        super.keyDown(with: event)
     }
 }

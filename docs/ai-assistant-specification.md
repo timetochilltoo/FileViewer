@@ -16,6 +16,9 @@ The first functional vertical slice is implemented on the separate branch `featu
 - Selected Text, Current Page/Section, Relevant Sections, and Whole Document scopes are implemented;
 - PDF pages and Markdown headings are used as context labels;
 - question, summary, translation, cancellation, errors, basic Markdown response rendering, and model selection are implemented;
+- normal questions and summaries have an independent `Answer in` selector (English, Traditional Chinese, or Simplified Chinese); translation has its own three-language `Translate to` selector;
+- the request transcript accurately names the selected scope, for example `Translate the selected text into Traditional Chinese` rather than implying the whole document is translated;
+- the chat composer uses Return to send and Shift-Return to insert a line break, with the shortcut displayed under the editor;
 - the manager depends on an `AIProvider` protocol, so another adapter can replace LM Studio without changing panel or document-context code;
 - automated tests cover context chunking, selection isolation, basic retrieval, and rejection of remote hosts.
 
@@ -104,7 +107,7 @@ The bottom input area should contain:
 - a short disclosure such as `Selected text will be sent to <provider>` or `Processed on this Mac`;
 - an optional language selector when translation mode is active.
 
-Return inserts a new line. Command-Return sends the request. A future setting may allow Return to send.
+Phase 1 uses normal chat behaviour: Return sends the request and Shift-Return inserts a new line. The composer displays this shortcut. Command-Return also sends because it is treated as Return without Shift.
 
 ## 4. Context Scope
 

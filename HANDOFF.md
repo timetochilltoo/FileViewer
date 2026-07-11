@@ -1156,6 +1156,8 @@ Known limitations / next work:
 - selection-based context works from the panel, but contextual `Ask AI About Selection` menu items are not implemented;
 - whole-document context is clipped rather than hierarchically summarized after 60,000 characters;
 - keyword scoring is intentionally simple and does not yet use the available embedding model;
+- questions and summaries use the per-session `Answer in` setting (English, Traditional Chinese, or Simplified Chinese); translation has an independent target-language setting with the same choices;
+- the AppKit-backed composer deliberately uses Return to send and Shift-Return for a newline. Do not replace it with SwiftUI `TextEditor` without retaining this behavior;
 - the AI context builder currently performs PDF text extraction synchronously when sending; very large PDFs may briefly delay the UI and should later use a cached background extraction/index;
 - the panel uses side-by-side resizing at all widths; the specified narrow-window overlay behavior remains future work;
 - provider selection/settings are not persistent; Ollama/cloud adapters are not implemented;
