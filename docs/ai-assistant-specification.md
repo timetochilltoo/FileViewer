@@ -24,7 +24,7 @@ The first functional vertical slice is implemented on the separate branch `featu
 - the manager depends on an `AIProvider` protocol, so another adapter can replace LM Studio without changing panel or document-context code;
 - automated tests cover context chunking, selection isolation, basic retrieval, and rejection of remote hosts.
 
-This is intentionally not the complete specification. Remaining work includes clickable citations, selection context-menu commands, hierarchical summaries for very large documents, persistent settings/conversations, Ollama/cloud adapters, a mock streaming provider test, accessibility review, and narrow-window overlay behavior. Current whole-document context is capped at 60,000 characters and reports when it is truncated. No document text is sent until the user presses Send, Summarize, or Translate.
+This is intentionally not the complete specification. Remaining work includes clickable citations, selection context-menu commands, hierarchical summaries for very large documents, persistent settings/conversations, Ollama/cloud adapters, a mock streaming provider test, accessibility review, and narrow-window overlay behavior. Context is capped at 12,000 characters and reports when it is truncated; Whole Document is therefore a preview, not yet a complete-document synthesis. The request also reserves 1,024 output tokens. No document text is sent until the user presses Send, Summarize, or Translate.
 
 This document defines a provider-neutral AI assistant for FileViewer. It describes the user experience, document-context rules, privacy and security controls, internal interfaces, failure handling, and acceptance criteria. The choice of AI provider and model is intentionally deferred.
 

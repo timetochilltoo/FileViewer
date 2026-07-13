@@ -71,12 +71,17 @@ for name, size in sizes.items():
     )
     image.save(root / name)
 PY
-if ! iconutil -c icns "$ICONSET" -o "$ICON_FILE"; then
-    # Some constrained macOS environments reject otherwise valid generated
-    # iconsets. Keep packaging usable there rather than leaving a half-built
-    # application bundle.
-    cp /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericDocumentIcon.icns "$ICON_FILE"
-fi
+python3 - <<PY
+from PIL import Image
+
+# iconutil can reject an otherwise valid generated iconset on some macOS
+# installations. Pillow writes a standard multi-resolution ICNS directly.
+source = Image.open("$ICONSET/icon_512x512@2x.png")
+source.save(
+    "$ICON_FILE",
+    sizes=[(16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)],
+)
+PY
 
 cat > "$APP_BUNDLE/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>

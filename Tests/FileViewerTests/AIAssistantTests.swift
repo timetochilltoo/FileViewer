@@ -65,6 +65,28 @@ final class AIAssistantTests: XCTestCase {
         XCTAssertTrue(payload.text.contains("Encryption and access controls"))
     }
 
+    func testWholeDocumentUsesSafePreviewLimit() {
+        let source = String(repeating: "A", count: 13_000)
+        let markdown = MarkdownDocument(
+            url: nil,
+            untitledName: "Long.md",
+            text: source,
+            savedText: source
+        )
+        let document = ViewerDocument.markdown(markdown)
+        let payload = AIContextBuilder.build(
+            document: document,
+            tab: DocumentTab(document: document),
+            markdownSelection: "",
+            scope: .wholeDocument,
+            question: "Summarize this document"
+        )
+
+        XCTAssertLessThanOrEqual(payload.text.count, 12_000)
+        XCTAssertTrue(payload.wasTruncated)
+        XCTAssertEqual(payload.description, "Whole document preview")
+    }
+
     func testLMStudioClientRejectsRemoteHosts() async {
         let client = LMStudioClient(baseURL: URL(string: "https://example.com/v1")!)
         do {

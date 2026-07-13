@@ -91,6 +91,7 @@ enum LMStudioError: LocalizedError {
     case serverError(Int, String)
     case noModel
     case emptyContext
+    case contextTooLarge(String)
 
     var errorDescription: String? {
         switch self {
@@ -104,6 +105,8 @@ enum LMStudioError: LocalizedError {
             "No chat model is available in LM Studio."
         case .emptyContext:
             "No extractable text was found for the selected context."
+        case .contextTooLarge(let message):
+            "The selected document context is too large for the current LM Studio model. Try Current Page/Section, Selected Text, or Relevant Sections. \(message)"
         }
     }
 }
@@ -148,7 +151,9 @@ struct LMStudioClient: AIProvider {
                     request.timeoutInterval = 300
                     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                     request.httpBody = try JSONEncoder().encode(
-                        ChatRequest(model: model, messages: messages, stream: true, temperature: 0.2)
+                        // Reserve response space so a long prompt cannot consume the
+                        // model's entire context window before it can answer.
+                        ChatRequest(model: model, messages: messages, stream: true, temperature: 0.2, maxTokens: 1_024)
                     )
 
                     let (bytes, response) = try await URLSession.shared.bytes(for: request)
@@ -171,7 +176,16 @@ struct LMStudioClient: AIProvider {
                         if payload == "[DONE]" { break }
                         guard let data = payload.data(using: .utf8) else { continue }
                         let event = try JSONDecoder().decode(ChatStreamResponse.self, from: data)
-                        if let content = event.choices.first?.delta.content, !content.isEmpty {
+                        if let error = event.error {
+                            let message = error.message.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if message.localizedCaseInsensitiveContains("context") ||
+                                message.localizedCaseInsensitiveContains("token") ||
+                                message.localizedCaseInsensitiveContains("length") {
+                                throw LMStudioError.contextTooLarge(message)
+                            }
+                            throw LMStudioError.serverError(httpResponse.statusCode, message)
+                        }
+                        if let content = event.choices?.first?.delta.content, !content.isEmpty {
                             continuation.yield(content)
                         }
                     }
@@ -207,6 +221,15 @@ private struct ChatRequest: Encodable, Sendable {
     let messages: [AIProviderMessage]
     let stream: Bool
     let temperature: Double
+    let maxTokens: Int
+
+    enum CodingKeys: String, CodingKey {
+        case model
+        case messages
+        case stream
+        case temperature
+        case maxTokens = "max_tokens"
+    }
 }
 
 private struct ModelListResponse: Decodable {
@@ -219,7 +242,12 @@ private struct ChatStreamResponse: Decodable {
         struct Delta: Decodable { let content: String? }
         let delta: Delta
     }
-    let choices: [Choice]
+    struct ServerError: Decodable {
+        let message: String
+    }
+
+    let choices: [Choice]?
+    let error: ServerError?
 }
 
 @MainActor
@@ -437,7 +465,11 @@ enum AIContextBuilder {
         question: String
     ) -> AIContextPayload {
         let chunks = documentChunks(document)
-        let maximumCharacters = 60_000
+        // A local model's usable context is often much smaller than its
+        // advertised maximum once the system prompt and answer are included.
+        // This conservative cap is about 3,000 English tokens and leaves room
+        // for the 1,024-token response requested above.
+        let maximumCharacters = 12_000
         switch scope {
         case .selectedText:
             let selection: String
@@ -463,7 +495,7 @@ enum AIContextBuilder {
         case .relevantSections:
             return clipped(relevant(question: question, chunks: chunks), limit: maximumCharacters, description: "Relevant document sections")
         case .wholeDocument:
-            return clipped(chunks, limit: maximumCharacters, description: "Whole document")
+            return clipped(chunks, limit: maximumCharacters, description: "Whole document preview")
         }
     }
 
