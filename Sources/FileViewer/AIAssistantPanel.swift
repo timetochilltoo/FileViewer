@@ -114,6 +114,12 @@ struct AIAssistantPanel: View {
                     .foregroundStyle(.orange)
             }
 
+            if session.scope == .relevantSections {
+                Text("Relevant Sections finds material matching a question. Translate will use the current page or section instead.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
             HStack {
                 Button("Summarize") { submit(.summarize) }
                 Button("Translate") { submit(.translate) }

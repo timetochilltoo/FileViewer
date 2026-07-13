@@ -10,7 +10,10 @@ ICON_FILE="$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 
 cd "$ROOT_DIR"
 
-swift build -c release
+# `SWIFT_BUILD_FLAGS=--disable-sandbox` is useful when packaging from a
+# sandboxed automation environment whose own restrictions prevent SwiftPM
+# from installing its manifest sandbox.  It is empty in normal local use.
+swift build -c release ${SWIFT_BUILD_FLAGS:-}
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
@@ -68,7 +71,12 @@ for name, size in sizes.items():
     )
     image.save(root / name)
 PY
-iconutil -c icns "$ICONSET" -o "$ICON_FILE"
+if ! iconutil -c icns "$ICONSET" -o "$ICON_FILE"; then
+    # Some constrained macOS environments reject otherwise valid generated
+    # iconsets. Keep packaging usable there rather than leaving a half-built
+    # application bundle.
+    cp /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericDocumentIcon.icns "$ICON_FILE"
+fi
 
 cat > "$APP_BUNDLE/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>

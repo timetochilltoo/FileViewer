@@ -18,6 +18,8 @@ The first functional vertical slice is implemented on the separate branch `featu
 - question, summary, translation, cancellation, errors, basic Markdown response rendering, and model selection are implemented;
 - normal questions and summaries have an independent `Answer in` selector (English, Traditional Chinese, or Simplified Chinese); translation has its own three-language `Translate to` selector;
 - the request transcript accurately names the selected scope, for example `Translate the selected text into Traditional Chinese` rather than implying the whole document is translated;
+- `Relevant Sections` is intended for question answering. If it is selected when Translate is pressed, the app changes the effective scope to Current Page/Section, because translation prompts have no meaningful search terms and must not retrieve unrelated pages;
+- summaries and translations use only the current request context; only a normal question carries the preceding conversation turns;
 - the chat composer uses Return to send and Shift-Return to insert a line break, with the shortcut displayed under the editor;
 - the manager depends on an `AIProvider` protocol, so another adapter can replace LM Studio without changing panel or document-context code;
 - automated tests cover context chunking, selection isolation, basic retrieval, and rejection of remote hosts.

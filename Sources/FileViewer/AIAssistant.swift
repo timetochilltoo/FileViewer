@@ -297,16 +297,24 @@ final class AIAssistantManager: ObservableObject {
         markdownSelection: String
     ) {
         ensureSession(for: tabID, hasSelection: !selectionText(document: document, tab: tab, markdownSelection: markdownSelection).isEmpty)
-        let currentSession = session(for: tabID)
+        var currentSession = session(for: tabID)
+        // Keyword relevance is useful for answering a question, but a generic
+        // translation prompt has no useful search terms.  Translating from
+        // this scope could otherwise choose an unrelated page elsewhere in
+        // the document.  Translate the visible page or section instead.
+        if case .translate = taskKind, currentSession.scope == .relevantSections {
+            currentSession.scope = .currentPageOrSection
+            updateSession(for: tabID) { $0.scope = .currentPageOrSection }
+        }
         let requestText: String
         switch taskKind {
         case .ask:
             requestText = currentSession.draft.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !requestText.isEmpty else { return }
         case .summarize:
-            requestText = "Summarize (scopeDescription(for: currentSession.scope, document: document)). Give a short overview followed by key points. Answer in \(currentSession.answerLanguage)."
+            requestText = "Summarize \(scopeDescription(for: currentSession.scope, document: document)). Give a short overview followed by key points. Answer in \(currentSession.answerLanguage)."
         case .translate:
-            requestText = "Translate (scopeDescription(for: currentSession.scope, document: document)) into \(currentSession.targetLanguage). Preserve headings, paragraphs, lists, and meaning."
+            requestText = "Translate \(scopeDescription(for: currentSession.scope, document: document)) into \(currentSession.targetLanguage). Preserve headings, paragraphs, lists, and meaning."
         }
 
         guard !selectedModel.isEmpty else {
@@ -336,7 +344,16 @@ final class AIAssistantManager: ObservableObject {
             session.contextDescription = context.description + (context.wasTruncated ? " (truncated)" : "")
         }
 
-        let history = currentSession.messages.suffix(8).map { message in
+        // A translation or summary must be determined solely by the current
+        // context.  Earlier Q&A can refer to a different page and contaminate
+        // the result.  Only an explicit follow-up question uses chat history.
+        let historyMessages: ArraySlice<AIMessage>
+        if case .ask = taskKind {
+            historyMessages = currentSession.messages.suffix(8)
+        } else {
+            historyMessages = []
+        }
+        let history = historyMessages.map { message in
             AIProviderMessage(role: message.role.rawValue, content: message.content)
         }
         let systemMessage = AIProviderMessage(

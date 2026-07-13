@@ -1157,6 +1157,8 @@ Known limitations / next work:
 - whole-document context is clipped rather than hierarchically summarized after 60,000 characters;
 - keyword scoring is intentionally simple and does not yet use the available embedding model;
 - questions and summaries use the per-session `Answer in` setting (English, Traditional Chinese, or Simplified Chinese); translation has an independent target-language setting with the same choices;
+- `Relevant Sections` is a keyword-retrieval mode for questions. Translation automatically changes this scope to `Current Page/Section`: a generic translation instruction cannot reliably retrieve the visible material and previously could select an unrelated page. The panel explains this behavior while Relevant Sections is selected;
+- summary and translation requests deliberately omit prior chat turns so an earlier response from another page cannot contaminate the new result. Normal Ask requests retain the most recent eight messages as conversational history;
 - the AppKit-backed composer deliberately uses Return to send and Shift-Return for a newline. Do not replace it with SwiftUI `TextEditor` without retaining this behavior;
 - the AI context builder currently performs PDF text extraction synchronously when sending; very large PDFs may briefly delay the UI and should later use a cached background extraction/index;
 - the panel uses side-by-side resizing at all widths; the specified narrow-window overlay behavior remains future work;
