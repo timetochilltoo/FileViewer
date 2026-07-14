@@ -128,6 +128,39 @@ enum AIResponseMarkdownExport {
     }
 }
 
+/// Converts a Markdown response to readable clipboard text. This deliberately
+/// removes formatting syntax (for example `**`, `#`, and `<u>`) while retaining
+/// the words and line breaks a user wants to paste into another application.
+enum AIResponsePlainTextExport {
+    static func make(response: String) -> String {
+        var plainText = response
+            .replacingOccurrences(of: "<u>", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "</u>", with: "", options: .caseInsensitive)
+        // Do not use AttributedString(markdown:) here: it removes paragraph
+        // breaks while converting Markdown. Clipboard text should retain the
+        // response's readable layout.
+        plainText = replacingMatches(in: plainText, pattern: #"!\[([^\]]*)\]\([^)]+\)"#, template: "$1")
+        plainText = replacingMatches(in: plainText, pattern: #"\[([^\]]+)\]\([^)]+\)"#, template: "$1")
+        plainText = replacingMatches(in: plainText, pattern: "(?m)^\\s{0,3}#{1,6}\\s+", template: "")
+        plainText = replacingMatches(in: plainText, pattern: "(?m)^\\s*>\\s?", template: "")
+        plainText = replacingMatches(in: plainText, pattern: "(?m)^\\s*```[^\\n]*\\n?", template: "")
+        plainText = replacingMatches(in: plainText, pattern: "(?<!\\*)\\*([^*]+)\\*(?!\\*)", template: "$1")
+        plainText = replacingMatches(in: plainText, pattern: "(?<!_)_([^_]+)_(?!_)", template: "$1")
+        return plainText
+            .replacingOccurrences(of: "**", with: "")
+            .replacingOccurrences(of: "__", with: "")
+            .replacingOccurrences(of: "~~", with: "")
+            .replacingOccurrences(of: "`", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func replacingMatches(in string: String, pattern: String, template: String) -> String {
+        guard let expression = try? NSRegularExpression(pattern: pattern) else { return string }
+        let range = NSRange(string.startIndex..., in: string)
+        return expression.stringByReplacingMatches(in: string, range: range, withTemplate: template)
+    }
+}
+
 enum LMStudioError: LocalizedError {
     case invalidLocalServer
     case badResponse

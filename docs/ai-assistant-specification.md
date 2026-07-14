@@ -190,7 +190,7 @@ The UI should show progress such as `Reading page 12 of 85` and allow cancellati
 - The source language defaults to automatic detection.
 - The result should preserve paragraphs, headings, lists, and simple tables where practical.
 - Translation output appears in the AI panel.
-- Every completed assistant response offers **Copy Answer**, **Copy as Markdown**, and **Save as Markdown**. **Copy Answer** places only the raw AI response on the clipboard. The Markdown actions preserve the raw response Markdown and add source document, selected context, model, and generated-time provenance. Saving can target an Obsidian vault directly. Creating a new unsaved Markdown document from the response remains future work.
+- Every completed assistant response offers **Copy Answer**, **Copy as Markdown**, and **Save as Markdown**. **Copy Answer** converts the response to readable plain text before copying it, removing Markdown formatting syntax. The Markdown actions preserve the raw response Markdown and add source document, selected context, model, and generated-time provenance. Saving can target an Obsidian vault directly. Creating a new unsaved Markdown document from the response remains future work.
 - The original document is not modified.
 
 ### 6.2 Initial Languages

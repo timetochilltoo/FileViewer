@@ -312,7 +312,7 @@ struct AIAssistantPanel: View {
     private func copyAnswer(for message: AIMessage) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(message.content, forType: .string)
+        pasteboard.setString(AIResponsePlainTextExport.make(response: message.content), forType: .string)
     }
 
     private func saveMarkdown(for message: AIMessage) {

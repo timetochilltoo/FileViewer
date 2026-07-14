@@ -103,6 +103,14 @@ final class AIAssistantTests: XCTestCase {
         XCTAssertTrue(output.contains("1970-01-01T00:00:00Z"))
     }
 
+    func testPlainTextExportRemovesMarkdownFormatting() {
+        let output = AIResponsePlainTextExport.make(
+            response: "## **Heading**\n\n<u>Underlined</u> and `code`."
+        )
+
+        XCTAssertEqual(output, "Heading\n\nUnderlined and code.")
+    }
+
     func testLMStudioClientRejectsRemoteHosts() async {
         let client = LMStudioClient(baseURL: URL(string: "https://example.com/v1")!)
         do {
