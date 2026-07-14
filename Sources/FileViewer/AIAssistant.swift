@@ -631,10 +631,6 @@ final class AIAssistantManager: ObservableObject {
         saveProfiles()
     }
 
-    func hasAPIKey(for profile: AIProviderProfile) -> Bool {
-        AIProviderCredentialStore.load(for: profile.id)?.isEmpty == false
-    }
-
     private func saveProfiles() {
         guard let data = try? JSONEncoder().encode(providerProfiles) else { return }
         UserDefaults.standard.set(data, forKey: Self.profilesKey)

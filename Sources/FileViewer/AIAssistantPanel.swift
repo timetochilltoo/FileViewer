@@ -424,7 +424,7 @@ private struct AIProviderSettingsSheet: View {
                         SecureField(
                             kind.needsAPIKey ? "API key" : "API key (optional)",
                             text: $apiKey,
-                            prompt: Text(manager.hasAPIKey(for: selectedProfile) ? "Stored in Keychain (leave blank to keep)" : (kind.needsAPIKey ? "Required" : "Optional"))
+                            prompt: Text(kind.needsAPIKey ? "Required — leave blank to keep a saved key" : "Optional — leave blank to keep any saved key")
                         )
                         Text("The key is stored in macOS Keychain and is never saved in app preferences or exported documents.")
                             .font(.caption)

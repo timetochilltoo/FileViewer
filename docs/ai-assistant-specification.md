@@ -15,6 +15,7 @@ The first functional vertical slice is implemented on the separate branch `featu
 - every provider exposes model discovery through `GET /v1/models` (or its configured equivalent endpoint);
 - local loopback endpoints may be used immediately; a non-loopback endpoint is blocked until the user enables **Allow this provider to receive document text** in AI Provider Settings;
 - OpenAI requires an API key; custom-compatible profiles may optionally use one. Saved provider credentials are stored only in macOS Keychain, never in UserDefaults, exported data, source code, or logs;
+- opening AI Provider Settings does not inspect or reveal saved Keychain credentials. A saved key is read only when the active provider needs it for a connection or request; leaving the key field blank preserves any existing saved key;
 - PDF text selection and its page number are captured from PDFKit;
 - Markdown source/preview selection is read from the active or most recently active text view;
 - Selected Text, Current Page/Section, Relevant Sections, and Whole Document scopes are implemented;

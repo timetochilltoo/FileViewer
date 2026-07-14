@@ -1149,6 +1149,7 @@ Privacy and safety behavior:
 
 - The default LM Studio and Ollama profiles use loopback endpoints. A remote profile is rejected before a request is created unless the user enables **Allow this provider to receive document text** in AI Provider Settings.
 - OpenAI profiles require an API key; custom-compatible profiles may optionally use one. All saved provider keys are stored under the individual profile UUID in macOS Keychain; credentials never enter UserDefaults, exported data, or logs.
+- The provider settings UI must not probe Keychain merely to display whether a key exists. It presents a neutral field and preserves an existing key when left blank. Keychain access occurs only when a provider connection/request actually needs the credential.
 - The common configured transport uses `GET /models` and streaming `POST /chat/completions`. It is compatible with LM Studio, Ollama's OpenAI-compatible API, custom compatible servers, and OpenAI's supported Chat Completions endpoint.
 - Extraction and retrieval happen in the app. A request is made only after Send, Summarize, or Translate.
 - The system prompt treats document excerpts as untrusted reference data and forbids claiming file mutations.
