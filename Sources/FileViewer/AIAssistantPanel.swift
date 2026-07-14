@@ -72,6 +72,14 @@ struct AIAssistantPanel: View {
             .disabled(session.messages.isEmpty)
             .help("Clear Conversation")
             Button {
+                saveConversation()
+            } label: {
+                Image(systemName: "square.and.arrow.down")
+            }
+            .buttonStyle(.plain)
+            .disabled(session.messages.isEmpty || session.isGenerating)
+            .help("Save Conversation as Markdown")
+            Button {
                 showsProviderSettings = true
             } label: {
                 Image(systemName: "gearshape")
@@ -150,6 +158,16 @@ struct AIAssistantPanel: View {
 
             if session.scope == .relevantSections {
                 Text("Relevant Sections finds material matching a question. Translate will use the current page or section instead.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Label(privacyDisclosure, systemImage: privacyIcon)
+                .font(.caption2)
+                .foregroundStyle(privacyColor)
+
+            if session.scope == .wholeDocument {
+                Text("Whole Document uses a 12,000-character preview; very large documents may be truncated.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -334,6 +352,26 @@ struct AIAssistantPanel: View {
         }
     }
 
+    private var privacyDisclosure: String {
+        let profile = manager.activeProfile
+        guard let host = URL(string: profile.endpoint)?.host?.lowercased() else {
+            return "Check the provider endpoint before sending document text."
+        }
+        if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+            return "Document context is sent to \(profile.name) on this Mac."
+        }
+        return "Document context is sent to remote provider \(profile.name) (\(host))."
+    }
+
+    private var privacyIcon: String {
+        let host = URL(string: manager.activeProfile.endpoint)?.host?.lowercased()
+        return (host == "localhost" || host == "127.0.0.1" || host == "::1") ? "lock" : "network"
+    }
+
+    private var privacyColor: Color {
+        privacyIcon == "lock" ? .secondary : .orange
+    }
+
     private func sessionBinding<Value>(_ keyPath: WritableKeyPath<AIAssistantSession, Value>) -> Binding<Value> {
         Binding(
             get: { manager.session(for: tabID)[keyPath: keyPath] },
@@ -391,6 +429,27 @@ struct AIAssistantPanel: View {
         do {
             let content = markdownExport(for: message)
             try content.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            exportError = error.localizedDescription
+        }
+    }
+
+    private func saveConversation() {
+        let panel = NSSavePanel()
+        panel.title = "Save AI Conversation as Markdown"
+        panel.prompt = "Save"
+        panel.nameFieldStringValue = AIConversationMarkdownExport.suggestedFileName(
+            sourceName: model.document?.name ?? "AI Conversation"
+        )
+        panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try AIConversationMarkdownExport.make(
+                messages: session.messages,
+                sourceName: model.document?.name ?? "Unknown document",
+                modelName: manager.selectedModel
+            ).write(to: url, atomically: true, encoding: .utf8)
         } catch {
             exportError = error.localizedDescription
         }

@@ -197,6 +197,50 @@ enum AIResponseMarkdownExport {
     }
 }
 
+/// Exports the current in-memory conversation without retaining it in app
+/// storage. Each assistant response keeps the source chunks supplied for that
+/// request, so the exported note remains reviewable outside FileViewer.
+enum AIConversationMarkdownExport {
+    static func make(
+        messages: [AIMessage],
+        sourceName: String,
+        modelName: String,
+        generatedAt: Date = Date()
+    ) -> String {
+        let source = sourceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Unknown document" : sourceName
+        let model = modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Unknown model" : modelName
+        let timestamp = ISO8601DateFormatter().string(from: generatedAt)
+        let transcript = messages.map { message -> String in
+            let heading = message.role == .user ? "## You" : "## Assistant"
+            var section = "\(heading)\n\n\(message.content.trimmingCharacters(in: .whitespacesAndNewlines))"
+            if message.role == .assistant, !message.sourceLabels.isEmpty {
+                section += "\n\n**Sources provided to the model:** " + message.sourceLabels.map { "`\($0)`" }.joined(separator: ", ")
+            }
+            return section
+        }.joined(separator: "\n\n---\n\n")
+
+        return """
+        # AI Conversation
+
+        - **Source:** `\(source)`
+        - **Generated:** \(timestamp)
+        - **Model:** \(model)
+
+        ---
+
+        \(transcript)
+        """
+    }
+
+    static func suggestedFileName(sourceName: String) -> String {
+        let base = sourceName
+            .replacingOccurrences(of: ".pdf", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: ".md", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "/", with: "-")
+        return "\(base.isEmpty ? "AI Conversation" : base) conversation.md"
+    }
+}
+
 /// Converts a Markdown response to readable clipboard text. This deliberately
 /// removes formatting syntax (for example `**`, `#`, and `<u>`) while retaining
 /// the words and line breaks a user wants to paste into another application.

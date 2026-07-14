@@ -105,6 +105,23 @@ final class AIAssistantTests: XCTestCase {
         XCTAssertTrue(output.contains("1970-01-01T00:00:00Z"))
     }
 
+    func testConversationExportIncludesMessagesAndPerAnswerSources() {
+        let output = AIConversationMarkdownExport.make(
+            messages: [
+                AIMessage(role: .user, content: "What does this mean?"),
+                AIMessage(role: .assistant, content: "It means testing is required.", sourceLabels: ["Page 8", "Page 9"])
+            ],
+            sourceName: "Guidance.pdf",
+            modelName: "local-model",
+            generatedAt: Date(timeIntervalSince1970: 0)
+        )
+
+        XCTAssertTrue(output.contains("## You"))
+        XCTAssertTrue(output.contains("## Assistant"))
+        XCTAssertTrue(output.contains("`Page 8`, `Page 9`"))
+        XCTAssertTrue(output.contains("1970-01-01T00:00:00Z"))
+    }
+
     func testPlainTextExportRemovesMarkdownFormatting() {
         let output = AIResponsePlainTextExport.make(
             response: "## **Heading**\n\n<u>Underlined</u> and `code`."

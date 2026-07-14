@@ -100,6 +100,7 @@ The conversation area should show:
 - AI responses rendered with basic Markdown;
 - streaming progress while the response is generated; provider-private reasoning wrapped in `<think>…</think>` is filtered before rendering, copying, exporting, or passing conversation history into a follow-up request;
 - a **Sources provided to the model** strip on every completed response. It lists the exact page or Markdown-heading chunks included in that individual request; PDF page chips are clickable and navigate to the corresponding page. This is provenance, not a claim that the model necessarily cited every chip in its prose;
+- a **Save Conversation** command that writes the current in-memory conversation to a Markdown file, including source/model metadata and the source chunks provided to each answer. Conversations remain memory-only unless the user explicitly exports one;
 - citations as clickable chips or links;
 - Copy each completed response as Markdown and save it as a standalone Markdown note;
 - a clear error message when a request fails;
@@ -116,6 +117,8 @@ The bottom input area should contain:
 - an optional language selector when translation mode is active.
 
 Phase 1 uses normal chat behaviour: Return sends the request and Shift-Return inserts a new line. The composer displays this shortcut. Command-Return also sends because it is treated as Return without Shift.
+
+Before an AI action, the configuration area identifies whether the selected endpoint is local to this Mac or a remote provider and names the remote host. Whole Document also warns that the present implementation uses a 12,000-character preview and may be truncated; it is not a complete-document synthesis.
 
 ## 4. Context Scope
 
