@@ -196,10 +196,17 @@ struct AIAssistantPanel: View {
                 Divider()
                 HStack(spacing: 10) {
                     Button {
+                        copyAnswer(for: message)
+                    } label: {
+                        Label("Copy Answer", systemImage: "doc.on.clipboard")
+                    }
+                    .help("Copy only the AI response")
+                    Button {
                         copyMarkdown(for: message)
                     } label: {
                         Label("Copy as Markdown", systemImage: "doc.on.doc")
                     }
+                    .help("Copy the response with document and model details")
                     Button {
                         saveMarkdown(for: message)
                     } label: {
@@ -300,6 +307,12 @@ struct AIAssistantPanel: View {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(markdownExport(for: message), forType: .string)
+    }
+
+    private func copyAnswer(for message: AIMessage) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(message.content, forType: .string)
     }
 
     private func saveMarkdown(for message: AIMessage) {
