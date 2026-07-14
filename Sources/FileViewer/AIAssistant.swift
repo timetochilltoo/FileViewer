@@ -85,6 +85,49 @@ struct AIContextPayload: Sendable {
     let wasTruncated: Bool
 }
 
+/// Formats one completed AI response as a self-contained Markdown note. The
+/// original response is deliberately kept verbatim after the provenance block
+/// so it remains useful when pasted into, or saved directly inside, Obsidian.
+enum AIResponseMarkdownExport {
+    static func make(
+        response: String,
+        sourceName: String,
+        contextDescription: String,
+        modelName: String,
+        generatedAt: Date = Date()
+    ) -> String {
+        let source = sourceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Unknown document" : sourceName
+        let context = contextDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Document context" : contextDescription
+        let model = modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Unknown model" : modelName
+        let timestamp = ISO8601DateFormatter().string(from: generatedAt)
+        let body = response.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return """
+        # AI Response
+
+        - **Source:** `\(source)`
+        - **Context:** \(context)
+        - **Generated:** \(timestamp)
+        - **Model:** \(model)
+
+        ---
+
+        \(body)
+        """
+    }
+
+    static func suggestedFileName(sourceName: String) -> String {
+        let sourceStem = URL(fileURLWithPath: sourceName)
+            .deletingPathExtension()
+            .lastPathComponent
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: " -_"))
+        let sanitized = String(sourceStem.unicodeScalars.map { allowed.contains($0) ? Character(String($0)) : "-" })
+            .trimmingCharacters(in: CharacterSet(charactersIn: " -"))
+        let stem = sanitized.isEmpty ? "AI Response" : "\(sanitized) AI Response"
+        return "\(stem).md"
+    }
+}
+
 enum LMStudioError: LocalizedError {
     case invalidLocalServer
     case badResponse

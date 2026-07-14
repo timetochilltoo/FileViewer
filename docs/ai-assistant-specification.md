@@ -95,7 +95,7 @@ The conversation area should show:
 - AI responses rendered with basic Markdown;
 - streaming progress while the response is generated;
 - citations as clickable chips or links;
-- Copy and Retry actions;
+- Copy each completed response as Markdown and save it as a standalone Markdown note;
 - a clear error message when a request fails;
 - a Stop button during generation.
 
@@ -190,7 +190,7 @@ The UI should show progress such as `Reading page 12 of 85` and allow cancellati
 - The source language defaults to automatic detection.
 - The result should preserve paragraphs, headings, lists, and simple tables where practical.
 - Translation output appears in the AI panel.
-- The user may Copy, Save as Markdown, or create a new unsaved Markdown document from the translation.
+- Every completed assistant response offers **Copy as Markdown** and **Save as Markdown**. Both preserve the raw response Markdown and add source document, selected context, model, and generated-time provenance. Saving can target an Obsidian vault directly. Creating a new unsaved Markdown document from the response remains future work.
 - The original document is not modified.
 
 ### 6.2 Initial Languages

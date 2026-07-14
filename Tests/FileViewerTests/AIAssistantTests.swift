@@ -87,6 +87,22 @@ final class AIAssistantTests: XCTestCase {
         XCTAssertEqual(payload.description, "Whole document preview")
     }
 
+    func testMarkdownExportPreservesResponseAndProvenance() {
+        let output = AIResponseMarkdownExport.make(
+            response: "## Summary\n\n- Keep this Markdown.",
+            sourceName: "Governance.pdf",
+            contextDescription: "Page 7",
+            modelName: "local-model",
+            generatedAt: Date(timeIntervalSince1970: 0)
+        )
+
+        XCTAssertTrue(output.contains("**Source:** `Governance.pdf`"))
+        XCTAssertTrue(output.contains("**Context:** Page 7"))
+        XCTAssertTrue(output.contains("**Model:** local-model"))
+        XCTAssertTrue(output.contains("## Summary\n\n- Keep this Markdown."))
+        XCTAssertTrue(output.contains("1970-01-01T00:00:00Z"))
+    }
+
     func testLMStudioClientRejectsRemoteHosts() async {
         let client = LMStudioClient(baseURL: URL(string: "https://example.com/v1")!)
         do {

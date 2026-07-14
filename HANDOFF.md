@@ -1164,7 +1164,7 @@ Known limitations / next work:
 - the panel uses side-by-side resizing at all widths; the specified narrow-window overlay behavior remains future work;
 - provider selection/settings are not persistent; Ollama/cloud adapters are not implemented;
 - summary and translation use the currently selected scope; future polish should apply task-specific automatic defaults unless the user explicitly changed the scope;
-- no conversation persistence, export, Copy/Retry buttons, or clickable citations yet.
+- no conversation persistence, Retry buttons, or clickable citations yet. Each completed assistant response now has **Copy as Markdown** and **Save as Markdown** actions. The exported note keeps the raw response Markdown and prepends source document, context, model, and timestamp metadata, so it can be pasted into or saved directly in an Obsidian vault.
 
 Verification commands:
 

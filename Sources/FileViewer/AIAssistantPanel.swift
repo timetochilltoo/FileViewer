@@ -1,9 +1,11 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct AIAssistantPanel: View {
     @ObservedObject var model: AppModel
     @ObservedObject var manager: AIAssistantManager
+    @State private var exportError: String?
 
     private var tabID: DocumentTab.ID? { model.selectedTabID }
     private var session: AIAssistantSession { manager.session(for: tabID) }
@@ -33,6 +35,14 @@ struct AIAssistantPanel: View {
         }
         .onChange(of: model.selectedTabID) { _, newValue in
             manager.ensureSession(for: newValue, hasSelection: hasSelection)
+        }
+        .alert("Could Not Save Markdown", isPresented: Binding(
+            get: { exportError != nil },
+            set: { if !$0 { exportError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(exportError ?? "Unknown error")
         }
     }
 
@@ -182,6 +192,23 @@ struct AIAssistantPanel: View {
                 Text(rendered(message.content))
                     .textSelection(.enabled)
             }
+            if message.role == .assistant, !message.content.isEmpty, !session.isGenerating {
+                Divider()
+                HStack(spacing: 10) {
+                    Button {
+                        copyMarkdown(for: message)
+                    } label: {
+                        Label("Copy as Markdown", systemImage: "doc.on.doc")
+                    }
+                    Button {
+                        saveMarkdown(for: message)
+                    } label: {
+                        Label("Save as Markdown…", systemImage: "square.and.arrow.down")
+                    }
+                }
+                .font(.caption)
+                .buttonStyle(.borderless)
+            }
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -258,6 +285,40 @@ struct AIAssistantPanel: View {
 
     private func rendered(_ text: String) -> AttributedString {
         (try? AttributedString(markdown: text)) ?? AttributedString(text)
+    }
+
+    private func markdownExport(for message: AIMessage) -> String {
+        AIResponseMarkdownExport.make(
+            response: message.content,
+            sourceName: model.document?.name ?? "Unknown document",
+            contextDescription: session.contextDescription,
+            modelName: manager.selectedModel
+        )
+    }
+
+    private func copyMarkdown(for message: AIMessage) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(markdownExport(for: message), forType: .string)
+    }
+
+    private func saveMarkdown(for message: AIMessage) {
+        let panel = NSSavePanel()
+        panel.title = "Save AI Response as Markdown"
+        panel.prompt = "Save"
+        panel.nameFieldStringValue = AIResponseMarkdownExport.suggestedFileName(
+            sourceName: model.document?.name ?? "AI Response"
+        )
+        panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+        panel.canCreateDirectories = true
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let content = markdownExport(for: message)
+            try content.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            exportError = error.localizedDescription
+        }
     }
 }
 
