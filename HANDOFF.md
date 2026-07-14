@@ -1152,6 +1152,7 @@ Privacy and safety behavior:
 - The provider settings UI must not probe Keychain merely to display whether a key exists. It presents a neutral field and preserves an existing key when left blank. Keychain access occurs only when a provider connection/request actually needs the credential.
 - The common configured transport uses `GET /models` and streaming `POST /chat/completions`. It is compatible with LM Studio, Ollama's OpenAI-compatible API, custom compatible servers, and OpenAI's supported Chat Completions endpoint.
 - Some reasoning-capable models return private scratch work wrapped in `<think>…</think>`. FileViewer retains the raw response only while it streams, displays only the content outside those tags, then discards the raw buffer. The hidden material is therefore not copied, exported, or supplied as follow-up chat history.
+- Every assistant message stores the labels for the exact `AIContextPayload` chunks supplied to that request. The panel renders these as **Sources provided to the model**. PDF `Page N` labels are buttons that post the existing `.pdfGoToPage` command; Markdown heading labels remain informative chips. Do not call them citations unless the answer itself makes a specific citation claim.
 - Extraction and retrieval happen in the app. A request is made only after Send, Summarize, or Translate.
 - The system prompt treats document excerpts as untrusted reference data and forbids claiming file mutations.
 - AI has no save, annotation, deletion, shell, or file-editing tools.

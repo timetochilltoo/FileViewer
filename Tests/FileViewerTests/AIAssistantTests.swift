@@ -43,6 +43,7 @@ final class AIAssistantTests: XCTestCase {
         XCTAssertTrue(payload.text.contains("First section"))
         XCTAssertFalse(payload.text.contains("Second section"))
         XCTAssertEqual(payload.description, "Selected text")
+        XCTAssertEqual(payload.sourceLabels, ["Selected Markdown text"])
     }
 
     func testRelevantContextPrefersMatchingSection() {
@@ -85,6 +86,7 @@ final class AIAssistantTests: XCTestCase {
         XCTAssertLessThanOrEqual(payload.text.count, 12_000)
         XCTAssertTrue(payload.wasTruncated)
         XCTAssertEqual(payload.description, "Whole document preview")
+        XCTAssertFalse(payload.sourceLabels.isEmpty)
     }
 
     func testMarkdownExportPreservesResponseAndProvenance() {

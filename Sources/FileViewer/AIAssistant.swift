@@ -12,11 +12,15 @@ struct AIMessage: Identifiable, Equatable, Sendable {
     let id: UUID
     let role: AIMessageRole
     var content: String
+    /// Labels for the document chunks supplied with this request. They are
+    /// provenance, not a claim that the model cited every listed chunk.
+    var sourceLabels: [String]
 
-    init(id: UUID = UUID(), role: AIMessageRole, content: String) {
+    init(id: UUID = UUID(), role: AIMessageRole, content: String, sourceLabels: [String] = []) {
         self.id = id
         self.role = role
         self.content = content
+        self.sourceLabels = sourceLabels
     }
 }
 
@@ -147,6 +151,7 @@ struct AIContextPayload: Sendable {
     let text: String
     let description: String
     let wasTruncated: Bool
+    let sourceLabels: [String]
 }
 
 /// Formats one completed AI response as a self-contained Markdown note. The
@@ -773,7 +778,12 @@ final class AIAssistantManager: ObservableObject {
         let assistantID = UUID()
         updateSession(for: tabID) { session in
             session.messages.append(AIMessage(role: .user, content: requestText))
-            session.messages.append(AIMessage(id: assistantID, role: .assistant, content: ""))
+            session.messages.append(AIMessage(
+                id: assistantID,
+                role: .assistant,
+                content: "",
+                sourceLabels: context.sourceLabels
+            ))
             session.draft = ""
             session.isGenerating = true
             session.errorMessage = nil
@@ -1000,19 +1010,23 @@ enum AIContextBuilder {
     private static func clipped(_ chunks: [AIDocumentChunk], limit: Int, description: String) -> AIContextPayload {
         var output = ""
         var truncated = false
+        var sourceLabels: [String] = []
         for chunk in chunks {
             let block = "[\(chunk.label)]\n\(chunk.text)\n\n"
             if output.count + block.count > limit {
                 output += String(block.prefix(max(0, limit - output.count)))
+                if !output.isEmpty { sourceLabels.append(chunk.label) }
                 truncated = true
                 break
             }
             output += block
+            sourceLabels.append(chunk.label)
         }
         return AIContextPayload(
             text: output.trimmingCharacters(in: .whitespacesAndNewlines),
             description: description,
-            wasTruncated: truncated
+            wasTruncated: truncated,
+            sourceLabels: Array(NSOrderedSet(array: sourceLabels)) as? [String] ?? sourceLabels
         )
     }
 }

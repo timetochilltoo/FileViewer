@@ -217,6 +217,21 @@ struct AIAssistantPanel: View {
                     .textSelection(.enabled)
             }
             if message.role == .assistant, !message.content.isEmpty, !session.isGenerating {
+                if !message.sourceLabels.isEmpty {
+                    Divider()
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Sources provided to the model")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 5) {
+                                ForEach(message.sourceLabels, id: \.self) { label in
+                                    sourceButton(label)
+                                }
+                            }
+                        }
+                    }
+                }
                 Divider()
                 HStack(spacing: 10) {
                     Button {
@@ -244,6 +259,29 @@ struct AIAssistantPanel: View {
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(message.role == .user ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    @ViewBuilder
+    private func sourceButton(_ label: String) -> some View {
+        if let page = pageNumber(in: label), let document = model.document, case .pdf = document {
+            Button(label) {
+                model.postPDFCommand(.pdfGoToPage, object: page)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help("Go to \(label)")
+        } else {
+            Text(label)
+                .font(.caption2)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.secondary.opacity(0.12), in: Capsule())
+        }
+    }
+
+    private func pageNumber(in label: String) -> Int? {
+        guard label.hasPrefix("Page ") else { return nil }
+        return Int(label.dropFirst("Page ".count))
     }
 
     private var composer: some View {
