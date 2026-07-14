@@ -557,6 +557,11 @@ final class AIAssistantManager: ObservableObject {
     @Published private(set) var activeProviderID: UUID
 
     private var generationTasks: [DocumentTab.ID: Task<Void, Never>] = [:]
+    // Some reasoning-capable local models stream their private scratch work in
+    // `<think>…</think>` blocks. Keep the unfiltered response only for the
+    // duration of the request so that it is never rendered, copied, exported,
+    // or included in follow-up chat history.
+    private var rawResponseBuffers: [UUID: String] = [:]
     private static let profilesKey = "FileViewer.ai.providerProfiles"
     private static let activeProfileKey = "FileViewer.ai.activeProviderID"
     private var suppressModelPersistence = false
@@ -817,13 +822,19 @@ final class AIAssistantManager: ObservableObject {
     private func append(delta: String, to assistantID: UUID, tabID: DocumentTab.ID) {
         var current = sessions[tabID] ?? AIAssistantSession()
         guard let index = current.messages.firstIndex(where: { $0.id == assistantID }) else { return }
-        current.messages[index].content += delta
+        let rawResponse = (rawResponseBuffers[assistantID] ?? "") + delta
+        rawResponseBuffers[assistantID] = rawResponse
+        current.messages[index].content = Self.displayableResponse(from: rawResponse)
         sessions[tabID] = current
     }
 
     private func finishResponse(assistantID: UUID, tabID: DocumentTab.ID, error: Error? = nil) {
         var current = sessions[tabID] ?? AIAssistantSession()
         current.isGenerating = false
+        if let index = current.messages.firstIndex(where: { $0.id == assistantID }),
+           let rawResponse = rawResponseBuffers.removeValue(forKey: assistantID) {
+            current.messages[index].content = Self.displayableResponse(from: rawResponse)
+        }
         if let error {
             current.errorMessage = error.localizedDescription
         } else if let index = current.messages.firstIndex(where: { $0.id == assistantID }),
@@ -832,6 +843,25 @@ final class AIAssistantManager: ObservableObject {
         }
         sessions[tabID] = current
         generationTasks[tabID] = nil
+    }
+
+    /// Hides private reasoning emitted by models that use the conventional
+    /// `<think>…</think>` wrapper. An unfinished opening tag is also hidden so
+    /// streamed reasoning never flashes briefly in the conversation.
+    nonisolated static func displayableResponse(from rawResponse: String) -> String {
+        var visible = rawResponse
+        while let openingTag = visible.range(of: "<think>", options: .caseInsensitive) {
+            guard let closingTag = visible.range(
+                of: "</think>",
+                options: .caseInsensitive,
+                range: openingTag.upperBound..<visible.endIndex
+            ) else {
+                visible.removeSubrange(openingTag.lowerBound..<visible.endIndex)
+                break
+            }
+            visible.removeSubrange(openingTag.lowerBound..<closingTag.upperBound)
+        }
+        return visible.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func selectionText(document: ViewerDocument, tab: DocumentTab, markdownSelection: String) -> String {

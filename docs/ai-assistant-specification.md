@@ -98,7 +98,7 @@ The conversation area should show:
 
 - user questions;
 - AI responses rendered with basic Markdown;
-- streaming progress while the response is generated;
+- streaming progress while the response is generated; provider-private reasoning wrapped in `<think>…</think>` is filtered before rendering, copying, exporting, or passing conversation history into a follow-up request;
 - citations as clickable chips or links;
 - Copy each completed response as Markdown and save it as a standalone Markdown note;
 - a clear error message when a request fails;

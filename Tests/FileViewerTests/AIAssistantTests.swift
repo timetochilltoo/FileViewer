@@ -144,4 +144,17 @@ final class AIAssistantTests: XCTestCase {
         XCTAssertFalse(AIProviderKind.ollama.needsAPIKey)
         XCTAssertFalse(AIProviderKind.openAICompatible.needsAPIKey)
     }
+
+    func testAIReasoningTagsAreNotShownInDisplayableResponse() {
+        XCTAssertEqual(
+            AIAssistantManager.displayableResponse(
+                from: "<think>Private reasoning that must not be displayed.</think>\n\n## Final answer\nVisible text."
+            ),
+            "## Final answer\nVisible text."
+        )
+        XCTAssertEqual(
+            AIAssistantManager.displayableResponse(from: "Answer first <think>still streaming"),
+            "Answer first"
+        )
+    }
 }

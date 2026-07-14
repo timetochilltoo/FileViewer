@@ -1138,7 +1138,7 @@ User setup: open the AI panel with the sparkle toolbar icon, then use the gear i
 
 Source files:
 
-- `Sources/FileViewer/AIAssistant.swift`: messages, scopes, sessions, persisted `AIProviderProfile` definitions, `AIProviderCredentialStore` Keychain access, provider protocol, configured HTTP/SSE Chat-Completions transport, legacy LM Studio loopback adapter, streaming orchestration, prompt construction, document extraction, chunking, keyword retrieval, and the 12,000-character safety cap.
+- `Sources/FileViewer/AIAssistant.swift`: messages, scopes, sessions, persisted `AIProviderProfile` definitions, `AIProviderCredentialStore` Keychain access, provider protocol, configured HTTP/SSE Chat-Completions transport, legacy LM Studio loopback adapter, streaming orchestration, prompt construction, document extraction, chunking, keyword retrieval, the 12,000-character safety cap, and filtering of streamed `<think>…</think>` reasoning before it reaches visible messages or chat history.
 - `Sources/FileViewer/AIAssistantPanel.swift`: provider/model controls, the AI Provider Settings sheet, scope picker, Summarize/Translate actions, conversation rendering, draft editor, Stop/Send controls, and local-processing disclosure.
 - `Sources/FileViewer/ContentView.swift`: sparkle toolbar button, panel layout, and drag resizing.
 - `Sources/FileViewer/DocumentModel.swift`: panel state, assistant manager ownership, per-tab PDF selection state, Markdown selection capture, and session cleanup on tab close.
@@ -1151,6 +1151,7 @@ Privacy and safety behavior:
 - OpenAI profiles require an API key; custom-compatible profiles may optionally use one. All saved provider keys are stored under the individual profile UUID in macOS Keychain; credentials never enter UserDefaults, exported data, or logs.
 - The provider settings UI must not probe Keychain merely to display whether a key exists. It presents a neutral field and preserves an existing key when left blank. Keychain access occurs only when a provider connection/request actually needs the credential.
 - The common configured transport uses `GET /models` and streaming `POST /chat/completions`. It is compatible with LM Studio, Ollama's OpenAI-compatible API, custom compatible servers, and OpenAI's supported Chat Completions endpoint.
+- Some reasoning-capable models return private scratch work wrapped in `<think>…</think>`. FileViewer retains the raw response only while it streams, displays only the content outside those tags, then discards the raw buffer. The hidden material is therefore not copied, exported, or supplied as follow-up chat history.
 - Extraction and retrieval happen in the app. A request is made only after Send, Summarize, or Translate.
 - The system prompt treats document excerpts as untrusted reference data and forbids claiming file mutations.
 - AI has no save, annotation, deletion, shell, or file-editing tools.
