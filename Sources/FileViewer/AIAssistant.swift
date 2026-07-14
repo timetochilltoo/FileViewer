@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import PDFKit
+import Security
 
 enum AIMessageRole: String, Codable, Sendable {
     case user
@@ -37,6 +38,69 @@ enum AIContextScope: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+enum AIProviderKind: String, CaseIterable, Codable, Identifiable, Sendable {
+    case lmStudio
+    case ollama
+    case openAICompatible
+    case openAI
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .lmStudio: "LM Studio"
+        case .ollama: "Ollama"
+        case .openAICompatible: "OpenAI-Compatible"
+        case .openAI: "OpenAI"
+        }
+    }
+
+    var defaultEndpoint: String {
+        switch self {
+        case .lmStudio: "http://127.0.0.1:1234/v1"
+        case .ollama: "http://127.0.0.1:11434/v1"
+        case .openAICompatible: "http://127.0.0.1:1234/v1"
+        case .openAI: "https://api.openai.com/v1"
+        }
+    }
+
+    var needsAPIKey: Bool {
+        self == .openAI
+    }
+}
+
+struct AIProviderProfile: Identifiable, Codable, Equatable, Sendable {
+    var id: UUID
+    var name: String
+    var kind: AIProviderKind
+    var endpoint: String
+    var defaultModel: String
+    /// Remote endpoints must be deliberately enabled because the chosen
+    /// document context is transmitted to the configured provider.
+    var allowRemoteAccess: Bool
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        kind: AIProviderKind,
+        endpoint: String? = nil,
+        defaultModel: String = "",
+        allowRemoteAccess: Bool? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.kind = kind
+        self.endpoint = endpoint ?? kind.defaultEndpoint
+        self.defaultModel = defaultModel
+        // A profile must never transmit document context to a remote host
+        // merely because its type is known. The user explicitly approves that
+        // action in AI Provider Settings.
+        self.allowRemoteAccess = allowRemoteAccess ?? false
+    }
+
+    static let lmStudio = AIProviderProfile(name: "LM Studio", kind: .lmStudio)
+}
+
 enum AITaskKind: Sendable {
     case ask
     case summarize
@@ -53,8 +117,8 @@ enum AIConnectionStatus: Equatable {
         switch self {
         case .notChecked: "Not checked"
         case .checking: "Checking…"
-        case .connected: "LM Studio connected"
-        case .unavailable: "LM Studio unavailable"
+        case .connected: "Provider connected"
+        case .unavailable: "Provider unavailable"
         }
     }
 
@@ -168,21 +232,27 @@ enum LMStudioError: LocalizedError {
     case noModel
     case emptyContext
     case contextTooLarge(String)
+    case missingAPIKey(String)
+    case remoteProviderNotAllowed(String)
 
     var errorDescription: String? {
         switch self {
         case .invalidLocalServer:
             "For this local-only phase, the AI server must use 127.0.0.1 or localhost."
         case .badResponse:
-            "LM Studio returned an unreadable response."
+            "The AI provider returned an unreadable response."
         case .serverError(let status, let message):
-            "LM Studio returned HTTP \(status): \(message)"
+            "The AI provider returned HTTP \(status): \(message)"
         case .noModel:
-            "No chat model is available in LM Studio."
+            "No chat model is available from the selected provider."
         case .emptyContext:
             "No extractable text was found for the selected context."
         case .contextTooLarge(let message):
-            "The selected document context is too large for the current LM Studio model. Try Current Page/Section, Selected Text, or Relevant Sections. \(message)"
+            "The selected document context is too large for the current model. Try Current Page/Section, Selected Text, or Relevant Sections. \(message)"
+        case .missingAPIKey(let provider):
+            "\(provider) needs an API key. Add it in AI Provider Settings."
+        case .remoteProviderNotAllowed(let provider):
+            "\(provider) is a remote provider. Enable remote access in AI Provider Settings before sending document text."
         }
     }
 }
@@ -190,6 +260,54 @@ enum LMStudioError: LocalizedError {
 protocol AIProvider: Sendable {
     func listModels() async throws -> [String]
     func streamChat(model: String, messages: [AIProviderMessage]) -> AsyncThrowingStream<String, Error>
+}
+
+/// Credentials never enter UserDefaults or exported session data. They are
+/// scoped to FileViewer's Keychain service and the individual provider UUID.
+enum AIProviderCredentialStore {
+    private static let service = "meme.timetochill.FileViewer.AIProvider"
+
+    static func load(for profileID: UUID) -> String? {
+        let query: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: profileID.uuidString,
+            kSecReturnData: true
+        ]
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+              let data = item as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    static func save(_ secret: String, for profileID: UUID) throws {
+        let data = Data(secret.utf8)
+        let query: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: profileID.uuidString
+        ]
+        let attributes: [CFString: Any] = [kSecValueData: data]
+        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            var item = query
+            item[kSecValueData] = data
+            guard SecItemAdd(item as CFDictionary, nil) == errSecSuccess else {
+                throw CocoaError(.fileWriteUnknown)
+            }
+        } else if status != errSecSuccess {
+            throw CocoaError(.fileWriteUnknown)
+        }
+    }
+
+    static func delete(for profileID: UUID) {
+        let query: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: profileID.uuidString
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
 }
 
 struct LMStudioClient: AIProvider {
@@ -287,6 +405,107 @@ struct LMStudioClient: AIProvider {
     }
 }
 
+/// Chat-Completions compatible provider used for LM Studio, Ollama, custom
+/// OpenAI-compatible servers, and OpenAI. Keeping the transport common lets
+/// the document assistant keep one safe context-building path.
+struct ConfiguredAIProviderClient: AIProvider {
+    let baseURL: URL
+    let apiKey: String?
+
+    init(profile: AIProviderProfile, apiKey: String?) throws {
+        let endpoint = profile.endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: endpoint), url.scheme == "http" || url.scheme == "https" else {
+            throw LMStudioError.badResponse
+        }
+        self.baseURL = url
+        self.apiKey = apiKey
+    }
+
+    func listModels() async throws -> [String] {
+        let endpoint = baseURL.appendingPathComponent("models")
+        var request = URLRequest(url: endpoint)
+        request.timeoutInterval = 10
+        addAuthorization(to: &request)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validate(response: response, data: data)
+        let decoded = try JSONDecoder().decode(ModelListResponse.self, from: data)
+        return decoded.data.map(\.id).sorted()
+    }
+
+    func streamChat(model: String, messages: [AIProviderMessage]) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let endpoint = baseURL.appendingPathComponent("chat/completions")
+                    var request = URLRequest(url: endpoint)
+                    request.httpMethod = "POST"
+                    request.timeoutInterval = 300
+                    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                    addAuthorization(to: &request)
+                    request.httpBody = try JSONEncoder().encode(
+                        ChatRequest(model: model, messages: messages, stream: true, temperature: 0.2, maxTokens: 1_024)
+                    )
+
+                    let (bytes, response) = try await URLSession.shared.bytes(for: request)
+                    guard let httpResponse = response as? HTTPURLResponse else {
+                        throw LMStudioError.badResponse
+                    }
+                    guard (200..<300).contains(httpResponse.statusCode) else {
+                        var body = ""
+                        for try await line in bytes.lines {
+                            body += line
+                            if body.count > 2_000 { break }
+                        }
+                        throw LMStudioError.serverError(httpResponse.statusCode, body)
+                    }
+
+                    for try await line in bytes.lines {
+                        try Task.checkCancellation()
+                        guard line.hasPrefix("data:") else { continue }
+                        let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
+                        if payload == "[DONE]" { break }
+                        guard let data = payload.data(using: .utf8) else { continue }
+                        let event = try JSONDecoder().decode(ChatStreamResponse.self, from: data)
+                        if let error = event.error {
+                            let message = error.message.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if message.localizedCaseInsensitiveContains("context") ||
+                                message.localizedCaseInsensitiveContains("token") ||
+                                message.localizedCaseInsensitiveContains("length") {
+                                throw LMStudioError.contextTooLarge(message)
+                            }
+                            throw LMStudioError.serverError(httpResponse.statusCode, message)
+                        }
+                        if let content = event.choices?.first?.delta.content, !content.isEmpty {
+                            continuation.yield(content)
+                        }
+                    }
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    private func addAuthorization(to request: inout URLRequest) {
+        guard let apiKey, !apiKey.isEmpty else { return }
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+    }
+
+    private func validate(response: URLResponse, data: Data) throws {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw LMStudioError.badResponse
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            let message = String(data: data.prefix(2_000), encoding: .utf8) ?? "Unknown error"
+            throw LMStudioError.serverError(httpResponse.statusCode, message)
+        }
+    }
+}
+
 struct AIProviderMessage: Codable, Sendable {
     let role: String
     let content: String
@@ -330,14 +549,118 @@ private struct ChatStreamResponse: Decodable {
 final class AIAssistantManager: ObservableObject {
     @Published var sessions: [DocumentTab.ID: AIAssistantSession] = [:]
     @Published var availableModels: [String] = []
-    @Published var selectedModel = "qwen2.5-7b-instruct-uncensored"
+    @Published var selectedModel = "" {
+        didSet { saveSelectedModel() }
+    }
     @Published var connectionStatus: AIConnectionStatus = .notChecked
+    @Published private(set) var providerProfiles: [AIProviderProfile]
+    @Published private(set) var activeProviderID: UUID
 
-    private let provider: any AIProvider
     private var generationTasks: [DocumentTab.ID: Task<Void, Never>] = [:]
+    private static let profilesKey = "FileViewer.ai.providerProfiles"
+    private static let activeProfileKey = "FileViewer.ai.activeProviderID"
+    private var suppressModelPersistence = false
 
-    init(provider: any AIProvider = LMStudioClient()) {
-        self.provider = provider
+    init() {
+        let storedProfiles: [AIProviderProfile]
+        if let data = UserDefaults.standard.data(forKey: Self.profilesKey),
+           let decoded = try? JSONDecoder().decode([AIProviderProfile].self, from: data),
+           !decoded.isEmpty {
+            storedProfiles = decoded
+        } else {
+            storedProfiles = [.lmStudio]
+        }
+        providerProfiles = storedProfiles
+        let storedActiveID = UserDefaults.standard.string(forKey: Self.activeProfileKey).flatMap(UUID.init(uuidString:))
+        activeProviderID = storedProfiles.contains(where: { $0.id == storedActiveID }) ? storedActiveID! : storedProfiles[0].id
+        suppressModelPersistence = true
+        selectedModel = activeProfile.defaultModel
+        suppressModelPersistence = false
+    }
+
+    var activeProfile: AIProviderProfile {
+        providerProfiles.first(where: { $0.id == activeProviderID }) ?? .lmStudio
+    }
+
+    func setActiveProvider(_ id: UUID) {
+        guard providerProfiles.contains(where: { $0.id == id }) else { return }
+        activeProviderID = id
+        UserDefaults.standard.set(id.uuidString, forKey: Self.activeProfileKey)
+        suppressModelPersistence = true
+        selectedModel = activeProfile.defaultModel
+        suppressModelPersistence = false
+        availableModels = []
+        connectionStatus = .notChecked
+    }
+
+    func addProvider(kind: AIProviderKind) {
+        let profile = AIProviderProfile(name: kind.title, kind: kind)
+        providerProfiles.append(profile)
+        saveProfiles()
+        setActiveProvider(profile.id)
+    }
+
+    func updateProvider(_ profile: AIProviderProfile, apiKey: String?) throws {
+        guard let index = providerProfiles.firstIndex(where: { $0.id == profile.id }) else { return }
+        providerProfiles[index] = profile
+        if let apiKey {
+            let cleaned = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if cleaned.isEmpty {
+                AIProviderCredentialStore.delete(for: profile.id)
+            } else {
+                try AIProviderCredentialStore.save(cleaned, for: profile.id)
+            }
+        }
+        saveProfiles()
+        if profile.id == activeProviderID {
+            suppressModelPersistence = true
+            selectedModel = profile.defaultModel
+            suppressModelPersistence = false
+            availableModels = []
+            connectionStatus = .notChecked
+        }
+    }
+
+    func removeProvider(_ id: UUID) {
+        guard providerProfiles.count > 1 else { return }
+        providerProfiles.removeAll { $0.id == id }
+        AIProviderCredentialStore.delete(for: id)
+        if activeProviderID == id, let replacement = providerProfiles.first?.id {
+            setActiveProvider(replacement)
+        }
+        saveProfiles()
+    }
+
+    func hasAPIKey(for profile: AIProviderProfile) -> Bool {
+        AIProviderCredentialStore.load(for: profile.id)?.isEmpty == false
+    }
+
+    private func saveProfiles() {
+        guard let data = try? JSONEncoder().encode(providerProfiles) else { return }
+        UserDefaults.standard.set(data, forKey: Self.profilesKey)
+    }
+
+    private func saveSelectedModel() {
+        guard !suppressModelPersistence,
+              let index = providerProfiles.firstIndex(where: { $0.id == activeProviderID }) else { return }
+        providerProfiles[index].defaultModel = selectedModel
+        saveProfiles()
+    }
+
+    private func providerForActiveProfile() throws -> any AIProvider {
+        let profile = activeProfile
+        guard let endpoint = URL(string: profile.endpoint), let host = endpoint.host?.lowercased() else {
+            throw LMStudioError.badResponse
+        }
+        let isLocal = host == "localhost" || host == "127.0.0.1" || host == "::1"
+        if !isLocal && !profile.allowRemoteAccess {
+            throw LMStudioError.remoteProviderNotAllowed(profile.name)
+        }
+        let apiKey = AIProviderCredentialStore.load(for: profile.id)
+        if profile.kind.needsAPIKey && (apiKey?.isEmpty != false) {
+            throw LMStudioError.missingAPIKey(profile.name)
+        }
+        return try ConfiguredAIProviderClient(profile: profile, apiKey: apiKey)
     }
 
     func session(for tabID: DocumentTab.ID?) -> AIAssistantSession {
@@ -381,6 +704,7 @@ final class AIAssistantManager: ObservableObject {
     func refreshModels() async {
         connectionStatus = .checking
         do {
+            let provider = try providerForActiveProfile()
             let models = try await provider.listModels()
             let chatModels = models.filter { !$0.lowercased().contains("embed") }
             availableModels = chatModels
@@ -423,6 +747,13 @@ final class AIAssistantManager: ObservableObject {
 
         guard !selectedModel.isEmpty else {
             updateSession(for: tabID) { $0.errorMessage = LMStudioError.noModel.localizedDescription }
+            return
+        }
+        let provider: any AIProvider
+        do {
+            provider = try providerForActiveProfile()
+        } catch {
+            updateSession(for: tabID) { $0.errorMessage = error.localizedDescription }
             return
         }
 

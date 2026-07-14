@@ -1118,7 +1118,7 @@ When debugging, first identify which boundary is involved.
 
 Branch: `feature/ai-assistant`
 
-The first functional AI slice is local-only and uses the LM Studio OpenAI-compatible server at `http://127.0.0.1:1234/v1`. At implementation time the server exposed `qwen2.5-7b-instruct-uncensored` and an embedding model. A live streaming smoke test returned `LOCAL_OK` successfully. The code filters embedding models out of the chat-model picker.
+The first functional AI slice began with local LM Studio at `http://127.0.0.1:1234/v1`. It now supports persisted provider profiles for LM Studio, Ollama, custom OpenAI-compatible servers, and OpenAI. At implementation time the local LM Studio server exposed `qwen2.5-7b-instruct-uncensored` and an embedding model. A live streaming smoke test returned `LOCAL_OK` successfully. The code filters embedding models out of the chat-model picker.
 
 Architecture:
 
@@ -1130,21 +1130,26 @@ ContentView
     └── AIAssistantManager (per-tab sessions and generation tasks)
         ├── AIContextBuilder (PDF pages / Markdown heading chunks)
         └── AIProvider protocol
-            └── LMStudioClient (loopback-only HTTP/SSE adapter)
+            ├── ConfiguredAIProviderClient (configured HTTP/SSE Chat Completions adapter)
+            └── LMStudioClient (legacy loopback-only adapter retained for local transport testing)
 ```
+
+User setup: open the AI panel with the sparkle toolbar icon, then use the gear in the panel header to open **AI Provider Settings**. Add a profile, select its type, endpoint, optional/default model and API key, explicitly enable remote document transfer if its host is not local, save it, then select it from the panel's Provider picker and press Retry to discover models. For OpenAI, use the built-in OpenAI profile, enter an API key, enable remote transfer, save, select the profile, then press Retry.
 
 Source files:
 
-- `Sources/FileViewer/AIAssistant.swift`: messages, scopes, sessions, provider protocol, LM Studio adapter, streaming orchestration, prompt construction, document extraction, chunking, keyword retrieval, the 12,000-character local-model safety cap, and LM Studio stream error handling.
-- `Sources/FileViewer/AIAssistantPanel.swift`: connection/model controls, scope picker, Summarize/Translate actions, conversation rendering, draft editor, Stop/Send controls, and local-processing disclosure.
+- `Sources/FileViewer/AIAssistant.swift`: messages, scopes, sessions, persisted `AIProviderProfile` definitions, `AIProviderCredentialStore` Keychain access, provider protocol, configured HTTP/SSE Chat-Completions transport, legacy LM Studio loopback adapter, streaming orchestration, prompt construction, document extraction, chunking, keyword retrieval, and the 12,000-character safety cap.
+- `Sources/FileViewer/AIAssistantPanel.swift`: provider/model controls, the AI Provider Settings sheet, scope picker, Summarize/Translate actions, conversation rendering, draft editor, Stop/Send controls, and local-processing disclosure.
 - `Sources/FileViewer/ContentView.swift`: sparkle toolbar button, panel layout, and drag resizing.
 - `Sources/FileViewer/DocumentModel.swift`: panel state, assistant manager ownership, per-tab PDF selection state, Markdown selection capture, and session cleanup on tab close.
 - `Sources/FileViewer/PDFWorkspace.swift`: observes `PDFViewSelectionChanged` and stores selected text/page in the selected tab.
-- `Tests/FileViewerTests/AIAssistantTests.swift`: Markdown chunk labels, selection isolation, relevance preference, and remote-host rejection.
+- `Tests/FileViewerTests/AIAssistantTests.swift`: Markdown chunk labels, selection isolation, relevance preference, remote-host rejection in the legacy local adapter, and safe provider-profile defaults.
 
 Privacy and safety behavior:
 
-- `LMStudioClient` accepts only `127.0.0.1`, `localhost`, or `::1`; this is validated before a request is constructed.
+- The default LM Studio and Ollama profiles use loopback endpoints. A remote profile is rejected before a request is created unless the user enables **Allow this provider to receive document text** in AI Provider Settings.
+- OpenAI profiles require an API key; custom-compatible profiles may optionally use one. All saved provider keys are stored under the individual profile UUID in macOS Keychain; credentials never enter UserDefaults, exported data, or logs.
+- The common configured transport uses `GET /models` and streaming `POST /chat/completions`. It is compatible with LM Studio, Ollama's OpenAI-compatible API, custom compatible servers, and OpenAI's supported Chat Completions endpoint.
 - Extraction and retrieval happen in the app. A request is made only after Send, Summarize, or Translate.
 - The system prompt treats document excerpts as untrusted reference data and forbids claiming file mutations.
 - AI has no save, annotation, deletion, shell, or file-editing tools.
@@ -1162,7 +1167,8 @@ Known limitations / next work:
 - the AppKit-backed composer deliberately uses Return to send and Shift-Return for a newline. Do not replace it with SwiftUI `TextEditor` without retaining this behavior;
 - the AI context builder currently performs PDF text extraction synchronously when sending; very large PDFs may briefly delay the UI and should later use a cached background extraction/index;
 - the panel uses side-by-side resizing at all widths; the specified narrow-window overlay behavior remains future work;
-- provider selection/settings are not persistent; Ollama/cloud adapters are not implemented;
+- provider profiles, active provider, selected model, endpoints, and remote-access approval persist in UserDefaults; credentials persist only in Keychain;
+- OpenAI is supported through its Chat Completions endpoint for common streaming transport. Migrating the OpenAI profile to the Responses API is an optional future enhancement, not a current functional requirement;
 - summary and translation use the currently selected scope; future polish should apply task-specific automatic defaults unless the user explicitly changed the scope;
 - no conversation persistence, Retry buttons, or clickable citations yet. Each completed assistant response has **Copy Answer** (readable plain text with Markdown syntax removed), **Copy as Markdown**, and **Save as Markdown** actions. The Markdown export prepends source document, context, model, and timestamp metadata, so it can be pasted into or saved directly in an Obsidian vault.
 

@@ -86,8 +86,8 @@ Current MVP build includes:
   - explicit Selected Text, Current Page/Section, Relevant Sections, and Whole Document scopes
   - PDF page and Markdown heading context labels for grounded answers
   - streaming responses, Stop, model discovery, and connection status
-  - local-only LM Studio transport at `127.0.0.1:1234`; remote hosts are rejected by the current adapter
-  - provider-neutral internal protocol so Ollama or cloud adapters can be added later without redesigning the panel
+  - persisted provider profiles for local LM Studio and Ollama, custom OpenAI-compatible servers, and OpenAI
+  - local endpoints work immediately; remote profiles require explicit approval before document text is sent, and API keys are kept in macOS Keychain
 
 ## Run Locally
 
@@ -113,7 +113,7 @@ The Swift package includes an XCTest target for fast safety and document-model c
 swift test
 ```
 
-The suite verifies Markdown dirty-state behavior, file-version change detection, duplicate-open protection, Markdown file recognition, AI context chunking/retrieval, selected-text isolation, and local-only AI transport enforcement. PDFKit drawing and native window dialogs remain manual/UI-test work for now.
+The suite verifies Markdown dirty-state behavior, file-version change detection, duplicate-open protection, Markdown file recognition, AI context chunking/retrieval, selected-text isolation, local-only legacy transport enforcement, and safe provider-profile defaults. PDFKit drawing and native window dialogs remain manual/UI-test work for now.
 
 ## Packaged App
 

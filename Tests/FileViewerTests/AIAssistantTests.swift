@@ -124,4 +124,24 @@ final class AIAssistantTests: XCTestCase {
             XCTFail("Unexpected error: \(error)")
         }
     }
+
+    func testProviderProfilesUseExpectedSafeDefaults() {
+        let lmStudio = AIProviderProfile(name: "LM Studio", kind: .lmStudio)
+        let ollama = AIProviderProfile(name: "Ollama", kind: .ollama)
+        let openAI = AIProviderProfile(name: "OpenAI", kind: .openAI)
+
+        XCTAssertEqual(lmStudio.endpoint, "http://127.0.0.1:1234/v1")
+        XCTAssertFalse(lmStudio.allowRemoteAccess)
+        XCTAssertEqual(ollama.endpoint, "http://127.0.0.1:11434/v1")
+        XCTAssertFalse(ollama.allowRemoteAccess)
+        XCTAssertEqual(openAI.endpoint, "https://api.openai.com/v1")
+        XCTAssertFalse(openAI.allowRemoteAccess)
+    }
+
+    func testOnlyOpenAIProfileRequiresAnAPIKeyByDefault() {
+        XCTAssertTrue(AIProviderKind.openAI.needsAPIKey)
+        XCTAssertFalse(AIProviderKind.lmStudio.needsAPIKey)
+        XCTAssertFalse(AIProviderKind.ollama.needsAPIKey)
+        XCTAssertFalse(AIProviderKind.openAICompatible.needsAPIKey)
+    }
 }

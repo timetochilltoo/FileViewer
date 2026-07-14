@@ -1,16 +1,20 @@
 # FileViewer AI Assistant Panel Specification
 
-Status: Phase 1 implemented on `feature/ai-assistant` (LM Studio local adapter)
+Status: Phase 1 implemented on `feature/ai-assistant`; configurable provider profiles implemented (LM Studio, Ollama, OpenAI-compatible servers, and OpenAI)
 
 ## Implementation Note — 2026-07-11
 
 The first functional vertical slice is implemented on the separate branch `feature/ai-assistant`:
 
 - a toolbar sparkle button opens a resizable 280–600 point right panel;
+- the panel header's gear button opens **AI Provider Settings**, where the user adds, edits, removes, and selects provider profiles;
 - conversations are in memory and isolated by document tab;
-- LM Studio is discovered through `GET http://127.0.0.1:1234/v1/models`;
-- chat responses stream through the OpenAI-compatible `/v1/chat/completions` endpoint;
-- the transport rejects non-loopback hosts in this local-only phase;
+- provider profiles are persisted locally, with LM Studio (`http://127.0.0.1:1234/v1`) as the safe default;
+- the built-in profile choices are LM Studio, Ollama (`http://127.0.0.1:11434/v1`), a custom OpenAI-compatible server, and OpenAI (`https://api.openai.com/v1`);
+- chat responses stream through the OpenAI-compatible `/v1/chat/completions` endpoint, including the OpenAI profile's supported Chat Completions endpoint;
+- every provider exposes model discovery through `GET /v1/models` (or its configured equivalent endpoint);
+- local loopback endpoints may be used immediately; a non-loopback endpoint is blocked until the user enables **Allow this provider to receive document text** in AI Provider Settings;
+- OpenAI requires an API key; custom-compatible profiles may optionally use one. Saved provider credentials are stored only in macOS Keychain, never in UserDefaults, exported data, source code, or logs;
 - PDF text selection and its page number are captured from PDFKit;
 - Markdown source/preview selection is read from the active or most recently active text view;
 - Selected Text, Current Page/Section, Relevant Sections, and Whole Document scopes are implemented;
@@ -21,12 +25,12 @@ The first functional vertical slice is implemented on the separate branch `featu
 - `Relevant Sections` is intended for question answering. If it is selected when Translate is pressed, the app changes the effective scope to Current Page/Section, because translation prompts have no meaningful search terms and must not retrieve unrelated pages;
 - summaries and translations use only the current request context; only a normal question carries the preceding conversation turns;
 - the chat composer uses Return to send and Shift-Return to insert a line break, with the shortcut displayed under the editor;
-- the manager depends on an `AIProvider` protocol, so another adapter can replace LM Studio without changing panel or document-context code;
-- automated tests cover context chunking, selection isolation, basic retrieval, and rejection of remote hosts.
+- the manager depends on an `AIProvider` protocol and a common Chat-Completions transport, so compatible providers use the same document-context safeguards;
+- automated tests cover context chunking, selection isolation, basic retrieval, local-endpoint enforcement in the legacy LM Studio adapter, and provider-profile defaults.
 
-This is intentionally not the complete specification. Remaining work includes clickable citations, selection context-menu commands, hierarchical summaries for very large documents, persistent settings/conversations, Ollama/cloud adapters, a mock streaming provider test, accessibility review, and narrow-window overlay behavior. Context is capped at 12,000 characters and reports when it is truncated; Whole Document is therefore a preview, not yet a complete-document synthesis. The request also reserves 1,024 output tokens. No document text is sent until the user presses Send, Summarize, or Translate.
+This is intentionally not the complete specification. Remaining work includes clickable citations, selection context-menu commands, hierarchical summaries for very large documents, persisted conversations, a mock streaming-provider test, accessibility review, and narrow-window overlay behavior. Context is capped at 12,000 characters and reports when it is truncated; Whole Document is therefore a preview, not yet a complete-document synthesis. The request also reserves 1,024 output tokens. No document text is sent until the user presses Send, Summarize, or Translate.
 
-This document defines a provider-neutral AI assistant for FileViewer. It describes the user experience, document-context rules, privacy and security controls, internal interfaces, failure handling, and acceptance criteria. The choice of AI provider and model is intentionally deferred.
+This document defines a provider-neutral AI assistant for FileViewer. It describes the user experience, document-context rules, privacy and security controls, internal interfaces, failure handling, and acceptance criteria. The active provider and model are selected at runtime; no provider credential is bundled with FileViewer.
 
 ## 1. Purpose
 
@@ -300,7 +304,7 @@ API keys must be stored in macOS Keychain. They must not be stored in UserDefaul
 
 ### 10.1 Consent
 
-Before the first cloud request, show a clear consent dialog explaining:
+Before the first cloud request, require the user to enable the profile's **Allow this provider to receive document text** control in AI Provider Settings. The setting makes the following clear:
 
 - which provider receives the content;
 - that selected document text may leave the Mac;
@@ -316,7 +320,7 @@ Every cloud request should show its scope before sending:
 - relevant excerpts;
 - whole document.
 
-Whole-document cloud requests require an additional confirmation unless the user deliberately disables it in Settings.
+Whole-document cloud requests are subject to the same per-provider remote-access approval. The current implementation caps and labels this scope as a preview; a separate per-request whole-document confirmation remains future work.
 
 ### 10.3 Prompt Injection
 
@@ -335,6 +339,7 @@ The initial AI assistant must not receive tools capable of:
 
 - Do not log API keys.
 - Do not log full document text or full prompts by default.
+- Store saved API keys only in the macOS Keychain, keyed to the individual provider profile. Provider names, endpoints, selected model, and the remote-access approval may be stored in UserDefaults; credentials may not.
 - Diagnostic logs may record provider identifier, model, duration, response status, token counts when available, and an anonymous request ID.
 - Exported diagnostics must redact credentials and document content.
 

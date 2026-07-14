@@ -6,6 +6,7 @@ struct AIAssistantPanel: View {
     @ObservedObject var model: AppModel
     @ObservedObject var manager: AIAssistantManager
     @State private var exportError: String?
+    @State private var showsProviderSettings = false
 
     private var tabID: DocumentTab.ID? { model.selectedTabID }
     private var session: AIAssistantSession { manager.session(for: tabID) }
@@ -44,6 +45,9 @@ struct AIAssistantPanel: View {
         } message: {
             Text(exportError ?? "Unknown error")
         }
+        .sheet(isPresented: $showsProviderSettings) {
+            AIProviderSettingsSheet(manager: manager)
+        }
     }
 
     private var header: some View {
@@ -67,6 +71,13 @@ struct AIAssistantPanel: View {
             .buttonStyle(.plain)
             .disabled(session.messages.isEmpty)
             .help("Clear Conversation")
+            Button {
+                showsProviderSettings = true
+            } label: {
+                Image(systemName: "gearshape")
+            }
+            .buttonStyle(.plain)
+            .help("AI Provider Settings")
             Button {
                 model.aiPanelVisible = false
             } label: {
@@ -94,6 +105,19 @@ struct AIAssistantPanel: View {
                 .buttonStyle(.plain)
                 .font(.caption)
             }
+
+            Picker("Provider", selection: Binding(
+                get: { manager.activeProviderID },
+                set: { id in
+                    manager.setActiveProvider(id)
+                    Task { await manager.refreshModels() }
+                }
+            )) {
+                ForEach(manager.providerProfiles) { profile in
+                    Text(profile.name).tag(profile.id)
+                }
+            }
+            .pickerStyle(.menu)
 
             if !manager.availableModels.isEmpty {
                 Picker("Model", selection: $manager.selectedModel) {
@@ -331,6 +355,150 @@ struct AIAssistantPanel: View {
             try content.write(to: url, atomically: true, encoding: .utf8)
         } catch {
             exportError = error.localizedDescription
+        }
+    }
+}
+
+private struct AIProviderSettingsSheet: View {
+    @ObservedObject var manager: AIAssistantManager
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedID: UUID?
+    @State private var name = ""
+    @State private var kind: AIProviderKind = .lmStudio
+    @State private var endpoint = ""
+    @State private var defaultModel = ""
+    @State private var allowRemoteAccess = false
+    @State private var apiKey = ""
+    @State private var message: String?
+
+    var body: some View {
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("AI Providers")
+                    .font(.headline)
+                List(selection: $selectedID) {
+                    ForEach(manager.providerProfiles) { profile in
+                        Text(profile.name).tag(profile.id)
+                    }
+                }
+                HStack {
+                    Menu {
+                        ForEach(AIProviderKind.allCases) { kind in
+                            Button("Add \(kind.title)") { add(kind: kind) }
+                        }
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    Button {
+                        if let selectedID { remove(id: selectedID) }
+                    } label: {
+                        Image(systemName: "minus")
+                    }
+                    .disabled(manager.providerProfiles.count <= 1)
+                    Spacer()
+                }
+            }
+            .padding()
+            .frame(width: 220)
+
+            Divider()
+
+            Form {
+                Section("Connection") {
+                    TextField("Name", text: $name)
+                    Picker("Provider", selection: $kind) {
+                        ForEach(AIProviderKind.allCases) { kind in
+                            Text(kind.title).tag(kind)
+                        }
+                    }
+                    .onChange(of: kind) { _, newKind in
+                        endpoint = newKind.defaultEndpoint
+                        // Changing a profile type must not silently authorize
+                        // a remote endpoint to receive document contents.
+                        allowRemoteAccess = false
+                    }
+                    TextField("Server URL", text: $endpoint)
+                    TextField("Default model (optional)", text: $defaultModel)
+                    Toggle("Allow this provider to receive document text", isOn: $allowRemoteAccess)
+                    SecureField(
+                        kind.needsAPIKey ? "API key" : "API key (optional)",
+                        text: $apiKey,
+                        prompt: Text(manager.hasAPIKey(for: selectedProfile) ? "Stored in Keychain (leave blank to keep)" : (kind.needsAPIKey ? "Required" : "Optional"))
+                    )
+                    Text("The key is stored in macOS Keychain and is never saved in app preferences or exported documents.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section {
+                    Button("Save Provider") { save() }
+                    if selectedID != manager.activeProviderID {
+                        Button("Use This Provider") {
+                            guard let selectedID else { return }
+                            manager.setActiveProvider(selectedID)
+                            Task { await manager.refreshModels() }
+                        }
+                    }
+                    if let message {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
+            }
+            .padding()
+            .frame(minWidth: 420)
+        }
+        .frame(width: 700, height: 420)
+        .onAppear {
+            selectedID = manager.activeProviderID
+            loadSelectedProfile()
+        }
+        .onChange(of: selectedID) { _, _ in loadSelectedProfile() }
+    }
+
+    private var selectedProfile: AIProviderProfile {
+        manager.providerProfiles.first(where: { $0.id == selectedID }) ?? manager.activeProfile
+    }
+
+    private func loadSelectedProfile() {
+        let profile = selectedProfile
+        name = profile.name
+        kind = profile.kind
+        endpoint = profile.endpoint
+        defaultModel = profile.defaultModel
+        allowRemoteAccess = profile.allowRemoteAccess
+        apiKey = ""
+        message = nil
+    }
+
+    private func add(kind: AIProviderKind) {
+        manager.addProvider(kind: kind)
+        selectedID = manager.activeProviderID
+        loadSelectedProfile()
+    }
+
+    private func remove(id: UUID) {
+        manager.removeProvider(id)
+        selectedID = manager.activeProviderID
+        loadSelectedProfile()
+    }
+
+    private func save() {
+        guard let selectedID else { return }
+        let profile = AIProviderProfile(
+            id: selectedID,
+            name: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? kind.title : name,
+            kind: kind,
+            endpoint: endpoint,
+            defaultModel: defaultModel,
+            allowRemoteAccess: allowRemoteAccess
+        )
+        do {
+            try manager.updateProvider(profile, apiKey: apiKey.isEmpty ? nil : apiKey)
+            message = nil
+        } catch {
+            message = error.localizedDescription
         }
     }
 }
