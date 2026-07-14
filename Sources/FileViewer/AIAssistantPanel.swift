@@ -403,50 +403,58 @@ private struct AIProviderSettingsSheet: View {
 
             Divider()
 
-            Form {
-                Section("Connection") {
-                    TextField("Name", text: $name)
-                    Picker("Provider", selection: $kind) {
-                        ForEach(AIProviderKind.allCases) { kind in
-                            Text(kind.title).tag(kind)
+            VStack(alignment: .leading, spacing: 0) {
+                Form {
+                    Section("Connection") {
+                        TextField("Name", text: $name)
+                        Picker("Provider", selection: $kind) {
+                            ForEach(AIProviderKind.allCases) { kind in
+                                Text(kind.title).tag(kind)
+                            }
                         }
-                    }
-                    .onChange(of: kind) { _, newKind in
-                        endpoint = newKind.defaultEndpoint
-                        // Changing a profile type must not silently authorize
-                        // a remote endpoint to receive document contents.
-                        allowRemoteAccess = false
-                    }
-                    TextField("Server URL", text: $endpoint)
-                    TextField("Default model (optional)", text: $defaultModel)
-                    Toggle("Allow this provider to receive document text", isOn: $allowRemoteAccess)
-                    SecureField(
-                        kind.needsAPIKey ? "API key" : "API key (optional)",
-                        text: $apiKey,
-                        prompt: Text(manager.hasAPIKey(for: selectedProfile) ? "Stored in Keychain (leave blank to keep)" : (kind.needsAPIKey ? "Required" : "Optional"))
-                    )
-                    Text("The key is stored in macOS Keychain and is never saved in app preferences or exported documents.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Section {
-                    Button("Save Provider") { save() }
-                    if selectedID != manager.activeProviderID {
-                        Button("Use This Provider") {
-                            guard let selectedID else { return }
-                            manager.setActiveProvider(selectedID)
-                            Task { await manager.refreshModels() }
+                        .onChange(of: kind) { _, newKind in
+                            endpoint = newKind.defaultEndpoint
+                            // Changing a profile type must not silently authorize
+                            // a remote endpoint to receive document contents.
+                            allowRemoteAccess = false
                         }
-                    }
-                    if let message {
-                        Text(message)
+                        TextField("Server URL", text: $endpoint)
+                        TextField("Default model (optional)", text: $defaultModel)
+                        Toggle("Allow this provider to receive document text", isOn: $allowRemoteAccess)
+                        SecureField(
+                            kind.needsAPIKey ? "API key" : "API key (optional)",
+                            text: $apiKey,
+                            prompt: Text(manager.hasAPIKey(for: selectedProfile) ? "Stored in Keychain (leave blank to keep)" : (kind.needsAPIKey ? "Required" : "Optional"))
+                        )
+                        Text("The key is stored in macOS Keychain and is never saved in app preferences or exported documents.")
                             .font(.caption)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Section {
+                        Button("Save Provider") { save() }
+                        if selectedID != manager.activeProviderID {
+                            Button("Use This Provider") {
+                                guard let selectedID else { return }
+                                manager.setActiveProvider(selectedID)
+                                Task { await manager.refreshModels() }
+                            }
+                        }
+                        if let message {
+                            Text(message)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
                     }
                 }
+                Divider()
+                HStack {
+                    Spacer()
+                    Button("Done") { dismiss() }
+                        .keyboardShortcut(.cancelAction)
+                }
+                .padding()
             }
-            .padding()
             .frame(minWidth: 420)
         }
         .frame(width: 700, height: 420)
