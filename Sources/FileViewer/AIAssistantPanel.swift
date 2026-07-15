@@ -243,7 +243,7 @@ struct AIAssistantPanel: View {
                             .foregroundStyle(.secondary)
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 5) {
-                                ForEach(message.sourceLabels, id: \.self) { label in
+                                ForEach(orderedSourceLabels(for: message), id: \.self) { label in
                                     sourceButton(label)
                                 }
                             }
@@ -300,6 +300,15 @@ struct AIAssistantPanel: View {
     private func pageNumber(in label: String) -> Int? {
         guard label.hasPrefix("Page ") else { return nil }
         return Int(label.dropFirst("Page ".count))
+    }
+
+    /// Relevant Sections intentionally supplies chunks to the model in
+    /// relevance order. The provenance strip is for human review, so PDF
+    /// pages are presented in their natural reading order instead.
+    private func orderedSourceLabels(for message: AIMessage) -> [String] {
+        let labels = message.sourceLabels
+        guard labels.allSatisfy({ pageNumber(in: $0) != nil }) else { return labels }
+        return labels.sorted { (pageNumber(in: $0) ?? 0) < (pageNumber(in: $1) ?? 0) }
     }
 
     private var composer: some View {

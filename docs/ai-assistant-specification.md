@@ -99,7 +99,7 @@ The conversation area should show:
 - user questions;
 - AI responses rendered with basic Markdown;
 - streaming progress while the response is generated; provider-private reasoning wrapped in `<think>…</think>` is filtered before rendering, copying, exporting, or passing conversation history into a follow-up request;
-- a **Sources provided to the model** strip on every completed response. It lists the exact page or Markdown-heading chunks included in that individual request; PDF page chips are clickable and navigate to the corresponding page. This is provenance, not a claim that the model necessarily cited every chip in its prose;
+- a **Sources provided to the model** strip on every completed response. It lists the exact page or Markdown-heading chunks included in that individual request; PDF page chips are presented in ascending page order and are clickable to navigate to that page. This is provenance, not an external reference link and not a claim that the model necessarily cited every chip in its prose;
 - a **Save Conversation** command that writes the current in-memory conversation to a Markdown file, including source/model metadata and the source chunks provided to each answer. Conversations remain memory-only unless the user explicitly exports one;
 - citations as clickable chips or links;
 - Copy each completed response as Markdown and save it as a standalone Markdown note;
