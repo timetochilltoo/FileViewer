@@ -1,10 +1,12 @@
 # FileViewer Handoff
 
-Last updated: 2026-06-27  
+Last updated: 2026-07-20
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
-Current branch at time of writing: `main`  
-Latest known committed handoff baseline before the New/Print/Markdown syntax fixes: `7bab439` (`Add detailed FileViewer handoff`)
+Current branch at time of writing: `feature/ai-assistant`
+Current committed baseline: `834c986` (`Clarify AI assistant actions`)
+
+> Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
 ## 1. Project purpose
 
@@ -18,7 +20,8 @@ The app is intended to be a lightweight daily document workspace for:
 - simple Markdown editing, preview, search, and formatting assistance
 - creating new unsaved Markdown documents
 - printing PDFs and Markdown source text
-- PDF reading, page navigation, zoom, thumbnails, and search
+- PDF reading, page navigation, zoom, thumbnails, search, annotations, fillable forms, and annotation reports
+- provider-configurable local/remote AI assistance with explicit document-transfer approval
 
 The repo still contains an older React/Vite prototype (`src/`, `dist/`, `package.json`, `vite.config.*`, etc.), but the official implementation direction is now the native SwiftUI app under `Sources/FileViewer`. Do not spend time extending the React/Vite prototype unless Patrick explicitly asks.
 
@@ -52,12 +55,18 @@ swift build
 5. ad-hoc signs the app with `codesign --force --deep --sign -`
 6. verifies the app signature
 
-There is not yet a formal automated test suite. Verification so far has been:
+Automated tests are present under `Tests/FileViewerTests` and are run with:
+
+```bash
+swift test
+```
+
+They cover document safety and core AI context/profile behavior without connecting to a real AI provider. They do not replace manual PDFKit/UI regression testing. Standard verification is:
 
 - `swift build`
 - `./scripts/package_app.sh`
 - user manual testing with real Markdown/PDF files
-- crash-log-driven fixes
+- crash-log-driven fixes and focused manual PDF/Markdown/AI regression testing
 
 ## 3. High-level architecture
 
@@ -69,6 +78,9 @@ Sources/FileViewer/
 ├── ContentView.swift
 ├── DocumentModel.swift
 ├── FileViewerApp.swift
+├── FileViewerWindowRegistry.swift
+├── AIAssistant.swift
+├── AIAssistantPanel.swift
 ├── MarkdownSyntaxHelp.swift
 ├── MarkdownWorkspace.swift
 ├── PDFWorkspace.swift
@@ -185,8 +197,9 @@ Important methods:
   - Allows multiple selection.
   - Supports PDF and text-ish files; actual Markdown detection is extension-based.
 - `open(url:)`
-  - Always appends a new tab, even if the same URL is already open.
-  - This is intentional: Patrick asked to allow multiple copies of the same PDF/Markdown file at the same time.
+  - Selects the existing tab if the same URL is already open in the same model, rather than creating another writable PDF/Markdown instance.
+  - The window registry also brings a document already open in another FileViewer window forward instead of duplicating it.
+  - This protects against two independent writable `PDFDocument` instances overwriting one another.
   - For Finder/Open With, this is called on the target window's model only. It must not be broadcast to all models/windows.
   - Opens Markdown by reading UTF-8 text.
   - Opens PDF using `PDFDocument(url:)`.
@@ -493,7 +506,7 @@ PDF search:
 - PDF search status text is prefixed with `PDF:` so it is visually clear that the count is coming from PDF search, e.g. `PDF: 1 of 6`.
 - Previous/next search buttons update `searchMatchIndex` and the search navigation request ID; `PDFKitView.Coordinator.goToSearchMatch(_:requestID:)` selects and scrolls to the requested `PDFSelection`.
 
-PDF annotation v1:
+PDF annotations and fillable forms:
 
 - Implemented on branch `feature/pdf-annotation`.
 - User flow:
@@ -504,7 +517,7 @@ PDF annotation v1:
   5. The selected text receives a real PDFKit annotation.
   6. The tab/window is marked as having unsaved PDF changes.
   7. Use Command-S, File > Save, or PDF > Save PDF Changes to embed the annotation in the PDF file.
-  8. To remove v1 text markup, select the marked text and use Remove Markup from Selection / the eraser toolbar button.
+  8. To remove text markup, select the marked text and use Remove Markup from Selection / the eraser toolbar button.
   9. To add a sticky note, click Add Sticky Note, enter the note text, then save the PDF.
   10. To add visible page text, click Add Text Box, enter the text, then save the PDF.
   11. To add a rectangle or oval, click the matching toolbar button, then save the PDF.
@@ -533,7 +546,7 @@ PDF annotation v1:
   - Text markup applies the selected color with alpha adjusted by type: highlight uses 55% opacity, underline/strikeout use 85%.
   - `PDFKitView.Coordinator.removeAnnotationsInSelection(_:)` removes only text-markup annotations whose bounds intersect the selected text bounds.
   - The remove command is intentionally scoped to `highlight`, `underline`, and `strikeOut` annotation types. It does not try to delete arbitrary notes/shapes yet.
-  - Eraser limitation: it removes the whole overlapping annotation. If 10 words were highlighted as one annotation and the user selects 2 words inside it, the whole 10-word markup is removed. This is acceptable for v1; partial erasing would require creating smaller annotations or splitting annotation geometry.
+  - Eraser limitation: it removes the whole overlapping annotation. If 10 words were highlighted as one annotation and the user selects 2 words inside it, the whole 10-word markup is removed. Partial erasing would require creating smaller annotations or splitting annotation geometry.
   - `PDFKitView.Coordinator.addStickyNote(_:)` asks for note text with an `NSAlert` and creates a `.text` PDF annotation.
   - Sticky note placement: if text is selected, the note is placed near the selected text bounds; otherwise it is placed near the center of the current visible page area.
   - Sticky notes use the selected annotation color with high opacity and the standard PDF note icon (`annotation.iconType = .note`).
@@ -551,14 +564,14 @@ PDF annotation v1:
   - Arrow annotations are PDFKit line annotations with `endLineStyle = .closedArrow`; plain lines use no line ending.
   - Pen Drawing Mode is stored in `AppModel.isPDFInkDrawingModeEnabled`. Turning it on turns off move, delete, edit, recolor, and line/arrow drawing modes.
   - `PDFKitView` passes `isPDFInkDrawingModeEnabled` into `MovableAnnotationPDFView`. The custom PDF view captures mouse drag points in PDF page coordinates, draws a temporary live preview stroke during the drag, creates a real PDFKit `.ink` annotation on mouse release, marks the PDF dirty, and keeps the ink as a normal embedded PDF annotation.
-  - Shape/line/arrow/ink annotations use the selected annotation stroke width. Existing v1 Move, Delete, and Recolor modes can target ink annotations.
+  - Shape/line/arrow/ink annotations use the selected annotation stroke width. The existing Move, Delete, and Recolor modes can target ink annotations.
   - Live ink preview is drawn by a transparent `InkPreviewView` overlay added above the PDF view during the drag. The captured PDF page points are converted back to view coordinates for the overlay. The preview is not saved; it disappears when the real `.ink` annotation is added on mouse release.
   - Live ink preview uses the selected stroke width so the user sees the same width while dragging and after the real PDF annotation is created.
   - 2026-07-04 fix: `InkPreviewView` must use the normal unflipped AppKit coordinate system. A flipped overlay mirrored the temporary stroke vertically, so drawing near the bottom of a page showed a matching preview near the top.
-  - Rectangle/oval placement: if PDF text is selected, the shape is placed around the selected bounds with padding. Otherwise it is placed near the center of the visible page. Current v1 rectangle/oval shapes have a fixed default size when no selection is available.
+  - Rectangle/oval placement: if PDF text is selected, the shape is placed around the selected bounds with padding. Otherwise it is placed near the center of the visible page. Rectangle/oval shapes have a fixed default size when no selection is available.
   - Line/arrow placement: the user now drags from start point to end point. This replaced the earlier fixed diagonal line/arrow behavior.
   - Shapes use the selected annotation color as a strong border plus a light transparent fill, so marked table cells or document areas remain readable.
-  - `MovableAnnotationPDFView` subclasses `PDFView` to support sticky-note, free-text-box, rectangle, oval, line, and arrow dragging when `isNoteMoveModeEnabled` is true. Normal PDF mouse handling is left alone when the mode is off.
+  - `MovableAnnotationPDFView` subclasses `PDFView` to support sticky-note, free-text-box, rectangle, oval, line, arrow, and ink dragging when `isNoteMoveModeEnabled` is true. Normal PDF mouse handling is left alone when the mode is off.
   - Line/arrow endpoint adjustment is also handled in Move Annotation mode. If the click is close to a line annotation's start or end point, the drag moves only that endpoint. If the click is on the body/bounds instead, the whole line/arrow moves.
   - Text box and rectangle/oval resizing is also handled in Move Annotation mode. If the click is close to a text box/shape edge or corner, the drag resizes that side/corner. If the click is inside the annotation but not near an edge, the whole annotation moves.
   - Move Annotation mode shows a transparent `ResizeHandleOverlayView` above the PDF. It draws small blue/white handles around resizable text boxes, rectangles, and ovals, plus endpoint handles for lines/arrows. These handles are UI-only and are not saved into the PDF.
@@ -600,7 +613,7 @@ PDF annotation v1:
     - `PDFKitView.Coordinator.goToAnnotation(_:)` verifies the URL matches the live PDF tab/window, then scrolls to a padded copy of the annotation bounds.
     - `AppModel.exportPDFAnnotationSummary()` presents an `NSSavePanel`, defaults to `<pdf name> annotation summary.md`, and writes a Markdown report generated by `AppModel.pdfAnnotationSummaryMarkdown(pdfName:pdfPath:entries:)`.
     - The exported report includes basic metadata, a table with Page / Type / Summary, and a Details section. It exports all supported annotations, not only the current sidebar filter. This avoids accidentally omitting annotations because a filter was left active.
-    - Performance note: the sidebar currently scans PDF page annotations on demand whenever the sidebar renders. That is okay for v1, but if large annotated PDFs feel slow, add a per-document cache invalidated by `.pdfAnnotationDidChange`, document replacement, and tab close.
+    - Performance note: the sidebar currently scans PDF page annotations on demand whenever the sidebar renders. This is acceptable for the current app, but if large annotated PDFs feel slow, add a per-document cache invalidated by `.pdfAnnotationDidChange`, document replacement, and tab close.
   - 2026-07-05 sidebar toggle cleanup:
     - The app briefly showed two sidebar-looking icons: the native title-bar sidebar toggle and a custom in-content toolbar button.
     - A follow-up attempt kept only the native title-bar sidebar using `NavigationSplitViewVisibility`, but on Patrick's screen the sidebar could slide over the content and clip the left edge of sidebar rows while also changing the PDF page margin unexpectedly.
@@ -729,7 +742,7 @@ Guide content includes:
 
 ## 4. Recent commit history and why it matters
 
-Recent commits on `main`:
+Historical commits already merged into `main`:
 
 - `12bb968` — `Guard invalid PDF page indexes`
   - Fixed PDFKit `NSNotFound + 1` arithmetic-overflow crash.
@@ -758,7 +771,7 @@ Recent commits on `main`:
   - User confirmed preview formatting works.
 - `9c479b3` — `Allow multiple document copies`
   - Removed the duplicate-URL guard in `open(url:)`.
-  - Opening the same PDF/Markdown more than once now creates multiple tabs/copies.
+  - Historical behavior (superseded): opening the same PDF/Markdown created multiple tabs/copies. The current app brings the existing writable instance forward; see the Current implementation note at the top of this handoff.
   - Drag-and-drop now opens every dropped file instead of only the first provider.
   - Added `FileViewerAppDelegate` for macOS Open With/external file-open events.
   - Package script now registers document types for PDF, Markdown, and text files in `Info.plist`.
@@ -813,7 +826,7 @@ Expected after latest build:
 ```
 
 - Opening multiple files from inside a window can create tabs in that window.
-- Opening the same PDF/Markdown file more than once should create another copy, not jump to an existing tab.
+- Historical decision (superseded): duplicate PDF/Markdown opens created another copy. Current safety policy is one writable in-memory instance per file, with the existing tab/window brought forward.
 - Dragging multiple files onto the app should open each supported file as a tab.
 - Finder / Open With file-open events should open in a separate window when existing windows already contain documents.
 - Opening document A from Finder, then document B from Finder, should leave the A window showing A and create/show a B window showing B.
@@ -961,9 +974,9 @@ Known limitations:
 - It only navigates to a page, not an exact coordinate within the page.
 - Some unusual PDFs may encode outline actions differently; if a PDF shows disabled entries even though Preview can jump from them, inspect the `PDFOutline.action` type and add support for that action.
 
-### 6.9 PDF annotation v1 limitations
+### 6.9 Current PDF annotation limitations
 
-PDF annotation v1 is intentionally conservative. Text markup is selection-based; notes, text boxes, shapes, and pen ink are object/page-based.
+PDF annotation support is intentionally conservative. Text markup is selection-based; notes, text boxes, shapes, and pen ink are object/page-based.
 
 Implemented:
 
@@ -976,9 +989,9 @@ Implemented:
 - add visible text box annotations
 - add rectangle, oval, line, and arrow shape annotations
 - draw freehand ink annotations
-- move sticky note icons and text boxes with Move Annotation mode
+- move sticky notes, text boxes, rectangles, ovals, lines, arrows, and ink annotations with Move Annotation mode
 - edit sticky note and text box text with Edit Annotation mode
-- delete sticky notes and text boxes with Delete Annotation mode
+- delete sticky notes, text boxes, rectangles, ovals, lines, arrows, and ink annotations with Delete Annotation mode
 - show resize/endpoint handles while Move Annotation mode is on
 - mark PDF tab/window as dirty after annotation
 - detect fillable PDF form edits and mark the PDF tab/window dirty
@@ -1061,7 +1074,7 @@ Patrick is newer to Markdown and wants the app to teach/assist him. The Help gui
 
 Recommended order:
 
-AI assistant Phase 1 is implemented on `feature/ai-assistant`. See `docs/ai-assistant-specification.md` and the implementation section below before continuing it.
+The AI assistant is implemented on `feature/ai-assistant`. See `docs/ai-assistant-specification.md` and the implementation section below before continuing it.
 
 1. Continue PDF annotation:
    - author/timestamp metadata in annotation reports
@@ -1072,11 +1085,11 @@ AI assistant Phase 1 is implemented on `feature/ai-assistant`. See `docs/ai-assi
 4. Add restore polish if needed:
    - restore exact window positions/sizes
    - optionally restore search text if Patrick later wants it
-5. Add repeatable sample files/tests for PDF outline, PDF search counts, Markdown formatting, PDF annotation, and multi-window restore.
+5. Add repeatable sample files/tests for PDF outline, PDF search counts, Markdown formatting, PDF annotation, form editing, and multi-window restore.
 
 ## 10.1 Automated test baseline
 
-`Package.swift` now declares `FileViewerTests`, with initial XCTest coverage in `Tests/FileViewerTests/DocumentSafetyTests.swift`. Run `swift test` before committing changes. The initial tests cover Markdown dirty state, fresh file-version detection, duplicate-open protection, and Markdown extension recognition. They intentionally avoid PDFKit drawing and native modal dialogs; those still require manual or future UI testing.
+`Package.swift` declares `FileViewerTests`, with XCTest coverage in `Tests/FileViewerTests/DocumentSafetyTests.swift` and `Tests/FileViewerTests/AIAssistantTests.swift`. Run `swift test` before committing changes. Tests cover Markdown dirty state, fresh file-version detection, duplicate-open protection, Markdown extension recognition, AI chunking/retrieval, selection isolation, local transport enforcement, and safe provider defaults. They intentionally avoid live network streaming, PDFKit drawing/form editing, native modal dialogs, and full UI interaction; those still require manual or future UI testing.
 
 ## 11. Quick mental model for future agents
 
@@ -1114,7 +1127,7 @@ Most bugs will be caused by one of three state boundaries:
 
 When debugging, first identify which boundary is involved.
 
-## 12. AI assistant Phase 1 handoff
+## 12. AI assistant handoff
 
 Branch: `feature/ai-assistant`
 
@@ -1161,7 +1174,7 @@ Privacy and safety behavior:
 
 Known limitations / next work:
 
-- citations are text labels generated by the model, not clickable navigation targets yet;
+- the app shows request provenance rather than model-generated citations: PDF `Page N` labels are clickable navigation targets, while Markdown heading labels are informational only;
 - selection-based context works from the panel, but contextual `Ask AI About Selection` menu items are not implemented;
 - context is capped at 12,000 characters to fit common local-model context windows while reserving 1,024 output tokens. Whole Document is therefore a preview rather than a complete-document synthesis; hierarchical summaries remain future work;
 - keyword scoring is intentionally simple and does not yet use the available embedding model;
@@ -1173,8 +1186,8 @@ Known limitations / next work:
 - the panel uses side-by-side resizing at all widths; the specified narrow-window overlay behavior remains future work;
 - provider profiles, active provider, selected model, endpoints, and remote-access approval persist in UserDefaults; credentials persist only in Keychain;
 - OpenAI is supported through its Chat Completions endpoint for common streaming transport. Migrating the OpenAI profile to the Responses API is an optional future enhancement, not a current functional requirement;
-- summary and translation use the currently selected scope; future polish should apply task-specific automatic defaults unless the user explicitly changed the scope;
-- no conversation persistence, Retry buttons, or clickable citations yet. Each completed assistant response has **Copy Answer** (readable plain text with Markdown syntax removed), **Copy as Markdown**, and **Save as Markdown** actions. The Markdown export prepends source document, context, model, and timestamp metadata, so it can be pasted into or saved directly in an Obsidian vault.
+- summary and translation use the currently selected scope; translation changes `Relevant Sections` to `Current Page/Section` and labels the effective scope accurately. Future polish could add task-specific automatic defaults unless the user explicitly changed the scope;
+- conversations are not persisted. **Retry** is implemented for provider connection/model discovery. Each completed assistant response has **Copy Answer** (readable plain text with Markdown syntax removed), **Copy as Markdown**, and **Save as Markdown** actions. The Markdown export prepends source document, context, model, and timestamp metadata, and the normal Save panel can target an Obsidian vault; there is no direct Obsidian integration.
 
 Verification commands:
 

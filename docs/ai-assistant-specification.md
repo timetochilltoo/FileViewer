@@ -1,8 +1,8 @@
 # FileViewer AI Assistant Panel Specification
 
-Status: Phase 1 implemented on `feature/ai-assistant`; configurable provider profiles implemented (LM Studio, Ollama, OpenAI-compatible servers, and OpenAI)
+Status: implemented on `feature/ai-assistant` (current branch); configurable provider profiles support LM Studio, Ollama, OpenAI-compatible servers, and OpenAI
 
-## Implementation Note — 2026-07-11
+## Current implementation — 2026-07-20
 
 The first functional vertical slice is implemented on the separate branch `feature/ai-assistant`:
 
@@ -12,7 +12,7 @@ The first functional vertical slice is implemented on the separate branch `featu
 - provider profiles are persisted locally, with LM Studio (`http://127.0.0.1:1234/v1`) as the safe default;
 - the built-in profile choices are LM Studio, Ollama (`http://127.0.0.1:11434/v1`), a custom OpenAI-compatible server, and OpenAI (`https://api.openai.com/v1`);
 - chat responses stream through the OpenAI-compatible `/v1/chat/completions` endpoint, including the OpenAI profile's supported Chat Completions endpoint;
-- every provider exposes model discovery through `GET /v1/models` (or its configured equivalent endpoint);
+- compatible providers expose model discovery through `GET /v1/models` (or their configured equivalent endpoint);
 - local loopback endpoints may be used immediately; a non-loopback endpoint is blocked until the user enables **Allow this provider to receive document text** in AI Provider Settings;
 - OpenAI requires an API key; custom-compatible profiles may optionally use one. Saved provider credentials are stored only in macOS Keychain, never in UserDefaults, exported data, source code, or logs;
 - opening AI Provider Settings does not inspect or reveal saved Keychain credentials. A saved key is read only when the active provider needs it for a connection or request; leaving the key field blank preserves any existing saved key;
@@ -20,16 +20,16 @@ The first functional vertical slice is implemented on the separate branch `featu
 - Markdown source/preview selection is read from the active or most recently active text view;
 - Selected Text, Current Page/Section, Relevant Sections, and Whole Document scopes are implemented;
 - PDF pages and Markdown headings are used as context labels;
-- question, summary, translation, cancellation, errors, basic Markdown response rendering, and model selection are implemented;
+- question, short-overview/key-points summary, translation, cancellation, errors, basic Markdown response rendering, and model selection are implemented;
 - the configuration clearly separates `Summary & Q&A` from `Translation`: summaries and normal questions share a `Response language` selector (English, Traditional Chinese, or Simplified Chinese), while translation has its own three-language `Translate to` selector;
 - the request transcript accurately names the selected scope, for example `Translate the selected text into Traditional Chinese` rather than implying the whole document is translated;
 - `Relevant Sections` is intended for question answering. If it is selected when Translate is pressed, the app changes the effective scope to Current Page/Section, because translation prompts have no meaningful search terms and must not retrieve unrelated pages;
 - summaries and translations use only the current request context; only a normal question carries the preceding conversation turns;
-- the chat composer uses Return to send and Shift-Return to insert a line break, with the shortcut displayed under the editor;
+- the chat composer uses Return or Command-Return to send and Shift-Return to insert a line break, with the shortcut displayed under the editor;
 - the manager depends on an `AIProvider` protocol and a common Chat-Completions transport, so compatible providers use the same document-context safeguards;
-- automated tests cover context chunking, selection isolation, basic retrieval, local-endpoint enforcement in the legacy LM Studio adapter, and provider-profile defaults.
+- automated tests cover context chunking, selection isolation, basic retrieval, local-endpoint enforcement in the legacy LM Studio adapter, provider-profile defaults, and document safety.
 
-This is intentionally not the complete specification. Remaining work includes clickable citations, selection context-menu commands, hierarchical summaries for very large documents, persisted conversations, a mock streaming-provider test, accessibility review, and narrow-window overlay behavior. Context is capped at 12,000 characters and reports when it is truncated; Whole Document is therefore a preview, not yet a complete-document synthesis. The request also reserves 1,024 output tokens. No document text is sent until the user presses Send, Summarize, or Translate.
+This is intentionally not the complete specification. Remaining work includes selection context-menu commands, hierarchical summaries for very large documents, persisted conversations, a mock streaming-provider test, accessibility review, and narrow-window overlay behavior. PDF page provenance chips are clickable; Markdown heading labels are informational only. Context is capped at 12,000 characters and reports when it is truncated; Whole Document is therefore a preview, not yet a complete-document synthesis. The request also reserves 1,024 output tokens. No document text is sent until the user presses Send, Summarize, or Translate.
 
 This document defines a provider-neutral AI assistant for FileViewer. It describes the user experience, document-context rules, privacy and security controls, internal interfaces, failure handling, and acceptance criteria. The active provider and model are selected at runtime; no provider credential is bundled with FileViewer.
 
@@ -43,7 +43,7 @@ The first version should support:
 - summarizing the whole document, the current page/section, or selected text;
 - translating the whole document, the current page/section, or selected text;
 - selecting text in a PDF or Markdown document and using it as focused AI context;
-- showing where an answer came from through PDF page or Markdown heading citations;
+- showing the exact document chunks supplied to the model through PDF page or Markdown-heading provenance labels;
 - copying the result without modifying the original document automatically.
 
 “Translation” is used throughout this specification. If the earlier request used the word “transaction,” it is interpreted as translation.
@@ -54,7 +54,7 @@ The first version should support:
 - Local-first and private-by-default behavior is preferred.
 - The user must know what content will be sent to an external provider before it is sent.
 - AI output is assistance, not authoritative document content.
-- Answers should be grounded in the open document and include citations whenever possible.
+- Answers should be grounded in the open document. The app shows request provenance, but does not yet claim that the model cited each individual statement.
 - The assistant must say when the requested information is not present in the document.
 - AI actions must not silently edit, save, annotate, delete, or overwrite files.
 - Provider-specific behavior must be isolated behind a common interface.
@@ -66,31 +66,27 @@ The first version should support:
 - Add one `AI Assistant` button to the main toolbar, preferably near Search.
 - The button uses a familiar symbol and a visible tooltip.
 - Clicking it opens or closes a right-side panel belonging to the current FileViewer window.
-- Suggested default width: 360 points.
-- Suggested resizable range: 300–600 points.
-- The panel width should be remembered per window or as an app preference.
+- Current resizable range: 280–600 points.
+- Panel visibility and width are session state; durable app-wide sizing is not yet implemented.
 - Opening the panel must not hide the left sidebar. The center document area should resize between the two panels.
 - At narrow window widths, the AI panel may appear as an overlay sheet or temporarily hide the left sidebar, but this behavior must be predictable and reversible.
 
 ### 3.2 Panel Header
 
-The header should show:
+The current header shows:
 
 - `AI Assistant`;
 - the current document name;
-- a context scope control;
-- a new-conversation button;
+- clear-conversation, conversation-export, provider-settings, and panel-close controls;
 - a panel close button.
 
 ### 3.3 Primary Actions
 
-Show three prominent actions when a conversation is empty:
+The current panel separates the actions to avoid ambiguous language controls:
 
-- `Summarize`
-- `Translate`
-- `Ask a Question`
-
-These actions may become compact buttons after the first response.
+- **Summary & Q&A** contains the `Answer in` selector and `Summarize` button;
+- **Translation** contains its separate `Translate to` selector and `Translate` button;
+- **Ask a Question** is the composer at the bottom of the panel.
 
 ### 3.4 Conversation Area
 
@@ -101,8 +97,8 @@ The conversation area should show:
 - streaming progress while the response is generated; provider-private reasoning wrapped in `<think>…</think>` is filtered before rendering, copying, exporting, or passing conversation history into a follow-up request;
 - a **Sources provided to the model** strip on every completed response. It lists the exact page or Markdown-heading chunks included in that individual request; PDF page chips are presented in ascending page order and are clickable to navigate to that page. This is provenance, not an external reference link and not a claim that the model necessarily cited every chip in its prose;
 - a **Save Conversation** command that writes the current in-memory conversation to a Markdown file, including source/model metadata and the source chunks provided to each answer. Conversations remain memory-only unless the user explicitly exports one;
-- citations as clickable chips or links;
-- Copy each completed response as Markdown and save it as a standalone Markdown note;
+- the exact request provenance labels; PDF page labels are clickable and open the corresponding page, while Markdown heading labels are not yet navigable;
+- **Copy Answer** (plain text with Markdown syntax removed), **Copy as Markdown**, and **Save as Markdown** for each completed response;
 - a clear error message when a request fails;
 - a Stop button during generation.
 
@@ -114,9 +110,9 @@ The bottom input area should contain:
 - a Send button;
 - the active context scope;
 - a short disclosure such as `Selected text will be sent to <provider>` or `Processed on this Mac`;
-- an optional language selector when translation mode is active.
+- a visible shortcut reminder: Return sends; Shift-Return inserts a new line.
 
-Phase 1 uses normal chat behaviour: Return sends the request and Shift-Return inserts a new line. The composer displays this shortcut. Command-Return also sends because it is treated as Return without Shift.
+The current composer uses normal chat behaviour: Return sends the request and Shift-Return inserts a new line. The composer displays this shortcut. Command-Return also sends because it is treated as Return without Shift.
 
 Before an AI action, the configuration area identifies whether the selected endpoint is local to this Mac or a remote provider and names the remote host. Whole Document also warns that the present implementation uses a 12,000-character preview and may be truncated; it is not a complete-document synthesis.
 
@@ -133,18 +129,14 @@ Supported scopes:
 
 ### 4.1 Automatic Scope Selection
 
-- If the user has a non-empty text selection, default to `Selected Text`.
-- Otherwise, Summarize defaults to `Current Page/Section`.
-- Ask defaults to `Relevant Sections` when document indexing is available.
-- Translate defaults to `Selected Text` when text is selected, otherwise `Current Page/Section`.
-- The user can change the scope before sending.
+The user chooses the scope explicitly. The selected scope remains visible before sending. Translation has one safety exception: if the user chooses `Relevant Sections`, the app uses and labels `Current Page/Section` instead, because a generic translation request has no reliable retrieval query.
 
 ### 4.2 Selection Capture
 
 For PDF:
 
 - capture text from `PDFView.currentSelection`;
-- retain page number and selection bounds for citation and navigation;
+- retain page number for provenance and navigation;
 - multi-page selections should preserve page boundaries;
 - if the PDF contains no selectable text, explain that the page may be scanned and that OCR is not yet available, unless OCR is implemented later.
 
@@ -157,7 +149,7 @@ For Markdown:
 
 ### 4.3 Selection Action
 
-When text is selected, offer a small contextual action or right-click menu:
+Future enhancement: when text is selected, offer a small contextual action or right-click menu:
 
 - `Ask AI About Selection…`
 - `Summarize Selection`
@@ -169,27 +161,19 @@ Choosing one opens the right panel and displays a preview of the captured select
 
 ### 5.1 Summary Types
 
-The Summarize action should offer:
-
-- Brief summary
-- Detailed summary
-- Key points
-- Action items
-- Section-by-section summary
-
-MVP requires Brief summary, Detailed summary, and Key points.
+Current behavior requests a short overview followed by key points. Detailed, action-item, and section-by-section summary modes remain future work.
 
 ### 5.2 Whole-Document Summary
 
-Large documents cannot always be sent as one request. FileViewer should:
+Large documents cannot always be sent as one request. The current Whole Document scope extracts local text and sends a capped 12,000-character preview. A future complete-document workflow should:
 
 1. extract document text locally;
 2. divide it into page/heading-aware chunks;
 3. summarize chunks when required;
 4. combine them into a final summary;
-5. retain citations to source pages/headings.
+5. retain page/heading provenance labels for source review.
 
-The UI should show progress such as `Reading page 12 of 85` and allow cancellation.
+The current request supports cancellation, but page-by-page progress and hierarchical combination are future work.
 
 ## 6. Translation
 
@@ -204,15 +188,13 @@ The UI should show progress such as `Reading page 12 of 85` and allow cancellati
 
 ### 6.2 Initial Languages
 
-The UI should not hardcode a provider's exact language list. It should initially expose commonly used choices such as:
+The current UI exposes exactly:
 
 - English
 - Traditional Chinese
 - Simplified Chinese
-- Japanese
-- Korean
 
-The provider adapter may report additional supported languages later.
+Additional language choices and provider capability reporting are future work.
 
 ## 7. Document Question Answering
 
@@ -226,15 +208,15 @@ The assistant should:
 2. identify relevant chunks;
 3. send only those chunks with the question;
 4. answer using those chunks;
-5. cite each material claim with a PDF page or Markdown heading;
-6. state `I could not find that in this document` when evidence is insufficient.
+5. show the supplied chunks as request provenance labels; and
+6. prompt the model to state when evidence is insufficient.
 
-### 7.2 Citations
+### 7.2 Request Provenance
 
-- PDF citation example: `Page 17`
-- Markdown citation example: `Heading: Security Controls`
-- Clicking a citation navigates the document to that page, heading, or selection.
-- Citations should refer to the document displayed to the user, not internal chunk numbers.
+- PDF label example: `Page 17`
+- Markdown label example: `Heading: Security Controls`
+- PDF page labels navigate to that page. Markdown heading labels are currently informational only.
+- The labels refer to chunks sent in the request, not external URLs, formal citations, or proof that every answer sentence is supported by every listed chunk.
 
 ### 7.3 Conversation Context
 
@@ -289,19 +271,21 @@ Providers that offer a sufficiently compatible API may share an OpenAI-compatibl
 
 ## 9. Provider Settings
 
-Add a Settings window before enabling cloud AI.
-
-Suggested fields:
+The implemented **AI Provider Settings** sheet supports:
 
 - Provider
 - Model
 - API base URL, when applicable
 - API key entry
-- Test Connection button
-- Default processing mode: On-device or Cloud
-- Default translation language
-- Allow whole-document cloud requests
-- Save conversation history
+- profile name;
+- provider type;
+- server URL;
+- optional default model;
+- optional API-key field;
+- **Allow this provider to receive document text**;
+- add, remove, save, and Done controls.
+
+The panel's **Retry** control refreshes availability/model discovery. There is no separate Test Connection button, a default-language preference, or persisted conversation toggle yet.
 
 API keys must be stored in macOS Keychain. They must not be stored in UserDefaults, session JSON, logs, source code, or the app bundle.
 
@@ -368,20 +352,17 @@ The initial AI assistant must not receive tools capable of:
 
 ### 11.3 Chunk Cache
 
-- Cache extracted/chunked text per document version to avoid repeated processing.
-- Invalidate the cache when the document changes on disk, Markdown is edited, PDF form data changes, or annotations are included and modified.
-- Keep cache data in memory for MVP.
-- If disk caching is introduced later, make it optional, app-scoped, and removable from Settings.
+Chunk text is currently extracted on demand and retained only for the active request. There is no document chunk cache yet. A future cache should be version-aware, memory-bounded, removable, and invalidated for Markdown edits, form changes, or annotation inclusion.
 
 ## 12. Responsiveness and Resource Limits
 
-- Text extraction, chunking, retrieval, and network work must not block the main thread.
+- Network streaming is asynchronous and supports cancellation. Context extraction/retrieval currently happens synchronously while preparing a request, so very large PDFs can briefly stall the interface; moving it off the main actor is future work.
 - Requests must support cancellation.
 - Only one active generation per document tab is required for MVP.
 - Switching tabs should not cancel another tab's request unless the document closes.
 - Apply configurable maximum input sizes.
 - Show a useful explanation when the selected provider cannot accept the requested scope.
-- Large-document progress must be visible.
+- Page-by-page large-document progress is future work; the UI currently reports truncation where applicable.
 
 ## 13. Error Handling
 
@@ -406,16 +387,15 @@ Errors must not discard the user's question. The input remains available for ret
 - AI output must be selectable and readable by VoiceOver.
 - Keyboard focus should move predictably between the document, panel, and question field.
 - Command-Return sends.
-- Escape stops generation when a request is active; otherwise it returns focus to the document.
-- Citations must be keyboard accessible.
+- Escape-stop behavior and a full VoiceOver keyboard audit remain future work.
+- PDF page provenance buttons must remain keyboard accessible; Markdown heading provenance is not yet a navigation control.
 - Active context and cloud/on-device status must not rely on color alone.
 
 ## 15. Persistence
 
-MVP:
+Current behavior:
 
-- remember whether the panel is open per window;
-- remember panel width;
+- panel visibility and width are session state;
 - keep conversations only in memory;
 - store provider settings in UserDefaults except credentials;
 - store credentials in Keychain.
@@ -423,7 +403,6 @@ MVP:
 Future optional persistence:
 
 - local conversation history per document;
-- export conversation to Markdown;
 - clear one document's history;
 - clear all AI history and caches.
 
@@ -436,14 +415,14 @@ Unsaved document text and conversations must not be restored silently after a cr
 - right-side resizable panel;
 - selected-text capture for PDF and Markdown;
 - current page/section scope;
-- whole-document summary with chunking;
-- brief/detailed/key-points summary;
+- capped Whole Document preview;
+- short overview/key-points summary;
 - translation with target-language selection;
 - grounded document questions;
-- page/heading citations and navigation;
-- streaming, cancellation, copy, and retry;
+- PDF page/Markdown-heading request provenance; PDF page navigation;
+- streaming, cancellation, copy/export, and retry;
 - provider settings and Keychain credentials;
-- one provider adapter plus a mock provider for tests.
+- OpenAI-compatible provider profiles and focused unit tests that do not call a real provider.
 
 ### Deferred
 
@@ -454,54 +433,42 @@ Unsaved document text and conversations must not be restored silently after a cr
 - automatic annotation creation;
 - multi-document questions;
 - internet search;
-- persistent chat synchronization;
+- persistent conversations and chat synchronization;
 - provider comparison or automatic model routing;
 - agentic file operations.
 
 ## 17. Suggested Implementation Phases
 
-### Phase 1: Panel and Mock Provider
+### Historical implementation phases
 
-- Build the right panel and per-tab conversation state.
-- Implement context scope UI and selected-text capture.
-- Use a deterministic mock provider so UI and tests do not require a network or API key.
+- The panel, per-tab state, explicit scope UI, selection capture, real configured transport, and focused non-network tests are implemented. A deterministic streaming mock remains future work.
 
-### Phase 2: Local Extraction and Citations
+### Remaining implementation phases
 
-- Implement PDF/Markdown extractors, chunking, retrieval, and citation navigation.
-- Add progress and cancellation.
+- Move extraction/indexing off the main actor, add a cache, hierarchical summaries, and richer progress.
+- Add selection contextual actions and true model-generated citations only if the product can make their semantics reliable.
 
-### Phase 3: First Real Provider
-
-- Add Settings and Keychain storage.
-- Implement one provider adapter.
-- Add streaming, provider errors, and privacy confirmation.
-
-### Phase 4: Additional Providers
-
-- Add adapters or configurations for other providers.
-- Add capability checks and provider-specific model settings.
-- Benchmark quality using representative English and Traditional Chinese documents.
+- Add provider capability checks, optional provider-specific adapters, and quality benchmarking using representative English and Traditional Chinese documents.
 
 ## 18. Acceptance Criteria
 
 1. Opening the AI panel does not cover the current document at normal window sizes.
 2. Each window and document tab has independent AI state.
-3. Selecting PDF or Markdown text and choosing `Ask AI About Selection` captures the intended text before focus moves to the panel.
+3. Selecting PDF or Markdown text and choosing the `Selected Text` scope captures the intended text before focus moves to the panel.
 4. The panel clearly displays whether context is selected text, current page/section, relevant excerpts, or whole document.
 5. No cloud request is sent before provider configuration and first-use consent.
 6. API keys are stored only in Keychain.
 7. Summary and translation do not modify the source document.
-8. Document questions provide clickable page or heading citations.
+8. Completed responses show the exact chunks supplied to the model; PDF page labels navigate to their page.
 9. The assistant admits when evidence is not present.
-10. Large-document processing remains responsive and can be cancelled.
+10. Generation can be cancelled. Whole-document requests explain when the context is truncated.
 11. Closing a document cancels its active request and releases its context/conversation memory.
 12. Switching windows does not send commands or responses to another window.
-13. Unit tests can run without a real AI account through a mock provider.
+13. Unit tests run without a real AI account; current tests cover request/context safety rather than a mock streaming provider.
 14. Logs and exported diagnostics contain no API keys or full document text.
 
 ## 19. Provider Decision
 
-The provider can be chosen later because the product UI, context extraction, chunking, citations, and conversation model should be provider-independent.
+The provider can be changed later because the product UI, context extraction, chunking, request provenance, and conversation model are provider-independent.
 
 However, changing providers is not guaranteed to be only a configuration change. If two providers expose compatible request and streaming formats, they can share one transport with different base URL, model, and credential settings. Providers with different authentication, streaming, limits, or on-device APIs require a small adapter. The architecture above keeps that difference contained so it does not affect the rest of FileViewer.

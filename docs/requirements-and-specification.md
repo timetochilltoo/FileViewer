@@ -2,7 +2,7 @@
 
 ## 1. Product Overview
 
-FileViewer is a local-first native macOS document viewing application focused on Markdown and PDF files. The app should let users open, read, edit Markdown, search, navigate, and organize documents with a clean SwiftUI interface. It should support practical PDF editing through annotations and page operations in later versions, while treating full PDF content editing as an advanced future feature.
+FileViewer is a local-first native macOS document viewing application focused on Markdown and PDF files. It lets users open, read, edit Markdown, search, navigate, organize documents, annotate PDFs, complete supported PDF forms, and optionally ask a configured AI provider questions about explicitly selected document context. Full PDF content editing and page operations remain future work.
 
 The app targets macOS Tahoe 26.5.1 and newer within the macOS 26 generation. Compatibility with lower macOS versions is not required.
 
@@ -13,7 +13,7 @@ The first version should feel like a useful everyday viewer, not a demo. Users s
 - Provide a fast, reliable Markdown viewer.
 - Provide a PDF viewer with navigation, zoom, thumbnails, and search.
 - Support common document workflows such as recent files, tabs, separate side-by-side windows, Finder/Open With file opening, and drag-and-drop opening.
-- Keep files local unless the user explicitly chooses an export or sharing action.
+- Keep files local unless the user explicitly configures an AI provider and explicitly sends document context to it.
 - Support useful PDF annotations without pretending PDFs are as easy to edit as Word documents.
 - Build the app in a way that can later grow into a full desktop document workspace.
 - Use SwiftUI as the primary UI framework.
@@ -94,7 +94,7 @@ Expected behavior:
 - Preview must preserve Markdown block structure instead of flattening the document into a single paragraph.
 - Markdown windows must be resizable narrow enough for side-by-side comparison with another document window.
 - The user can switch between light and dark system appearances.
-- The sidebar can list headings generated from Markdown content. Jump-to-heading behavior is a future improvement.
+- The sidebar can list headings generated from Markdown content. Heading rows are currently informational; jump-to-heading remains a future improvement.
 
 ### 5.3 Read a PDF File
 
@@ -121,7 +121,7 @@ Expected behavior:
 - The user can draw freehand marks.
 - The user can add simple shapes such as rectangles, circles, lines, and arrows.
 - The user can undo and redo annotation changes.
-- The user can save annotations into a new PDF or sidecar project file.
+- The user can save embedded annotations and supported fillable-form edits to the current PDF, or use **Save Annotated Copy As** to write a new PDF. FileViewer does not create annotation sidecar project files.
 
 ### 5.5 Manage PDF Pages
 
@@ -217,7 +217,7 @@ Recommended:
 
 ## 6.4 PDF Annotation
 
-Implemented v1 on `main`:
+Implemented:
 
 - Highlight selected text.
 - Underline selected text.
@@ -308,7 +308,7 @@ The app should clearly distinguish between true content editing and annotation/p
 ## 7.2 Privacy
 
 - Files should stay on the user's device by default.
-- The app should not upload documents unless a cloud feature is explicitly added.
+- The app does not upload documents by default. AI document context is sent only after the user presses Send, Summarize, or Translate. Loopback AI endpoints are allowed locally; a non-loopback provider is blocked until the user enables that provider's **Allow this provider to receive document text** option.
 - Recent file data should be stored locally.
 
 ## 7.3 Reliability
@@ -413,7 +413,7 @@ Required:
 - SwiftUI for the app shell, toolbar, sidebar, Markdown workspace, and app state.
 - AppKit bridges only where native controls are needed, such as PDFKit integration.
 - macOS 26 as the deployment target.
-- Xcode 26.5 / Swift 6.3 as the expected development environment.
+- macOS 26 and the package's Swift tools version 6.2 as the expected development environment.
 
 ## 10.2 Markdown Rendering
 
@@ -453,7 +453,7 @@ Local app data should include:
 - Last zoom level.
 - Theme preference.
 - Per-file viewing preferences.
-- Optional annotation sidecar files before PDF export is implemented.
+- Optional annotation sidecar files are not currently used; annotations and supported form changes are embedded in the PDF when saved.
 
 Possible storage options:
 
@@ -478,4 +478,4 @@ Possible storage options:
 
 ## 14. AI Assistant
 
-Phase 1 is implemented on `feature/ai-assistant`. It provides a provider-neutral, resizable right-side panel for document questions, summaries, translation, and selected-text assistance. It uses explicit context scopes, local extraction and keyword retrieval, PDF page/Markdown heading context labels, per-tab in-memory conversations, streaming, cancellation, and a loopback-only LM Studio adapter. The current phase rejects remote hosts and therefore needs no API credentials or cloud-upload flow. Keychain credentials and cloud disclosure become mandatory only if a future remote provider is enabled. Clickable citations, selection context-menu commands, large-document hierarchical summarization, and additional provider adapters remain planned. The detailed specification and current limitations are maintained in `docs/ai-assistant-specification.md`.
+The AI assistant is implemented on `feature/ai-assistant`. It provides a provider-neutral, resizable right-side panel for document questions, summaries, translation, and selected-text assistance. It supports LM Studio, Ollama, custom OpenAI-compatible servers, and OpenAI profiles. Context extraction and keyword retrieval occur locally; a request is sent only after an explicit AI action. Loopback endpoints work locally, while a non-loopback endpoint requires that profile's explicit document-transfer approval. API keys are stored only in macOS Keychain. The implemented scopes are Selected Text, Current Page/Section, Relevant Sections, and a deliberately capped Whole Document preview. PDF page and Markdown-heading labels show the exact context supplied to each response; PDF page labels can navigate to their page, but these labels are provenance rather than model-generated citations or external links. Conversations remain in memory per tab until exported or the tab closes. The detailed specification, limitations, and privacy behavior are maintained in `docs/ai-assistant-specification.md`.

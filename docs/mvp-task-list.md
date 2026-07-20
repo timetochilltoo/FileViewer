@@ -13,7 +13,7 @@ The MVP is a native macOS SwiftUI document viewer and editor that supports:
 - Light and dark themes.
 - Opening documents in tabs and Finder/Open With documents in separate windows for side-by-side comparison.
 
-PDF annotation and PDF page editing are not part of the MVP. They will be added after the core viewer is stable.
+PDF annotation and fillable-form support were implemented after the original MVP. PDF page editing (rotate, reorder, delete, extract, merge) remains out of scope.
 
 ## 2. Project Setup
 
@@ -26,7 +26,7 @@ PDF annotation and PDF page editing are not part of the MVP. They will be added 
 
 Acceptance criteria:
 
-- App builds with Xcode 26.5 / Swift 6.3.
+- App builds with the project Swift tools version 6.2 on macOS 26.
 - App starts locally as a native macOS application.
 - Main interface is visible.
 - Theme can switch between light and dark.
@@ -49,7 +49,7 @@ Acceptance criteria:
 - User can open `.md`, `.markdown`, and `.pdf` files.
 - Drag-and-drop works, including multiple dropped files.
 - Finder/Open With documents open in a target window only; existing windows must not all switch to the newest document.
-- Opening the same file more than once is allowed.
+- Opening a file already open in FileViewer brings the existing writable instance forward instead of creating another writable copy.
 - Unsupported files do not crash the app.
 - Current file name appears in the interface.
 
@@ -342,14 +342,14 @@ This section records the boundary of the original viewer MVP. Some items, includ
 - Source-editor right-click formatting uses a custom Markdown command menu.
 - Unsaved Markdown tab/window close confirmation has been implemented.
 - A packaged `.app` bundle with icon and document type registration has been implemented.
-- The app builds successfully with Swift 6.3.2 / Xcode 26.5.
+- The app builds successfully with Swift tools version 6.2 on macOS 26.
 - PDF annotations, drawing, notes, form editing, safe PDF save, and annotation reports have been implemented after the original MVP.
-- AI assistant Phase 1 is implemented on `feature/ai-assistant`: resizable right panel, per-tab conversations, PDF/Markdown selection capture, four explicit context scopes, local retrieval, streaming LM Studio chat, model discovery, stop/error handling, and local-only host enforcement.
+- The original viewer MVP is complete. Later work has also implemented PDF annotation/form support and the AI assistant on `feature/ai-assistant`: a resizable right panel, per-tab in-memory conversations, PDF/Markdown selection capture, four explicit scopes, local retrieval, streaming, cancellation, provider/model discovery, and explicit remote document-transfer approval. Provider profiles now include LM Studio, Ollama, custom OpenAI-compatible servers, and OpenAI; credentials are stored only in Keychain.
 
 Next implementation work:
 
-- Continue PDF annotation beyond v1:
+- Continue PDF annotation support:
   - add author name and timestamp metadata for annotations
 - Improve Markdown preview fidelity for richer GitHub-flavored tables, local images, and task-list polish if needed later.
-- Add tests or sample files for repeatable verification.
-- Manually acceptance-test the Phase 1 AI panel, then add clickable citations, selection context-menu actions, large-document hierarchical summaries, and an Ollama adapter. Cloud providers remain deferred.
+- Add focused UI/sample-file tests for PDF outline, search, annotation, form editing, multi-window restoration, and AI streaming/error states.
+- AI follow-up work: selection context-menu actions, richer retrieval/embedding search, hierarchical summaries for very large documents, conversation persistence, clickable model-generated citations, and a background extraction/index cache. Ollama and OpenAI-compatible/OpenAI provider profiles are already implemented.
