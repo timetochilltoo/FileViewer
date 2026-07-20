@@ -109,7 +109,7 @@ final class AIAssistantTests: XCTestCase {
         let output = AIConversationMarkdownExport.make(
             messages: [
                 AIMessage(role: .user, content: "What does this mean?"),
-                AIMessage(role: .assistant, content: "It means testing is required.", sourceLabels: ["Page 8", "Page 9"])
+                AIMessage(role: .assistant, content: "It means testing is required.", sourceLabels: ["Page 9", "Page 3", "Page 8"])
             ],
             sourceName: "Guidance.pdf",
             modelName: "local-model",
@@ -118,8 +118,15 @@ final class AIAssistantTests: XCTestCase {
 
         XCTAssertTrue(output.contains("## You"))
         XCTAssertTrue(output.contains("## Assistant"))
-        XCTAssertTrue(output.contains("`Page 8`, `Page 9`"))
+        XCTAssertTrue(output.contains("`Page 3`, `Page 8`, `Page 9`"))
         XCTAssertTrue(output.contains("1970-01-01T00:00:00Z"))
+    }
+
+    func testMarkdownSourceLabelsPreserveRelevanceOrder() {
+        XCTAssertEqual(
+            AISourceProvenance.orderedLabels(["Heading: Security", "Heading: Introduction"]),
+            ["Heading: Security", "Heading: Introduction"]
+        )
     }
 
     func testPlainTextExportRemovesMarkdownFormatting() {

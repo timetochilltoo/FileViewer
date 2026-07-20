@@ -1165,7 +1165,7 @@ Known limitations / next work:
 - selection-based context works from the panel, but contextual `Ask AI About Selection` menu items are not implemented;
 - context is capped at 12,000 characters to fit common local-model context windows while reserving 1,024 output tokens. Whole Document is therefore a preview rather than a complete-document synthesis; hierarchical summaries remain future work;
 - keyword scoring is intentionally simple and does not yet use the available embedding model;
-- questions and summaries use the per-session `Answer in` setting (English, Traditional Chinese, or Simplified Chinese); translation has an independent target-language setting with the same choices;
+- the AI panel separates `Summary & Q&A` from `Translation`: questions and summaries use the per-session `Response language` setting (English, Traditional Chinese, or Simplified Chinese), while translation has an independent target-language setting with the same choices;
 - `Relevant Sections` is a keyword-retrieval mode for questions. Translation automatically changes this scope to `Current Page/Section`: a generic translation instruction cannot reliably retrieve the visible material and previously could select an unrelated page. The panel explains this behavior while Relevant Sections is selected;
 - summary and translation requests deliberately omit prior chat turns so an earlier response from another page cannot contaminate the new result. Normal Ask requests retain the most recent eight messages as conversational history;
 - the AppKit-backed composer deliberately uses Return to send and Shift-Return for a newline. Do not replace it with SwiftUI `TextEditor` without retaining this behavior;

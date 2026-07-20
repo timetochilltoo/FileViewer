@@ -24,6 +24,21 @@ struct AIMessage: Identifiable, Equatable, Sendable {
     }
 }
 
+/// Presents PDF provenance in natural reading order. Retrieval still supplies
+/// relevant chunks to the model in relevance order; this helper only makes
+/// provenance easier for a person to review in the panel and exported notes.
+enum AISourceProvenance {
+    static func orderedLabels(_ labels: [String]) -> [String] {
+        guard labels.allSatisfy({ pageNumber(in: $0) != nil }) else { return labels }
+        return labels.sorted { (pageNumber(in: $0) ?? 0) < (pageNumber(in: $1) ?? 0) }
+    }
+
+    static func pageNumber(in label: String) -> Int? {
+        guard label.hasPrefix("Page ") else { return nil }
+        return Int(label.dropFirst("Page ".count))
+    }
+}
+
 enum AIContextScope: String, CaseIterable, Identifiable, Sendable {
     case selectedText
     case currentPageOrSection
@@ -214,7 +229,8 @@ enum AIConversationMarkdownExport {
             let heading = message.role == .user ? "## You" : "## Assistant"
             var section = "\(heading)\n\n\(message.content.trimmingCharacters(in: .whitespacesAndNewlines))"
             if message.role == .assistant, !message.sourceLabels.isEmpty {
-                section += "\n\n**Sources provided to the model:** " + message.sourceLabels.map { "`\($0)`" }.joined(separator: ", ")
+                let labels = AISourceProvenance.orderedLabels(message.sourceLabels)
+                section += "\n\n**Sources provided to the model:** " + labels.map { "`\($0)`" }.joined(separator: ", ")
             }
             return section
         }.joined(separator: "\n\n---\n\n")

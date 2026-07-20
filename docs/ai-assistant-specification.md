@@ -21,7 +21,7 @@ The first functional vertical slice is implemented on the separate branch `featu
 - Selected Text, Current Page/Section, Relevant Sections, and Whole Document scopes are implemented;
 - PDF pages and Markdown headings are used as context labels;
 - question, summary, translation, cancellation, errors, basic Markdown response rendering, and model selection are implemented;
-- normal questions and summaries have an independent `Answer in` selector (English, Traditional Chinese, or Simplified Chinese); translation has its own three-language `Translate to` selector;
+- the configuration clearly separates `Summary & Q&A` from `Translation`: summaries and normal questions share a `Response language` selector (English, Traditional Chinese, or Simplified Chinese), while translation has its own three-language `Translate to` selector;
 - the request transcript accurately names the selected scope, for example `Translate the selected text into Traditional Chinese` rather than implying the whole document is translated;
 - `Relevant Sections` is intended for question answering. If it is selected when Translate is pressed, the app changes the effective scope to Current Page/Section, because translation prompts have no meaningful search terms and must not retrieve unrelated pages;
 - summaries and translations use only the current request context; only a normal question carries the preceding conversation turns;

@@ -143,13 +143,6 @@ struct AIAssistantPanel: View {
             }
             .pickerStyle(.menu)
 
-            Picker("Answer in", selection: sessionBinding(\.answerLanguage)) {
-                ForEach(answerLanguages, id: \.self) { language in
-                    Text(language).tag(language)
-                }
-            }
-            .pickerStyle(.menu)
-
             if session.scope == .selectedText && !hasSelection {
                 Label("Select text in the document first.", systemImage: "selection.pin.in.out")
                     .font(.caption)
@@ -172,19 +165,50 @@ struct AIAssistantPanel: View {
                     .foregroundStyle(.secondary)
             }
 
-            HStack {
-                Button("Summarize") { submit(.summarize) }
-                Button("Translate") { submit(.translate) }
-                Spacer()
-            }
-            .disabled(!canSend)
+            Divider()
 
-            Picker("Translate to", selection: sessionBinding(\.targetLanguage)) {
-                ForEach(answerLanguages, id: \.self) { language in
-                    Text(language).tag(language)
+            VStack(alignment: .leading, spacing: 7) {
+                Text("SUMMARY & Q&A")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Picker("Response language", selection: sessionBinding(\.answerLanguage)) {
+                    ForEach(answerLanguages, id: \.self) { language in
+                        Text(language).tag(language)
+                    }
                 }
+                .pickerStyle(.menu)
+                Text("Used for summaries and answers to questions below.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Button {
+                    submit(.summarize)
+                } label: {
+                    Label("Summarize Context", systemImage: "text.alignleft")
+                        .frame(maxWidth: .infinity)
+                }
+                .disabled(!canSend)
             }
-            .pickerStyle(.menu)
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 7) {
+                Text("TRANSLATION")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Picker("Translate to", selection: sessionBinding(\.targetLanguage)) {
+                    ForEach(answerLanguages, id: \.self) { language in
+                        Text(language).tag(language)
+                    }
+                }
+                .pickerStyle(.menu)
+                Button {
+                    submit(.translate)
+                } label: {
+                    Label("Translate Context", systemImage: "character.book.closed")
+                        .frame(maxWidth: .infinity)
+                }
+                .disabled(!canSend)
+            }
         }
         .padding(12)
     }
@@ -281,7 +305,7 @@ struct AIAssistantPanel: View {
 
     @ViewBuilder
     private func sourceButton(_ label: String) -> some View {
-        if let page = pageNumber(in: label), let document = model.document, case .pdf = document {
+        if let page = AISourceProvenance.pageNumber(in: label), let document = model.document, case .pdf = document {
             Button(label) {
                 model.postPDFCommand(.pdfGoToPage, object: page)
             }
@@ -297,22 +321,24 @@ struct AIAssistantPanel: View {
         }
     }
 
-    private func pageNumber(in label: String) -> Int? {
-        guard label.hasPrefix("Page ") else { return nil }
-        return Int(label.dropFirst("Page ".count))
-    }
-
     /// Relevant Sections intentionally supplies chunks to the model in
     /// relevance order. The provenance strip is for human review, so PDF
     /// pages are presented in their natural reading order instead.
     private func orderedSourceLabels(for message: AIMessage) -> [String] {
-        let labels = message.sourceLabels
-        guard labels.allSatisfy({ pageNumber(in: $0) != nil }) else { return labels }
-        return labels.sorted { (pageNumber(in: $0) ?? 0) < (pageNumber(in: $1) ?? 0) }
+        AISourceProvenance.orderedLabels(message.sourceLabels)
     }
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("ASK A QUESTION")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("Answers in \(session.answerLanguage)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
             if !session.contextDescription.isEmpty {
                 Text("Context: \(session.contextDescription)")
                     .font(.caption2)
