@@ -12,9 +12,14 @@ extension FocusedValues {
 }
 
 struct FileViewerCommands: Commands {
+    // `FocusedValue` supplies the active window's model, but it does not observe
+    // changes published by that model. Keep a focused object as well so File
+    // menu validation refreshes immediately after actions such as creating an
+    // untitled Markdown document, rather than waiting for an app focus change.
+    @FocusedObject private var focusedModel: AppModel?
     @FocusedValue(\.fileViewerModel) private var model
     private var activeModel: AppModel? {
-        model ?? FileViewerWindowRegistry.shared.activeModel
+        focusedModel ?? model ?? FileViewerWindowRegistry.shared.activeModel
     }
 
     var body: some Commands {

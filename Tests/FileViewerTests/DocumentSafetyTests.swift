@@ -52,6 +52,16 @@ final class DocumentSafetyTests: XCTestCase {
     }
 
     @MainActor
+    func testNewMarkdownDocumentIsImmediatelySaveable() {
+        let model = AppModel()
+
+        model.newMarkdownDocument()
+
+        XCTAssertTrue(model.isMarkdownDocument)
+        XCTAssertTrue(model.canSaveMarkdown)
+    }
+
+    @MainActor
     func testMarkdownExtensionRecognitionIsCaseInsensitive() {
         XCTAssertTrue(AppModel.isMarkdown(URL(fileURLWithPath: "/tmp/notes.MD")))
         XCTAssertTrue(AppModel.isMarkdown(URL(fileURLWithPath: "/tmp/notes.markdown")))

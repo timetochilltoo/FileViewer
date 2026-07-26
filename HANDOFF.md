@@ -1,6 +1,6 @@
 # FileViewer Handoff
 
-Last updated: 2026-07-20
+Last updated: 2026-07-26
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `feature/ai-assistant`
@@ -678,8 +678,9 @@ Defines app menu commands via SwiftUI `Commands`.
 Focused model:
 
 - Uses custom `FocusedValueKey` `FileViewerModelKey`.
-- `ContentView` sets `.focusedSceneValue(\.fileViewerModel, model)`.
+- `ContentView` sets both `.focusedSceneValue(\.fileViewerModel, model)` and `.focusedSceneObject(model)`.
 - 2026-07-02 fix: app menu commands now use `activeModel`, which falls back to `FileViewerWindowRegistry.shared.activeModel` when SwiftUI `@FocusedValue` is nil. Patrick reported that toolbar Save / Save As / Print worked, but File menu Save / Save As / Print were greyed out. The fallback uses the key window/main window to find the correct registered `AppModel`.
+- 2026-07-26 follow-up: `FileViewerCommands` also observes the focused `AppModel` through `@FocusedObject`. `@FocusedValue` by itself changes when focus moves but does not observe the model's published tab changes. Without the focused object, File > Save could remain disabled after New Markdown Document until FileViewer lost and regained focus. A fresh untitled Markdown document is saveable immediately; Save opens the normal Save As panel because it has no URL yet. `DocumentSafetyTests.testNewMarkdownDocumentIsImmediatelySaveable` guards the model-side contract.
 
 Menus:
 

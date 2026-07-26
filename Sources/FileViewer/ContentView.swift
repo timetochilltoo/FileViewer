@@ -96,6 +96,7 @@ struct ContentView: View {
             return true
         }
         .focusedSceneValue(\.fileViewerModel, model)
+        .focusedSceneObject(model)
         .background(WindowRegistrationView(model: model))
         .onAppear {
             FileViewerWindowRegistry.shared.register(model)
