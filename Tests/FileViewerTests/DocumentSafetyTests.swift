@@ -1,4 +1,6 @@
 import Foundation
+import AppKit
+import PDFKit
 import XCTest
 @testable import FileViewer
 
@@ -66,5 +68,24 @@ final class DocumentSafetyTests: XCTestCase {
         XCTAssertTrue(AppModel.isMarkdown(URL(fileURLWithPath: "/tmp/notes.MD")))
         XCTAssertTrue(AppModel.isMarkdown(URL(fileURLWithPath: "/tmp/notes.markdown")))
         XCTAssertFalse(AppModel.isMarkdown(URL(fileURLWithPath: "/tmp/notes.txt")))
+    }
+
+    func testPersistedPDFCopyRemovesOnlyTemporaryViewRotation() throws {
+        let document = PDFDocument()
+        let image = NSImage(size: NSSize(width: 200, height: 200))
+        image.lockFocus()
+        NSColor.white.setFill()
+        NSBezierPath(rect: NSRect(x: 0, y: 0, width: 200, height: 200)).fill()
+        image.unlockFocus()
+        let page = try XCTUnwrap(PDFPage(image: image))
+        page.rotation = 90 // Simulate a deliberately saved page rotation.
+        document.insert(page, at: 0)
+
+        // The reading view applies a further 90° rotation in memory.
+        page.rotation = 180
+        let persisted = try XCTUnwrap(document.fileViewerPersistedCopy(removingViewRotation: 90))
+
+        XCTAssertEqual(persisted.page(at: 0)?.rotation, 90)
+        XCTAssertEqual(document.page(at: 0)?.rotation, 180)
     }
 }

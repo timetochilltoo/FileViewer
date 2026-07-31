@@ -346,6 +346,10 @@ struct DocumentTab: Identifiable, Equatable {
     var pdfPage: Int
     var pdfPageCount: Int
     var pdfScale: CGFloat
+    /// A temporary, whole-document rotation used only for reading. The pages in
+    /// the in-memory PDF are adjusted so PDFKit can render them correctly, but
+    /// this value is removed from a serialization copy before Save / Save As.
+    var pdfViewRotation: Int
     var pdfSelectedText: String
     var pdfSelectedPage: Int
     var pdfHasUnsavedAnnotations: Bool
@@ -374,6 +378,7 @@ struct DocumentTab: Identifiable, Equatable {
             pdfPageCount = 0
         }
         pdfScale = 1.0
+        pdfViewRotation = 0
         pdfSelectedText = ""
         pdfSelectedPage = 1
         pdfHasUnsavedAnnotations = false
@@ -400,6 +405,27 @@ struct DocumentTab: Identifiable, Equatable {
         self.markdownPreviewScrollY = max(0, markdownPreviewScrollY)
         self.markdownSourceVisibleLocation = max(0, markdownSourceVisibleLocation)
         self.markdownPreviewVisibleLocation = max(0, markdownPreviewVisibleLocation)
+    }
+}
+
+extension PDFDocument {
+    /// Produces the document representation that should be written to disk.
+    ///
+    /// PDFKit has no display-only rotation property. FileViewer therefore
+    /// temporarily adjusts `PDFPage.rotation` for the reading view, records the
+    /// uniform view offset on the tab, and removes that offset on a detached
+    /// document before it is saved. Explicit page rotations remain intact.
+    func fileViewerPersistedCopy(removingViewRotation viewRotation: Int) -> PDFDocument? {
+        let normalizedViewRotation = ((viewRotation % 360) + 360) % 360
+        guard normalizedViewRotation != 0 else { return self }
+        guard let data = dataRepresentation(), let copy = PDFDocument(data: data) else {
+            return nil
+        }
+        for index in 0..<copy.pageCount {
+            guard let page = copy.page(at: index) else { continue }
+            page.rotation = ((page.rotation - normalizedViewRotation) % 360 + 360) % 360
+        }
+        return copy
     }
 }
 
@@ -1347,6 +1373,55 @@ final class AppModel: ObservableObject {
         _ = savePDFTab(at: index)
     }
 
+    /// Rotates the displayed document only. The change is intentionally not
+    /// saved: `fileViewerPersistedCopy(removingViewRotation:)` removes it from
+    /// the PDF data written by Save and Save As.
+    func rotatePDFView(by degrees: Int) {
+        guard let index = selectedTabIndex,
+              tabs.indices.contains(index),
+              case .pdf(let pdf) = tabs[index].document else { return }
+
+        let normalizedDegrees = normalizedPDFRotation(degrees)
+        guard normalizedDegrees != 0 else { return }
+
+        for pageIndex in 0..<pdf.document.pageCount {
+            guard let page = pdf.document.page(at: pageIndex) else { continue }
+            page.rotation = normalizedPDFRotation(page.rotation + normalizedDegrees)
+        }
+        tabs[index].pdfViewRotation = normalizedPDFRotation(tabs[index].pdfViewRotation + normalizedDegrees)
+        postPDFCommand(.pdfRefreshPageRotation)
+        statusMessage = "Rotated view \(rotationDescription(normalizedDegrees)). This view-only rotation will not be saved."
+    }
+
+    /// Rotates PDF pages in memory. Unlike view rotation, this is a real page
+    /// edit and is included in the next Save / Save As operation.
+    func rotatePDFPagesPermanently(by degrees: Int, allPages: Bool) {
+        guard let index = selectedTabIndex,
+              tabs.indices.contains(index),
+              case .pdf(let pdf) = tabs[index].document else { return }
+
+        let normalizedDegrees = normalizedPDFRotation(degrees)
+        guard normalizedDegrees != 0 else { return }
+
+        let pageIndices: [Int]
+        if allPages {
+            pageIndices = Array(0..<pdf.document.pageCount)
+        } else {
+            pageIndices = [max(0, min(pdf.document.pageCount - 1, tabs[index].pdfPage - 1))]
+        }
+        guard !pageIndices.isEmpty else { return }
+
+        for pageIndex in pageIndices {
+            guard let page = pdf.document.page(at: pageIndex) else { continue }
+            page.rotation = normalizedPDFRotation(page.rotation + normalizedDegrees)
+        }
+        tabs[index].pdfHasUnsavedAnnotations = true
+        postPDFCommand(.pdfRefreshPageRotation)
+        statusMessage = allPages
+            ? "Rotated all pages \(rotationDescription(normalizedDegrees)). Save to make the page rotation permanent."
+            : "Rotated current page \(rotationDescription(normalizedDegrees)). Save to make the page rotation permanent."
+    }
+
     func savePDFAnnotatedCopyAs() {
         guard let index = selectedTabIndex,
               tabs.indices.contains(index),
@@ -1359,7 +1434,8 @@ final class AppModel: ObservableObject {
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
-        guard writePDFAtomically(pdf.document, to: url) else {
+        guard let documentToSave = pdf.document.fileViewerPersistedCopy(removingViewRotation: tabs[index].pdfViewRotation),
+              writePDFAtomically(documentToSave, to: url) else {
             statusMessage = "Could not save annotated PDF copy."
             showPDFSaveFailedAlert(for: url.lastPathComponent)
             return
@@ -1511,7 +1587,8 @@ final class AppModel: ObservableObject {
         }
 
         guard canSafelyOverwriteTab(at: index) else { return false }
-        guard writePDFAtomically(pdf.document, to: pdf.url) else {
+        guard let documentToSave = pdf.document.fileViewerPersistedCopy(removingViewRotation: tabs[index].pdfViewRotation),
+              writePDFAtomically(documentToSave, to: pdf.url) else {
             statusMessage = "Could not save PDF changes."
             showPDFSaveFailedAlert(for: pdf.url.lastPathComponent)
             return false
@@ -1543,6 +1620,19 @@ final class AppModel: ObservableObject {
             return true
         } catch {
             return false
+        }
+    }
+
+    private func normalizedPDFRotation(_ degrees: Int) -> Int {
+        ((degrees % 360) + 360) % 360
+    }
+
+    private func rotationDescription(_ degrees: Int) -> String {
+        switch normalizedPDFRotation(degrees) {
+        case 90: "right"
+        case 180: "180°"
+        case 270: "left"
+        default: "0°"
         }
     }
 

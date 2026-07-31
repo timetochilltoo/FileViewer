@@ -411,6 +411,29 @@ struct PDFToolbar: View {
             }
             .help("Fit Page")
 
+            Menu {
+                Section("View Only — Not Saved") {
+                    Button("Rotate View Left") { model.rotatePDFView(by: -90) }
+                    Button("Rotate View Right") { model.rotatePDFView(by: 90) }
+                    Button("Rotate View 180°") { model.rotatePDFView(by: 180) }
+                }
+
+                Divider()
+
+                Section("Page Rotation — Saved with PDF") {
+                    Button("Rotate Current Page Left") { model.rotatePDFPagesPermanently(by: -90, allPages: false) }
+                    Button("Rotate Current Page Right") { model.rotatePDFPagesPermanently(by: 90, allPages: false) }
+                    Button("Rotate Current Page 180°") { model.rotatePDFPagesPermanently(by: 180, allPages: false) }
+                    Divider()
+                    Button("Rotate All Pages Left") { model.rotatePDFPagesPermanently(by: -90, allPages: true) }
+                    Button("Rotate All Pages Right") { model.rotatePDFPagesPermanently(by: 90, allPages: true) }
+                    Button("Rotate All Pages 180°") { model.rotatePDFPagesPermanently(by: 180, allPages: true) }
+                }
+            } label: {
+                Image(systemName: "rotate.right")
+            }
+            .help("PDF rotation: view-only or saved page rotation")
+
             Divider()
                 .frame(height: 18)
 
@@ -620,6 +643,7 @@ extension Notification.Name {
     static let pdfZoomOut = Notification.Name("FileViewer.pdfZoomOut")
     static let pdfFitWidth = Notification.Name("FileViewer.pdfFitWidth")
     static let pdfFitPage = Notification.Name("FileViewer.pdfFitPage")
+    static let pdfRefreshPageRotation = Notification.Name("FileViewer.pdfRefreshPageRotation")
     static let pdfSearch = Notification.Name("FileViewer.pdfSearch")
     static let pdfSyncCurrentState = Notification.Name("FileViewer.pdfSyncCurrentState")
     static let pdfApplyAnnotation = Notification.Name("FileViewer.pdfApplyAnnotation")

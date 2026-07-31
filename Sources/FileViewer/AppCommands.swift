@@ -122,6 +122,25 @@ struct FileViewerCommands: Commands {
             }
             .keyboardShortcut("-", modifiers: .command)
             .disabled(activeModel?.isPDFDocument != true)
+
+            Divider()
+
+            Button("Rotate View Left") {
+                activeModel?.rotatePDFView(by: -90)
+            }
+            .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
+            .disabled(activeModel?.isPDFDocument != true)
+
+            Button("Rotate View Right") {
+                activeModel?.rotatePDFView(by: 90)
+            }
+            .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
+            .disabled(activeModel?.isPDFDocument != true)
+
+            Button("Rotate View 180°") {
+                activeModel?.rotatePDFView(by: 180)
+            }
+            .disabled(activeModel?.isPDFDocument != true)
         }
 
         CommandMenu("Navigate") {
@@ -205,6 +224,19 @@ struct FileViewerCommands: Commands {
         }
 
         CommandMenu("PDF") {
+            Menu("Page Rotation — Saved with PDF") {
+                Button("Rotate Current Page Left") { activeModel?.rotatePDFPagesPermanently(by: -90, allPages: false) }
+                Button("Rotate Current Page Right") { activeModel?.rotatePDFPagesPermanently(by: 90, allPages: false) }
+                Button("Rotate Current Page 180°") { activeModel?.rotatePDFPagesPermanently(by: 180, allPages: false) }
+                Divider()
+                Button("Rotate All Pages Left") { activeModel?.rotatePDFPagesPermanently(by: -90, allPages: true) }
+                Button("Rotate All Pages Right") { activeModel?.rotatePDFPagesPermanently(by: 90, allPages: true) }
+                Button("Rotate All Pages 180°") { activeModel?.rotatePDFPagesPermanently(by: 180, allPages: true) }
+            }
+            .disabled(activeModel?.isPDFDocument != true)
+
+            Divider()
+
             Button("Highlight Selection") {
                 postPDFAnnotation(.highlight)
             }

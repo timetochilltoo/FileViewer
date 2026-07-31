@@ -227,6 +227,7 @@ struct PDFKitView: NSViewRepresentable {
             NotificationCenter.default.addObserver(self, selector: #selector(zoomOut(_:)), name: .pdfZoomOut, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(fitWidth(_:)), name: .pdfFitWidth, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(fitPage(_:)), name: .pdfFitPage, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(refreshPageRotation(_:)), name: .pdfRefreshPageRotation, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(syncCurrentState(_:)), name: .pdfSyncCurrentState, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(applyAnnotation(_:)), name: .pdfApplyAnnotation, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(removeAnnotationsInSelection(_:)), name: .pdfRemoveAnnotationsInSelection, object: nil)
@@ -323,6 +324,31 @@ struct PDFKitView: NSViewRepresentable {
             view.autoScales = true
             view.scaleFactor = view.scaleFactorForSizeToFit
             syncScale()
+        }
+
+        @MainActor @objc private func refreshPageRotation(_ notification: Notification) {
+            guard receivesCommand(notification), let view = pdfView else { return }
+            let pageNumber = max(1, min(parent.page, max(parent.document.pageCount, 1)))
+            let scale = max(0.1, view.scaleFactor)
+            let visibleOrigin = currentVisibleOrigin()
+
+            // Reassigning the same PDFDocument makes PDFKit recompute page
+            // geometry after `PDFPage.rotation` changes. Restore the reading
+            // position immediately afterwards so rotation never sends the user
+            // to page one.
+            isReplacingDocument = true
+            view.document = nil
+            view.document = parent.document
+            applyPageAndScale(page: pageNumber, scale: scale)
+            applyVisibleOrigin(visibleOrigin)
+            view.needsDisplay = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.applyPageAndScale(page: pageNumber, scale: scale)
+                self.applyVisibleOrigin(visibleOrigin)
+                self.isReplacingDocument = false
+                self.syncCurrentViewState()
+            }
         }
 
         @MainActor @objc private func pageChanged() {

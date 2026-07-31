@@ -1,10 +1,10 @@
 # FileViewer Handoff
 
-Last updated: 2026-07-26
+Last updated: 2026-07-31
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `feature/ai-assistant`
-Current committed baseline: `834c986` (`Clarify AI assistant actions`)
+Current committed baseline before the pending PDF-rotation checkpoint: `79ec9c6` (`Refresh save menu after creating markdown document`)
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
@@ -20,7 +20,7 @@ The app is intended to be a lightweight daily document workspace for:
 - simple Markdown editing, preview, search, and formatting assistance
 - creating new unsaved Markdown documents
 - printing PDFs and Markdown source text
-- PDF reading, page navigation, zoom, thumbnails, search, annotations, fillable forms, and annotation reports
+- PDF reading, page navigation, zoom, thumbnails, search, view/page rotation, annotations, fillable forms, and annotation reports
 - provider-configurable local/remote AI assistance with explicit document-transfer approval
 
 The repo still contains an older React/Vite prototype (`src/`, `dist/`, `package.json`, `vite.config.*`, etc.), but the official implementation direction is now the native SwiftUI app under `Sources/FileViewer`. Do not spend time extending the React/Vite prototype unless Patrick explicitly asks.
@@ -344,6 +344,20 @@ Main pieces:
     - Print / Command-P
   - Do not re-add these as toolbar icons unless the toolbar layout is redesigned with overflow/adaptive grouping.
   - Return in the search field moves to next match
+
+PDF rotation:
+
+- The PDF toolbar has a compact **Rotate** menu (the `rotate.right` icon), and the same commands are available from **View** and **PDF** menus.
+- **Rotate View Left/Right/180°** is intentionally non-destructive. It changes the in-memory display of every page for the active tab, tracks the temporary angle in `DocumentTab.pdfViewRotation`, keeps the current page/zoom/visible position where PDFKit permits, and does not mark the PDF dirty.
+- PDFKit does not expose a separate visual rotation transform, so view rotation temporarily changes each in-memory `PDFPage.rotation`. `PDFDocument.fileViewerPersistedCopy(removingViewRotation:)` creates a separate serialized copy with that temporary rotation subtracted. Both normal Save and Save As use this copy. This is the critical safety boundary: saving annotations, form edits, or a permanent page rotation must never accidentally save the reading-only view rotation.
+- **Rotate Current Page** and **Rotate All Pages** are real page edits. They adjust the selected page or every page in memory, set the historical general PDF dirty flag `pdfHasUnsavedAnnotations`, and require Save or Save As to persist. The status message explicitly says that the page rotation is permanent only after saving.
+- When a PDF contains both a temporary view rotation and a permanent page rotation, the next Save/Save As preserves only the permanent component. To discard an unsaved permanent rotation, close the PDF without saving; that also discards any other unsaved PDF changes in the normal way.
+- Implemented directions are left (270°), right (90°), and 180°. The Display menu keyboard shortcuts are Command-Option-Left and Command-Option-Right for view rotation. Permanent page rotation is deliberately menu-driven to reduce accidental modification.
+- `PDFWorkspace.Coordinator.refreshPageRotation(_:)` temporarily detaches and restores the current `PDFDocument` to make PDFKit recompute page geometry, then reapplies the active page, scale, and visible origin. Commands are URL-targeted using the established notification mechanism.
+
+Rotation regression test:
+
+- `DocumentSafetyTests.testPersistedPDFCopyRemovesOnlyTemporaryViewRotation` creates a valid one-page PDF, simulates a permanent 90° rotation plus a temporary 90° view rotation, and confirms the serialized copy is 90° while the live document remains 180°. This verifies the non-destructive save boundary.
 - tab bar:
   - horizontal list of open tabs
   - selected tab has accent background
@@ -530,6 +544,8 @@ PDF annotations and fillable forms:
   18. To review annotations, switch the left sidebar to `Notes`. The list shows supported PDF annotations with type, page number, and note/text summary where available. Clicking a row jumps the PDF view to that annotation.
   19. Use the `Notes` filter dropdown to show All, Markup, Notes, Text Boxes, Shapes, or Ink.
   20. Use the export button in the `Notes` sidebar or PDF > Export Annotation Summary to save a Markdown report of the PDF annotations.
+  21. To rotate only the current reading view, choose Rotate > Rotate View Left, Right, or 180°. It is not saved and does not modify the original PDF.
+  22. To rotate actual PDF pages, choose Rotate > Rotate Current Page or Rotate All Pages, choose a direction, then use Save or Save As. Close without saving to discard the page rotation.
 - Supported annotation types:
   - highlight: `PDFAnnotationSubtype.highlight`
   - underline: `PDFAnnotationSubtype.underline`
@@ -647,7 +663,7 @@ PDF annotations and fillable forms:
 - Existing annotation recoloring, text box resizing, rectangle/oval edge/corner resizing, and line/arrow endpoint adjustment are implemented.
 - Visible resize/endpoint handles are shown while Move Annotation mode is on.
   - Text markup is still erased through selected text overlap, not direct object-click deletion.
-  - No undo/redo for annotations yet.
+  - Annotation creation and supported annotation edits have an undo/redo implementation; fillable-form edits and permanent page rotation are not currently represented in the FileViewer annotation undo stack.
   - Normal Save still writes back to the current PDF file. Use Save Annotated Copy As before marking important source PDFs if you want to preserve the original untouched.
   - The current implementation depends on PDF text selection. Scanned-image PDFs without OCR text cannot be highlighted this way.
 
@@ -1079,6 +1095,7 @@ The AI assistant is implemented on `feature/ai-assistant`. See `docs/ai-assistan
 
 1. Continue PDF annotation:
    - author/timestamp metadata in annotation reports
+   - consider explicit undo/redo support for permanent page rotations only if it can be implemented without replacing/reloading the full PDF document
 2. Improve Markdown preview rendering if Patrick relies heavily on richer tables/checklists.
 3. Add remaining Markdown formatting polish:
    - smarter link editing/toggling for arbitrary existing Markdown links
@@ -1090,7 +1107,20 @@ The AI assistant is implemented on `feature/ai-assistant`. See `docs/ai-assistan
 
 ## 10.1 Automated test baseline
 
-`Package.swift` declares `FileViewerTests`, with XCTest coverage in `Tests/FileViewerTests/DocumentSafetyTests.swift` and `Tests/FileViewerTests/AIAssistantTests.swift`. Run `swift test` before committing changes. Tests cover Markdown dirty state, fresh file-version detection, duplicate-open protection, Markdown extension recognition, AI chunking/retrieval, selection isolation, local transport enforcement, and safe provider defaults. They intentionally avoid live network streaming, PDFKit drawing/form editing, native modal dialogs, and full UI interaction; those still require manual or future UI testing.
+`Package.swift` declares `FileViewerTests`, with XCTest coverage in `Tests/FileViewerTests/DocumentSafetyTests.swift` and `Tests/FileViewerTests/AIAssistantTests.swift`. Run `swift test` before committing changes. Tests cover Markdown dirty state, fresh file-version detection, duplicate-open protection, Markdown extension recognition, PDF temporary-view-rotation save isolation, AI chunking/retrieval, selection isolation, local transport enforcement, and safe provider defaults. They intentionally avoid live network streaming, PDFKit drawing/form editing, native modal dialogs, and full UI interaction; those still require manual or future UI testing.
+
+### PDF rotation manual test procedure
+
+Use a disposable copy of a multi-page PDF, preferably one with text in a clear upright orientation.
+
+1. Open the copy and note the current page and orientation.
+2. Choose **Rotate > Rotate View Right** from the PDF toolbar. Confirm all pages display rotated while the PDF is not marked with the orange unsaved-PDF status.
+3. Add a simple annotation or fill a form field, save, close, and reopen the PDF. Confirm the annotation/form change persists but the original page orientation returns. This verifies view rotation was not saved.
+4. Choose **Rotate > Rotate Current Page Right**. Confirm only the active page rotates and the PDF is marked as unsaved. Close without saving, reopen, and confirm that page returns to its original orientation.
+5. Repeat the current-page rotation, use **File > Save**, reopen, and confirm only that page remains rotated.
+6. On a fresh disposable copy, choose **Rotate > Rotate All Pages 180°**, then **File > Save As**. Confirm the new file has all pages rotated and the original file is unchanged.
+7. Combined safety check: apply **Rotate View Right**, then **Rotate Current Page Right**, save a copy, reopen the copy, and confirm it has only the current page’s permanent right rotation—not an additional view rotation on every page.
+8. While rotated, navigate pages, change zoom, and use search. Confirm the active page, zoom, and position remain usable after each rotation command.
 
 ## 11. Quick mental model for future agents
 

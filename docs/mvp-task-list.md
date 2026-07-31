@@ -13,7 +13,7 @@ The MVP is a native macOS SwiftUI document viewer and editor that supports:
 - Light and dark themes.
 - Opening documents in tabs and Finder/Open With documents in separate windows for side-by-side comparison.
 
-PDF annotation and fillable-form support were implemented after the original MVP. PDF page editing (rotate, reorder, delete, extract, merge) remains out of scope.
+PDF annotation and fillable-form support were implemented after the original MVP. View rotation and permanent rotation of the current page or all pages are also implemented. Larger PDF page-editing operations (reorder, delete, extract, merge) remain out of scope.
 
 ## 2. Project Setup
 
@@ -292,7 +292,7 @@ This section records the boundary of the original viewer MVP. Some items, includ
 
 - PDF text editing.
 - PDF annotation.
-- PDF page reorder/delete/merge.
+- PDF page reorder/delete/merge/extract/insert.
 - Cloud sync.
 - Login/accounts.
 - Collaboration.
@@ -344,6 +344,7 @@ This section records the boundary of the original viewer MVP. Some items, includ
 - A packaged `.app` bundle with icon and document type registration has been implemented.
 - The app builds successfully with Swift tools version 6.2 on macOS 26.
 - PDF annotations, drawing, notes, form editing, safe PDF save, and annotation reports have been implemented after the original MVP.
+- Reading-only view rotation plus permanent current-page/all-page rotation have been implemented. The permanent actions save only after an explicit Save or Save As.
 - The original viewer MVP is complete. Later work has also implemented PDF annotation/form support and the AI assistant on `feature/ai-assistant`: a resizable right panel, per-tab in-memory conversations, PDF/Markdown selection capture, four explicit scopes, local retrieval, streaming, cancellation, provider/model discovery, and explicit remote document-transfer approval. Provider profiles now include LM Studio, Ollama, custom OpenAI-compatible servers, and OpenAI; credentials are stored only in Keychain.
 
 Next implementation work:

@@ -125,16 +125,14 @@ Expected behavior:
 
 ### 5.5 Manage PDF Pages
 
-The user can perform common page-level operations.
+The user can perform the basic page-rotation operations needed for reading and correcting orientation.
 
 Expected behavior:
 
-- Rotate pages.
-- Delete pages.
-- Reorder pages.
-- Extract selected pages into a new PDF.
-- Merge another PDF into the current PDF.
-- Save the result as a new PDF.
+- Rotate the reading view left, right, or 180° without changing the source PDF.
+- Permanently rotate the current page or all pages left, right, or 180°.
+- Treat permanent page rotation as an unsaved PDF change and require Save or Save As to write it.
+- Ensure a temporary view rotation is never accidentally embedded by Save or Save As.
 
 ## 6. Feature Requirements
 
@@ -205,6 +203,7 @@ Required:
 - Print.
 - Save a copy.
 - Rotate view.
+- Permanently rotate the current page or all pages after explicit user selection.
 
 Recommended:
 
@@ -261,15 +260,14 @@ Recommended:
 
 ## 6.5 PDF Page Operations
 
-Required after MVP:
+Implemented:
 
-- Rotate selected pages.
-- Delete selected pages.
-- Reorder pages using thumbnails.
-- Extract selected pages.
-- Merge PDFs.
-- Insert blank pages.
-- Save edited PDF as a new file.
+- Rotate the reading view left, right, or 180° without saving it.
+- Permanently rotate the current page or every page left, right, or 180° through an explicit page-rotation command, then Save or Save As.
+
+Still deferred:
+
+- Delete, reorder, extract, merge, or insert pages.
 
 Recommended:
 
@@ -392,7 +390,8 @@ The MVP should not include:
 
 ### Version 0.4: PDF Page Tools
 
-- Rotate, delete, reorder pages.
+- Reading-only view rotation and permanent current-page/all-page rotation are implemented.
+- Delete and reorder pages.
 - Extract pages.
 - Merge PDFs.
 - Insert blank pages.
