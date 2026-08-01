@@ -4,7 +4,7 @@ Last updated: 2026-07-31
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `feature/ai-assistant`
-Current committed baseline: `ea2c555` (`Add PDF view and page rotation controls`)
+Current committed baseline: `b064d97` (`Fix compact PDF toolbar layout`)
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
