@@ -162,6 +162,10 @@ struct ContentView: View {
 
             if case .pdf = model.document {
                 PDFToolbar(model: model)
+                    // Keep the PDF controls at their natural width. Without this priority,
+                    // macOS may compress adjacent menu buttons before it gives the spacer
+                    // its remaining width, which makes their glyphs appear to overlap.
+                    .layoutPriority(1)
             }
 
             Spacer()
@@ -345,71 +349,47 @@ struct PDFToolbar: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Button {
+            toolbarButton("backward.end", help: "First Page") {
                 model.postPDFCommand(.pdfFirstPage)
-            } label: {
-                Image(systemName: "backward.end")
             }
-            .help("First Page")
 
-            Button {
+            toolbarButton("chevron.left", help: "Previous Page") {
                 model.postPDFCommand(.pdfPreviousPage)
-            } label: {
-                Image(systemName: "chevron.left")
             }
-            .help("Previous Page")
 
             TextField("Page", value: Binding(
                 get: { model.pdfPage },
                 set: { model.pdfPage = $0 }
             ), format: .number)
-                .frame(width: 48)
+                .frame(width: 52, height: 28)
                 .multilineTextAlignment(.trailing)
                 .onSubmit {
                     model.postPDFCommand(.pdfGoToPage, object: model.pdfPage)
                 }
 
-            Button {
+            toolbarButton("chevron.right", help: "Next Page") {
                 model.postPDFCommand(.pdfNextPage)
-            } label: {
-                Image(systemName: "chevron.right")
             }
-            .help("Next Page")
 
-            Button {
+            toolbarButton("forward.end", help: "Last Page") {
                 model.postPDFCommand(.pdfLastPage)
-            } label: {
-                Image(systemName: "forward.end")
             }
-            .help("Last Page")
 
-            Button {
+            toolbarButton("minus.magnifyingglass", help: "Zoom Out") {
                 model.postPDFCommand(.pdfZoomOut)
-            } label: {
-                Image(systemName: "minus.magnifyingglass")
             }
-            .help("Zoom Out")
 
-            Button {
+            toolbarButton("plus.magnifyingglass", help: "Zoom In") {
                 model.postPDFCommand(.pdfZoomIn)
-            } label: {
-                Image(systemName: "plus.magnifyingglass")
             }
-            .help("Zoom In")
 
-            Button {
+            toolbarButton("arrow.left.and.right", help: "Fit Width") {
                 model.postPDFCommand(.pdfFitWidth)
-            } label: {
-                Image(systemName: "arrow.left.and.right")
             }
-            .help("Fit Width")
 
-            Button {
+            toolbarButton("arrow.up.left.and.down.right.magnifyingglass", help: "Fit Page") {
                 model.postPDFCommand(.pdfFitPage)
-            } label: {
-                Image(systemName: "arrow.up.left.and.down.right.magnifyingglass")
             }
-            .help("Fit Page")
 
             Menu {
                 Section("View Only — Not Saved") {
@@ -431,11 +411,9 @@ struct PDFToolbar: View {
                 }
             } label: {
                 Image(systemName: "rotate.right")
+                    .frame(width: 32, height: 28)
             }
             .help("PDF rotation: view-only or saved page rotation")
-
-            Divider()
-                .frame(height: 18)
 
             Menu {
                 Section("Markup") {
@@ -483,27 +461,36 @@ struct PDFToolbar: View {
                     model.resetPDFAnnotationColor()
                 }
             } label: {
-                Label("Annotate", systemImage: "pencil.and.outline")
+                Image(systemName: "pencil.and.outline")
                     .foregroundStyle(annotationModeIsActive ? Color.accentColor : Color.primary)
+                    .frame(width: 32, height: 28)
             }
             .help("PDF annotation tools")
 
-            Button {
+            toolbarButton("arrow.uturn.backward", help: "Undo PDF Annotation Change", disabled: !model.canUndoPDFAnnotation) {
                 model.undoPDFAnnotation()
-            } label: {
-                Image(systemName: "arrow.uturn.backward")
             }
-            .disabled(!model.canUndoPDFAnnotation)
-            .help("Undo PDF Annotation Change")
 
-            Button {
+            toolbarButton("arrow.uturn.forward", help: "Redo PDF Annotation Change", disabled: !model.canRedoPDFAnnotation) {
                 model.redoPDFAnnotation()
-            } label: {
-                Image(systemName: "arrow.uturn.forward")
             }
-            .disabled(!model.canRedoPDFAnnotation)
-            .help("Redo PDF Annotation Change")
         }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private func toolbarButton(
+        _ systemImage: String,
+        help helpText: String,
+        disabled: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .frame(width: 16, height: 16)
+                .frame(width: 32, height: 28)
+        }
+        .disabled(disabled)
+        .help(helpText)
     }
 
     private var annotationModeIsActive: Bool {
