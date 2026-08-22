@@ -21,7 +21,7 @@ Current MVP build includes:
 - Markdown editing.
 - Markdown save and save-as.
 - Unsaved Markdown close confirmation for tabs and windows.
-- Markdown search current/total count, previous/next navigation, and preview highlighting.
+- Markdown search current/total count, previous/next navigation, and highlighting in both Preview and Source modes. Source mode highlights raw Markdown text without changing the document.
 - Beginner-friendly Markdown formatting controls through a visible Format dropdown, icon buttons, source-editor right-click actions, and menu commands for common syntax:
   - bold
   - italic

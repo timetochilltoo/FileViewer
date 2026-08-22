@@ -1,10 +1,10 @@
 # FileViewer Handoff
 
-Last updated: 2026-07-31
+Last updated: 2026-08-22
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `feature/ai-assistant`
-Current committed baseline: `b064d97` (`Fix compact PDF toolbar layout`)
+Current committed baseline before this checkpoint: `59670bb` (`Update handoff baseline`)
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
@@ -368,7 +368,7 @@ Rotation regression test:
   - current file name
   - unsaved changes indicator
   - status message
-  - Markdown search current/total match status
+  - Markdown search current/total match status (the count is based on raw Markdown source text)
   - PDF page count
 - document body:
   - `MarkdownWorkspace`
@@ -830,6 +830,11 @@ Historical commits already merged into `main`:
   - Added close confirmation for PDFs with unsaved annotations.
   - Annotation commands are routed with a `PDFAnnotationCommand(url:kind:)` payload, so a toolbar/menu action targets the active PDF URL instead of blindly applying to every open PDF window.
   - This is intentionally not freehand drawing, shape annotation, or full annotation management yet.
+- 2026-08-22 — Markdown Source search highlighting
+  - Reused the case-insensitive, trimmed search-range helper for both the rendered Markdown Preview and the raw Markdown Source editor.
+  - Source matches are drawn with `NSLayoutManager` temporary background attributes (yellow for non-current matches, orange for the current match), so highlighting never changes the Markdown text or save state.
+  - Source navigation follows the shared search field: query edits, Return, and previous/next navigation select and scroll to the current match. A stable query does not force the editor back to the match after ordinary manual scrolling.
+  - Documented the intentional raw-source versus rendered-preview search-count difference in the known-issues section below.
 
 This handoff document itself should be committed after creation.
 
@@ -855,6 +860,7 @@ Expected after latest build:
 - Selecting text in Preview and pressing Bold/Underline/Heading should update the Markdown source and refresh the preview.
 - Preview should update as text changes.
 - Search should highlight Markdown preview matches and show match count.
+- Search should also highlight matches in Markdown Source mode. All raw-source matches use a yellow temporary background and the current match uses orange; Return/up/down navigation moves the current highlight and scrolls the source editor to it.
 - PDF search should highlight PDF matches and jump to the first.
 
 Patrick verified on 2026-06-27 that source formatting and preview formatting work. If a future formatting bug appears, do not return to the old `TextEditor` approach. Debug the native `NSTextView` wrappers directly.
@@ -945,9 +951,19 @@ File-backed tabs/windows restore after app restart. PDF page/zoom state is resto
 - Math rendering
 - HTML export / PDF export
 
-### 6.5 Markdown source search does not highlight source pane
+### 6.5 Markdown source search (implemented 2026-08-22)
 
-Search highlights the preview and shows match count. It does not highlight inside the source editor. If implementing this, use native `NSTextView` APIs (`layoutManager`, temporary attributes, selected ranges, or find panel integration).
+The shared toolbar search now works in Markdown Source mode as well as Preview mode:
+
+- Search is case-insensitive and trims leading/trailing whitespace.
+- Every non-overlapping match in the raw Markdown source receives a temporary yellow background; the current match receives an orange background.
+- Return in the search field, plus the previous/next buttons, updates the per-tab navigation request and scrolls the Source editor to the selected match.
+- Changing the query or opening Source mode with an active query scrolls to the current match. Clearing the query removes temporary highlights.
+- Manual scrolling does not repeatedly snap back to the same match. Scrolling occurs only for a query change, an explicit navigation request, or the initial Source view setup.
+- Highlighting is implemented with `NSTextView`/`NSLayoutManager` temporary attributes, so it does not modify the Markdown string, dirty the document, or disturb the editor selection/cursor.
+- Source mode searches raw Markdown, including syntax markers such as `#`, `**`, and backticks. Preview mode searches the rendered preview text. The shared Markdown match count is currently the raw-source count, so a query can show a different count from the rendered Preview when Markdown syntax is removed or transformed during rendering.
+
+Implementation: `MarkdownWorkspace.swift` provides the shared `markdownSearchRanges` helper for Preview and Source, and `MarkdownSourceEditor.Coordinator.applySearch` owns Source highlighting/navigation.
 
 ### 6.6 Markdown table of contents does not jump
 

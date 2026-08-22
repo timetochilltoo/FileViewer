@@ -1,6 +1,24 @@
 import AppKit
 import SwiftUI
 
+private func markdownSearchRanges(in text: String, query: String) -> [NSRange] {
+    let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalizedQuery.isEmpty else { return [] }
+
+    let backingString = text as NSString
+    var ranges: [NSRange] = []
+    var searchRange = NSRange(location: 0, length: backingString.length)
+    while true {
+        let foundRange = backingString.range(of: normalizedQuery, options: [.caseInsensitive], range: searchRange)
+        guard foundRange.location != NSNotFound else { break }
+        ranges.append(foundRange)
+
+        let nextLocation = foundRange.location + foundRange.length
+        searchRange = NSRange(location: nextLocation, length: backingString.length - nextLocation)
+    }
+    return ranges
+}
+
 struct MarkdownWorkspace: View {
     @ObservedObject var model: AppModel
     let document: MarkdownDocument
@@ -98,6 +116,9 @@ struct MarkdownWorkspace: View {
         ), initialScrollY: model.markdownSourceScrollY,
            initialVisibleLocation: model.markdownSourceVisibleLocation,
            focusRequest: model.markdownEditorFocusRequest,
+           searchText: model.searchText,
+           searchMatchIndex: model.searchMatchIndex,
+           searchNavigationRequestID: model.searchNavigationRequestID,
            onFormatCommand: { command in
             model.applyMarkdownFormat(command)
         }, onViewportChanged: { scrollY, visibleLocation in
@@ -923,7 +944,7 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
         currentIndex: Int,
         to output: NSMutableAttributedString
     ) {
-        let ranges = searchRanges(in: output.string, searchText: searchText)
+        let ranges = markdownSearchRanges(in: output.string, query: searchText)
         guard !ranges.isEmpty else { return }
 
         let selectedIndex = min(max(0, currentIndex), ranges.count - 1)
@@ -940,25 +961,8 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
         }
     }
 
-    private static func searchRanges(in text: String, searchText: String) -> [NSRange] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return [] }
-
-        let backingString = text as NSString
-        var ranges: [NSRange] = []
-        var searchRange = NSRange(location: 0, length: backingString.length)
-        while true {
-            let foundRange = backingString.range(of: query, options: [.caseInsensitive], range: searchRange)
-            guard foundRange.location != NSNotFound else { break }
-            ranges.append(foundRange)
-            let nextLocation = foundRange.location + foundRange.length
-            searchRange = NSRange(location: nextLocation, length: backingString.length - nextLocation)
-        }
-        return ranges
-    }
-
     private static func scrollToSearchMatch(in textView: NSTextView, searchText: String, searchMatchIndex: Int) {
-        let ranges = searchRanges(in: textView.string, searchText: searchText)
+        let ranges = markdownSearchRanges(in: textView.string, query: searchText)
         guard !ranges.isEmpty else { return }
         let selectedIndex = min(max(0, searchMatchIndex), ranges.count - 1)
         textView.scrollRangeToVisible(ranges[selectedIndex])
@@ -970,6 +974,9 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
     let initialScrollY: Double
     let initialVisibleLocation: Int
     let focusRequest: UUID
+    let searchText: String
+    let searchMatchIndex: Int
+    let searchNavigationRequestID: UUID
     let onFormatCommand: (MarkdownFormatCommand) -> Void
     let onViewportChanged: (Double, Int) -> Void
     let onTextViewReady: (NSTextView) -> Void
@@ -980,6 +987,9 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
             initialScrollY: initialScrollY,
             initialVisibleLocation: initialVisibleLocation,
             focusRequest: focusRequest,
+            searchText: searchText,
+            searchMatchIndex: searchMatchIndex,
+            searchNavigationRequestID: searchNavigationRequestID,
             onFormatCommand: onFormatCommand,
             onViewportChanged: onViewportChanged,
             onTextViewReady: onTextViewReady
@@ -1024,6 +1034,7 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
         onTextViewReady(textView)
         DispatchQueue.main.async {
             context.coordinator.restoreInitialScrollIfNeeded()
+            context.coordinator.applySearch(forceScroll: true)
             context.coordinator.focusEditorIfRequested()
         }
         return scrollView
@@ -1033,6 +1044,9 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
         guard let textView = scrollView.documentView as? NSTextView else { return }
         context.coordinator.text = $text
         context.coordinator.focusRequest = focusRequest
+        context.coordinator.searchText = searchText
+        context.coordinator.searchMatchIndex = searchMatchIndex
+        context.coordinator.searchNavigationRequestID = searchNavigationRequestID
         context.coordinator.onFormatCommand = onFormatCommand
         context.coordinator.onViewportChanged = onViewportChanged
         context.coordinator.onTextViewReady = onTextViewReady
@@ -1046,8 +1060,10 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
             ))
         }
         onTextViewReady(textView)
+        context.coordinator.applySearch()
         DispatchQueue.main.async {
             context.coordinator.restoreInitialScrollIfNeeded()
+            context.coordinator.applySearch()
             context.coordinator.focusEditorIfRequested()
         }
     }
@@ -1058,6 +1074,9 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
         let initialScrollY: Double
         let initialVisibleLocation: Int
         var focusRequest: UUID
+        var searchText: String
+        var searchMatchIndex: Int
+        var searchNavigationRequestID: UUID
         var onFormatCommand: (MarkdownFormatCommand) -> Void
         var onViewportChanged: (Double, Int) -> Void
         var onTextViewReady: (NSTextView) -> Void
@@ -1067,12 +1086,17 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
         private var restoreAttempts = 0
         private var isObservingScroll = false
         private var handledFocusRequest: UUID?
+        private var appliedSearchText = ""
+        private var appliedSearchNavigationRequestID: UUID?
 
         init(
             text: Binding<String>,
             initialScrollY: Double,
             initialVisibleLocation: Int,
             focusRequest: UUID,
+            searchText: String,
+            searchMatchIndex: Int,
+            searchNavigationRequestID: UUID,
             onFormatCommand: @escaping (MarkdownFormatCommand) -> Void,
             onViewportChanged: @escaping (Double, Int) -> Void,
             onTextViewReady: @escaping (NSTextView) -> Void
@@ -1081,6 +1105,9 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
             self.initialScrollY = initialScrollY
             self.initialVisibleLocation = max(0, initialVisibleLocation)
             self.focusRequest = focusRequest
+            self.searchText = searchText
+            self.searchMatchIndex = searchMatchIndex
+            self.searchNavigationRequestID = searchNavigationRequestID
             self.onFormatCommand = onFormatCommand
             self.onViewportChanged = onViewportChanged
             self.onTextViewReady = onTextViewReady
@@ -1091,6 +1118,56 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
                 name: .markdownSyncCurrentState,
                 object: nil
             )
+        }
+
+        func applySearch(forceScroll: Bool = false) {
+            guard let textView,
+                  let layoutManager = textView.layoutManager,
+                  let textContainer = textView.textContainer else { return }
+
+            let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let searchChanged = query != appliedSearchText
+            let navigationChanged = searchNavigationRequestID != appliedSearchNavigationRequestID
+            let shouldScroll = forceScroll || searchChanged || navigationChanged
+            let textLength = (textView.string as NSString).length
+
+            layoutManager.ensureLayout(for: textContainer)
+            if textLength > 0 {
+                layoutManager.removeTemporaryAttribute(
+                    .backgroundColor,
+                    forCharacterRange: NSRange(location: 0, length: textLength)
+                )
+            }
+
+            let ranges = markdownSearchRanges(in: textView.string, query: query)
+            if !ranges.isEmpty {
+                let selectedIndex = min(max(0, searchMatchIndex), ranges.count - 1)
+                for (index, range) in ranges.enumerated() {
+                    layoutManager.addTemporaryAttribute(
+                        .backgroundColor,
+                        value: index == selectedIndex
+                            ? NSColor.systemOrange.withAlphaComponent(0.75)
+                            : NSColor.systemYellow.withAlphaComponent(0.45),
+                        forCharacterRange: range
+                    )
+                }
+
+                if shouldScroll {
+                    let selectedRange = ranges[min(max(0, searchMatchIndex), ranges.count - 1)]
+                    DispatchQueue.main.async { [weak self, weak textView] in
+                        guard let self,
+                              let textView,
+                              let layoutManager = textView.layoutManager,
+                              let textContainer = textView.textContainer else { return }
+                        layoutManager.ensureLayout(for: textContainer)
+                        textView.scrollRangeToVisible(selectedRange)
+                        self.publishCurrentScroll()
+                    }
+                }
+            }
+
+            appliedSearchText = query
+            appliedSearchNavigationRequestID = searchNavigationRequestID
         }
 
         deinit {
