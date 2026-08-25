@@ -42,7 +42,7 @@ Current MVP build includes:
 - PDF thumbnails.
 - PDF outline/table-of-contents sidebar when the PDF provides one.
 - PDF search highlighting with current/total count and previous/next navigation.
-- Stable fixed-width sidebar with custom sidebar tabs and a sidebar toggle that stays reachable.
+- Stable fixed-width sidebar with custom sidebar tabs. A single compact `sidebar.left` toggle sits at the leading edge of the document toolbar and remains available whether the sidebar is shown or hidden.
 - PDF annotation and fillable-form support:
   - highlight selected PDF text
   - underline selected PDF text
@@ -73,7 +73,7 @@ Current MVP build includes:
   - permanently rotate the current page or every page left, right, or 180°; the change is written only when the PDF is saved
   - warn before closing a PDF tab/window with unsaved PDF changes
   - confirm unsaved documents before Command-Q, block overwriting files changed outside FileViewer, and write PDF saves through a verified temporary file before replacing the original
-  - keep PDF controls compact with navigation/search/Undo/Redo in the toolbar and fixed-size icon-only `Annotate` and `Rotate` menus for markup, notes, shapes, drawing, edit modes, color, stroke width, and page rotation; the fixed control widths prevent macOS from visually overlapping adjacent toolbar buttons
+  - keep PDF controls compact with navigation/search/Undo/Redo in the toolbar and fixed-size icon-only `Annotate` and `Rotate` menus for markup, notes, shapes, drawing, edit modes, color, stroke width, and page rotation; the PDF control group uses SwiftUI's small control size so its navigation controls align with the Markdown toolbar, and fixed control widths prevent macOS from visually overlapping adjacent toolbar buttons
 - File-management actions are intentionally kept in menus/shortcuts instead of the crowded toolbar:
   - New Markdown Document
   - Save / Command-S
@@ -130,7 +130,7 @@ It is built from the Swift release executable and signed locally with an ad-hoc 
 To rebuild the app bundle:
 
 ```bash
-scripts/package_app.sh
+bash Scripts/package_app.sh
 ```
 
 ## Documentation

@@ -29,55 +29,47 @@ struct ContentView: View {
             let aiDividerWidth: CGFloat = showsAI ? 6 : 0
             let documentWidth = max(0, availableWidth - reservedAIWidth - aiDividerWidth)
 
-            ZStack(alignment: .topLeading) {
-                HStack(spacing: 0) {
-                    if sidebarVisible {
-                        SidebarView(model: model)
-                            .frame(width: reservedSidebarWidth, height: proxy.size.height)
-                            .clipped()
-                        Divider()
-                            .frame(width: reservedDividerWidth)
-                    }
-
-                    VStack(spacing: 0) {
-                        toolbar
-                        Divider()
-                        tabBar
-                        if !model.tabs.isEmpty {
-                            Divider()
-                        }
-                        statusBar
-                        Divider()
-                        documentBody
-                    }
-                    .frame(width: documentWidth, height: proxy.size.height)
-                    .clipped()
-
-                    if showsAI {
-                        Rectangle()
-                            .fill(Color.secondary.opacity(0.18))
-                            .frame(width: aiDividerWidth, height: proxy.size.height)
-                            .contentShape(Rectangle())
-                            .gesture(
-                                DragGesture()
-                                    .onChanged { value in
-                                        let startingWidth = aiPanelDragStartWidth ?? model.aiPanelWidth
-                                        if aiPanelDragStartWidth == nil { aiPanelDragStartWidth = startingWidth }
-                                        model.aiPanelWidth = min(600, max(280, startingWidth - value.translation.width))
-                                    }
-                                    .onEnded { _ in aiPanelDragStartWidth = nil }
-                            )
-                            .help("Drag to resize the AI Assistant")
-                        AIAssistantPanel(model: model, manager: model.aiAssistant)
-                            .frame(width: reservedAIWidth, height: proxy.size.height)
-                            .clipped()
-                    }
+            HStack(spacing: 0) {
+                if sidebarVisible {
+                    SidebarView(model: model)
+                        .frame(width: reservedSidebarWidth, height: proxy.size.height)
+                        .clipped()
+                    Divider()
+                        .frame(width: reservedDividerWidth)
                 }
 
-                if sidebarVisible {
-                    sidebarOverlayToggle
-                        .position(x: max(32, reservedSidebarWidth - 36), y: 42)
-                        .zIndex(50)
+                VStack(spacing: 0) {
+                    toolbar
+                    Divider()
+                    tabBar
+                    if !model.tabs.isEmpty {
+                        Divider()
+                    }
+                    statusBar
+                    Divider()
+                    documentBody
+                }
+                .frame(width: documentWidth, height: proxy.size.height)
+                .clipped()
+
+                if showsAI {
+                    Rectangle()
+                        .fill(Color.secondary.opacity(0.18))
+                        .frame(width: aiDividerWidth, height: proxy.size.height)
+                        .contentShape(Rectangle())
+                        .gesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    let startingWidth = aiPanelDragStartWidth ?? model.aiPanelWidth
+                                    if aiPanelDragStartWidth == nil { aiPanelDragStartWidth = startingWidth }
+                                    model.aiPanelWidth = min(600, max(280, startingWidth - value.translation.width))
+                                }
+                                .onEnded { _ in aiPanelDragStartWidth = nil }
+                        )
+                        .help("Drag to resize the AI Assistant")
+                    AIAssistantPanel(model: model, manager: model.aiAssistant)
+                        .frame(width: reservedAIWidth, height: proxy.size.height)
+                        .clipped()
                 }
             }
         }
@@ -125,21 +117,22 @@ struct ContentView: View {
     private var toolbar: some View {
         HStack(spacing: 8) {
             Button {
+                toggleSidebar()
+            } label: {
+                Image(systemName: "sidebar.left")
+                    .frame(width: 16, height: 16)
+                    .contentShape(Rectangle())
+            }
+            .controlSize(.small)
+            .help(sidebarVisible ? "Hide Sidebar" : "Show Sidebar")
+
+            Button {
                 model.openWithPanel()
             } label: {
                 Label("Open", systemImage: "folder")
                     .labelStyle(.iconOnly)
             }
             .help("Open")
-
-            if !sidebarVisible {
-                Button {
-                    toggleSidebar()
-                } label: {
-                    Image(systemName: "sidebar.left")
-                }
-                .help("Show Sidebar")
-            }
 
             if case .markdown = model.document {
                 VStack(alignment: .leading, spacing: 3) {
@@ -234,19 +227,6 @@ struct ContentView: View {
 
     private func toggleSidebar() {
         sidebarVisible.toggle()
-    }
-
-    private var sidebarOverlayToggle: some View {
-        Button {
-            toggleSidebar()
-        } label: {
-            Image(systemName: "sidebar.left")
-                .frame(width: 32, height: 32)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .background(.quaternary.opacity(0.55), in: RoundedRectangle(cornerRadius: 8))
-        .help("Hide Sidebar")
     }
 
     @ViewBuilder
@@ -476,6 +456,7 @@ struct PDFToolbar: View {
             }
         }
         .fixedSize(horizontal: true, vertical: false)
+        .controlSize(.small)
     }
 
     private func toolbarButton(

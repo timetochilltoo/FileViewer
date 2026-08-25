@@ -1,10 +1,10 @@
 # FileViewer Handoff
 
-Last updated: 2026-08-22
+Last updated: 2026-08-25
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `feature/ai-assistant`
-Current committed baseline before this checkpoint: `59670bb` (`Update handoff baseline`)
+Current committed baseline before this checkpoint: `bd4f27c` (`Add Markdown source search highlighting`)
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
@@ -43,10 +43,10 @@ Build commands:
 ```bash
 cd /Users/patrickshi/Documents/Codex/FileViewer
 swift build
-./scripts/package_app.sh
+bash Scripts/package_app.sh
 ```
 
-`scripts/package_app.sh`:
+`Scripts/package_app.sh`:
 
 1. builds release executable with `swift build -c release`
 2. creates `build/FileViewer.app`
@@ -64,7 +64,7 @@ swift test
 They cover document safety and core AI context/profile behavior without connecting to a real AI provider. They do not replace manual PDFKit/UI regression testing. Standard verification is:
 
 - `swift build`
-- `./scripts/package_app.sh`
+- `bash Scripts/package_app.sh`
 - user manual testing with real Markdown/PDF files
 - crash-log-driven fixes and focused manual PDF/Markdown/AI regression testing
 
@@ -323,14 +323,16 @@ Top-level UI shell.
 
 Main pieces:
 
-- `NavigationSplitView`
-  - sidebar: `SidebarView`
-  - detail: toolbar, tab bar, status bar, document body
+- `GeometryReader` + plain `HStack`
+  - fixed 320-point sidebar: `SidebarView` when the sidebar is visible
+  - divider
+  - document column: toolbar, tab bar, status bar, and document body
+  - optional resizable AI Assistant panel on the right
 - toolbar:
-- Open button
-- sidebar toggle button
+  - one compact `sidebar.left` button at the leading edge. It is always present, so the same hit target opens and closes the fixed-width sidebar in both states and in both PDF and Markdown modes
+  - Open button
   - Markdown mode control when Markdown tab is selected
-- PDF toolbar when PDF tab is selected
+  - PDF toolbar when PDF tab is selected
 - search field
   - implemented as `SearchTextField`, a small AppKit `NSTextField` bridge, because SwiftUI `TextField.onSubmit` did not reliably fire Return in the toolbar on macOS
   - shows current match / total matches while searching
@@ -349,6 +351,7 @@ PDF rotation:
 
 - The PDF toolbar has a compact **Rotate** menu (the `rotate.right` icon), and the same commands are available from **View** and **PDF** menus.
 - 2026-08-01 toolbar-layout hardening: every PDF navigation/action icon has a 32×28-point visual and hit area; `Rotate` and `Annotate` now use icon-only menu labels, and `PDFToolbar` has layout priority plus a fixed horizontal intrinsic size. This prevents macOS from compressing multiple icons into the same apparent space. Keep any future PDF-toolbar additions inside this compact-menu approach rather than adding text labels.
+- 2026-08-25 toolbar alignment: `PDFToolbar` applies SwiftUI `.controlSize(.small)` to the complete PDF control group. This keeps PDF page navigation, zoom, rotation, annotation, and undo/redo controls at the same compact vertical scale as the Markdown toolbar while preserving their explicit 32×28-point hit areas.
 - **Rotate View Left/Right/180°** is intentionally non-destructive. It changes the in-memory display of every page for the active tab, tracks the temporary angle in `DocumentTab.pdfViewRotation`, keeps the current page/zoom/visible position where PDFKit permits, and does not mark the PDF dirty.
 - PDFKit does not expose a separate visual rotation transform, so view rotation temporarily changes each in-memory `PDFPage.rotation`. `PDFDocument.fileViewerPersistedCopy(removingViewRotation:)` creates a separate serialized copy with that temporary rotation subtracted. Both normal Save and Save As use this copy. This is the critical safety boundary: saving annotations, form edits, or a permanent page rotation must never accidentally save the reading-only view rotation.
 - **Rotate Current Page** and **Rotate All Pages** are real page edits. They adjust the selected page or every page in memory, set the historical general PDF dirty flag `pdfHasUnsavedAnnotations`, and require Save or Save As to persist. The status message explicitly says that the page rotation is permanent only after saving.
@@ -641,6 +644,8 @@ PDF annotations and fillable forms:
     - 2026-07-06 follow-up 2: the sidebar still compressed because the PDF annotation toolbar had a very large intrinsic minimum width. `ContentView.body` uses `GeometryReader` to explicitly reserve 320 points for the sidebar and assign the remaining width to the document area. The PDF controls were later condensed into an `Annotate` menu, reducing that pressure substantially.
     - 2026-07-06 follow-up 3: after the document/toolbar side became clipped, the toolbar sidebar button could disappear. The toggle now lives in the sidebar header while the sidebar is open, and only appears in the main toolbar when the sidebar is hidden. This avoids duplicate buttons while keeping the control reachable.
     - 2026-07-07 follow-up: after shrink/enlarge window cycles, the sidebar-header button could visually remain but its hit target could behave stale; clicking it sometimes activated the PDF pages/thumbnails and jumped page instead of hiding the sidebar. The open-sidebar toggle is now a top-level `ContentView` overlay positioned above the sidebar (`zIndex(50)`) with a fixed 32×32 hit area. `SidebarView` no longer owns the hide button. The closed-sidebar toggle remains in the main toolbar.
+    - 2026-08-25 current implementation: the overlay was removed because it could become stale after resize cycles. The single compact `sidebar.left` button now lives at the leading edge of the document toolbar and remains available whether the sidebar is visible or hidden. This gives PDF and Markdown one stable location and one full button hit target.
+    - 2026-08-25: the PDF toolbar uses `.controlSize(.small)` so its controls no longer appear substantially taller than the Markdown controls.
     - If this is revisited later, make sure the PDF page never sits under the sidebar and the left edge of `Notes` rows is never clipped.
   - `DocumentTab.pdfHasUnsavedAnnotations` is now the general PDF dirty flag. The name is historical; it drives the orange unsaved status, Command-S behavior, and close warning for both annotations and fillable-form edits.
   - `AppModel.savePDFAnnotations()` / `savePDFTab(at:)` writes through `PDFDocument.write(to:)`.
@@ -1057,7 +1062,7 @@ For normal changes:
 ```bash
 cd /Users/patrickshi/Documents/Codex/FileViewer
 swift build
-./scripts/package_app.sh
+bash Scripts/package_app.sh
 git status --short
 ```
 
@@ -1083,7 +1088,7 @@ The repo contains build outputs and older prototype artifacts. Current source of
 
 - Swift app: `Sources/FileViewer`
 - Swift package: `Package.swift`
-- packaging: `scripts/package_app.sh`
+- packaging: `Scripts/package_app.sh`
 - documentation:
   - `README.md`
   - `docs/requirements-and-specification.md`
@@ -1243,6 +1248,6 @@ Verification commands:
 cd /Users/patrickshi/Documents/Codex/FileViewer
 swift test --jobs 1
 curl http://127.0.0.1:1234/v1/models
-scripts/package_app.sh
+bash Scripts/package_app.sh
 codesign --verify --deep --strict build/FileViewer.app
 ```

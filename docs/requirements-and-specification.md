@@ -140,8 +140,8 @@ Expected behavior:
 
 Required:
 
-- Top toolbar with file open, search, print, and document-specific view controls.
-- Left sidebar that can switch between thumbnails, table of contents, and recent files.
+- Top toolbar with file open, search, and document-specific view controls. File creation, saving, Save As, and printing remain available from app menus and keyboard shortcuts rather than consuming toolbar space.
+- Left sidebar that can switch between thumbnails, table of contents, and recent files, with one stable compact toggle at the leading edge of the document toolbar. The toggle must remain available in both open and closed states.
 - Main document viewing area.
 - Status area showing file name, current page or section, and loading state.
 - Keyboard-friendly navigation.
@@ -252,6 +252,7 @@ Implemented:
 Toolbar design note:
 
 - The PDF top toolbar should stay compact: navigation, zoom, search, Undo/Redo, and a single `Annotate` menu. Group markup, creation, edit modes, color, and stroke-width controls inside that menu rather than crowding the window with icon-only buttons.
+- PDF controls should use the small macOS/SwiftUI control size and fixed icon hit areas so PDF navigation remains visually aligned with the Markdown toolbar. The sidebar toggle is outside the PDF-specific group and is shared by PDF and Markdown.
 - These actions remain available from the app menus and shortcuts: New Markdown Document, Save / Command-S, Save As / Command-Shift-S, and Print / Command-P.
 
 Recommended:
