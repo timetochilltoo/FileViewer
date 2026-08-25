@@ -4,7 +4,7 @@ Last updated: 2026-08-25
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `feature/ai-assistant`
-Current committed baseline before this checkpoint: `bd4f27c` (`Add Markdown source search highlighting`)
+Current committed baseline before this checkpoint: `ef9f873` (`Align sidebar and PDF toolbar controls`)
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
@@ -352,6 +352,7 @@ PDF rotation:
 - The PDF toolbar has a compact **Rotate** menu (the `rotate.right` icon), and the same commands are available from **View** and **PDF** menus.
 - 2026-08-01 toolbar-layout hardening: every PDF navigation/action icon has a 32×28-point visual and hit area; `Rotate` and `Annotate` now use icon-only menu labels, and `PDFToolbar` has layout priority plus a fixed horizontal intrinsic size. This prevents macOS from compressing multiple icons into the same apparent space. Keep any future PDF-toolbar additions inside this compact-menu approach rather than adding text labels.
 - 2026-08-25 toolbar alignment: `PDFToolbar` applies SwiftUI `.controlSize(.small)` to the complete PDF control group. This keeps PDF page navigation, zoom, rotation, annotation, and undo/redo controls at the same compact vertical scale as the Markdown toolbar while preserving their explicit 32×28-point hit areas.
+- 2026-08-25 PDF button-chrome cleanup: the explicit PDF navigation/zoom/fit/undo/redo hit targets now use `.buttonStyle(.plain)` while retaining their 32×28-point hit areas. The icon-only Rotate and Annotate menus use `.menuStyle(.borderlessButton)`. This removes the default macOS grey capsule around each icon, which was the main remaining visual mismatch with the Markdown toolbar. The page-number field remains a bordered, editable control and the menu hit targets remain available through their icons and help text.
 - **Rotate View Left/Right/180°** is intentionally non-destructive. It changes the in-memory display of every page for the active tab, tracks the temporary angle in `DocumentTab.pdfViewRotation`, keeps the current page/zoom/visible position where PDFKit permits, and does not mark the PDF dirty.
 - PDFKit does not expose a separate visual rotation transform, so view rotation temporarily changes each in-memory `PDFPage.rotation`. `PDFDocument.fileViewerPersistedCopy(removingViewRotation:)` creates a separate serialized copy with that temporary rotation subtracted. Both normal Save and Save As use this copy. This is the critical safety boundary: saving annotations, form edits, or a permanent page rotation must never accidentally save the reading-only view rotation.
 - **Rotate Current Page** and **Rotate All Pages** are real page edits. They adjust the selected page or every page in memory, set the historical general PDF dirty flag `pdfHasUnsavedAnnotations`, and require Save or Save As to persist. The status message explicitly says that the page rotation is permanent only after saving.

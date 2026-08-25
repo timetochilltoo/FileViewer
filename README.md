@@ -73,7 +73,7 @@ Current MVP build includes:
   - permanently rotate the current page or every page left, right, or 180°; the change is written only when the PDF is saved
   - warn before closing a PDF tab/window with unsaved PDF changes
   - confirm unsaved documents before Command-Q, block overwriting files changed outside FileViewer, and write PDF saves through a verified temporary file before replacing the original
-  - keep PDF controls compact with navigation/search/Undo/Redo in the toolbar and fixed-size icon-only `Annotate` and `Rotate` menus for markup, notes, shapes, drawing, edit modes, color, stroke width, and page rotation; the PDF control group uses SwiftUI's small control size so its navigation controls align with the Markdown toolbar, and fixed control widths prevent macOS from visually overlapping adjacent toolbar buttons
+  - keep PDF controls compact with navigation/search/Undo/Redo in the toolbar and fixed-size icon-only `Annotate` and `Rotate` menus for markup, notes, shapes, drawing, edit modes, color, stroke width, and page rotation; PDF icon-only actions use a plain 32×28 hit target and borderless menus so the default macOS grey button capsules do not make the PDF controls look oversized beside the Markdown toolbar; fixed control widths prevent adjacent controls from visually overlapping
 - File-management actions are intentionally kept in menus/shortcuts instead of the crowded toolbar:
   - New Markdown Document
   - Save / Command-S

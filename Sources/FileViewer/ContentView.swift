@@ -394,6 +394,10 @@ struct PDFToolbar: View {
                     .frame(width: 32, height: 28)
             }
             .help("PDF rotation: view-only or saved page rotation")
+            // Match the compact icon controls used by the Markdown toolbar.
+            // The default macOS Menu style adds a large grey capsule around
+            // an icon-only label, which makes the PDF toolbar look oversized.
+            .menuStyle(.borderlessButton)
 
             Menu {
                 Section("Markup") {
@@ -446,6 +450,7 @@ struct PDFToolbar: View {
                     .frame(width: 32, height: 28)
             }
             .help("PDF annotation tools")
+            .menuStyle(.borderlessButton)
 
             toolbarButton("arrow.uturn.backward", help: "Undo PDF Annotation Change", disabled: !model.canUndoPDFAnnotation) {
                 model.undoPDFAnnotation()
@@ -470,6 +475,11 @@ struct PDFToolbar: View {
                 .frame(width: 16, height: 16)
                 .frame(width: 32, height: 28)
         }
+        // Keep the explicit 32×28 hit target without AppKit's default
+        // padded grey button background. This makes PDF navigation match the
+        // compact Markdown controls and prevents adjacent controls from
+        // appearing to overlap at narrower window sizes.
+        .buttonStyle(.plain)
         .disabled(disabled)
         .help(helpText)
     }
