@@ -4,7 +4,7 @@ Last updated: 2026-08-25
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `feature/ai-assistant`
-Current committed baseline before this checkpoint: `ef9f873` (`Align sidebar and PDF toolbar controls`)
+Current committed baseline: `1a68068` (`Remove default grey PDF toolbar chrome`)
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
