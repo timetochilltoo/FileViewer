@@ -7,6 +7,7 @@ Current MVP build includes:
 - Open Markdown and PDF files.
 - New unsaved Markdown documents.
 - Open multiple Markdown/PDF documents in tabs or separate windows. A file already open in FileViewer is brought forward instead of creating a second writable copy.
+- Separate document windows identify themselves as `<filename> — FileViewer` in the title bar and Window menu, so multiple FileViewer windows are distinguishable in the Dock and app switcher.
 - Restore previously open file-backed tabs/windows after app restart.
 - Restore session window size/position when possible.
 - Restore PDF page/zoom and Markdown Source/Preview scroll position for reopened files.
@@ -43,6 +44,7 @@ Current MVP build includes:
 - PDF outline/table-of-contents sidebar when the PDF provides one.
 - PDF search highlighting with current/total count and previous/next navigation.
 - Stable fixed-width sidebar with custom sidebar tabs. A single compact `sidebar.left` toggle sits at the leading edge of the document toolbar and remains available whether the sidebar is shown or hidden.
+- Sidebar launch preference in **FileViewer > Settings…**: Show Sidebar, Hide Sidebar, or Remember Last State. The setting applies to the next launch and newly-created document windows.
 - PDF annotation and fillable-form support:
   - highlight selected PDF text
   - underline selected PDF text
@@ -122,15 +124,16 @@ The suite verifies Markdown dirty-state behavior, file-version change detection,
 The current development app bundle is here:
 
 ```text
-build/FileViewer.app
+build/FileViewer 0.1.1.app
 ```
 
-It is built from the Swift release executable and signed locally with an ad-hoc development signature.
+It is built from the Swift executable and signed locally with an ad-hoc development signature. The package script defaults to a native Debug build; pass `release` when a Release bundle is needed.
 
 To rebuild the app bundle:
 
 ```bash
-bash Scripts/package_app.sh
+bash scripts/package_app.sh
+# or: bash scripts/package_app.sh release
 ```
 
 ## Documentation

@@ -13,10 +13,20 @@ struct FileViewerApp: App {
         .commands {
             FileViewerCommands()
         }
+
+        Settings {
+            FileViewerSettingsView()
+        }
     }
 }
 
 final class FileViewerAppDelegate: NSObject, NSApplicationDelegate {
+    @MainActor func applicationDidFinishLaunching(_ notification: Notification) {
+        // FileViewer manages document tabs itself, not AppKit window tabs.
+        NSWindow.allowsAutomaticWindowTabbing = false
+        FileViewerMenuPolicy.install()
+    }
+
     @MainActor func application(_ application: NSApplication, open urls: [URL]) {
         FileViewerWindowRegistry.shared.openExternal(urls)
     }

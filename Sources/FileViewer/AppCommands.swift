@@ -35,7 +35,7 @@ struct FileViewerCommands: Commands {
             .keyboardShortcut("o", modifiers: .command)
         }
 
-        CommandGroup(after: .saveItem) {
+        CommandGroup(replacing: .saveItem) {
             Button("Save") {
                 if activeModel?.isPDFDocument == true {
                     activeModel?.savePDFAnnotations()
@@ -69,6 +69,8 @@ struct FileViewerCommands: Commands {
             .disabled(activeModel?.canPrintDocument != true)
         }
 
+        // FileViewer has its own Markdown formatting and document controls.
+        FileViewerRemovedCommands()
         CommandMenu("Display") {
             Button("Toggle Sidebar") {
                 if let activeModel {
@@ -387,5 +389,12 @@ struct FileViewerCommands: Commands {
             name: .pdfAddShapeAnnotation,
             object: PDFShapeAnnotationCommand(url: url, kind: kind, color: activeModel?.pdfAnnotationNSColor ?? .systemYellow)
         )
+    }
+}
+
+private struct FileViewerRemovedCommands: Commands {
+    var body: some Commands {
+        CommandGroup(replacing: .systemServices) { }
+        CommandGroup(replacing: .toolbar) { }
     }
 }

@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @StateObject private var model: AppModel
-    @State private var sidebarVisible = true
+    @State private var sidebarVisible = SidebarPreferences.initialVisibility()
     @State private var aiPanelDragStartWidth: CGFloat?
     private let sidebarWidth: CGFloat = 320
     private let dividerWidth: CGFloat = 1
@@ -92,6 +92,12 @@ struct ContentView: View {
         .background(WindowRegistrationView(model: model))
         .onAppear {
             FileViewerWindowRegistry.shared.register(model)
+        }
+        .onChange(of: model.selectedTabID) { _, _ in
+            FileViewerWindowRegistry.shared.updateDocumentIdentity(for: model)
+        }
+        .onChange(of: model.document?.name) { _, _ in
+            FileViewerWindowRegistry.shared.updateDocumentIdentity(for: model)
         }
         .onReceive(NotificationCenter.default.publisher(for: .toggleSidebar)) { notification in
             // The menu command carries its owning model. A global sidebar toggle
@@ -227,6 +233,7 @@ struct ContentView: View {
 
     private func toggleSidebar() {
         sidebarVisible.toggle()
+        SidebarPreferences.remember(sidebarVisible)
     }
 
     @ViewBuilder

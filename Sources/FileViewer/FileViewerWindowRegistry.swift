@@ -47,6 +47,7 @@ final class FileViewerWindowRegistry {
 
     func register(_ model: AppModel, window: NSWindow) {
         register(model)
+        Self.updateDocumentIdentity(model, window: window)
         registeredWindows[ObjectIdentifier(model)] = WeakWindow(value: window)
         let key = ObjectIdentifier(window)
         if let existingDelegate = windowDelegates[key] {
@@ -64,6 +65,20 @@ final class FileViewerWindowRegistry {
             window.delegate = delegate
             windowDelegates[key] = delegate
         }
+    }
+
+    static func updateDocumentIdentity(_ model: AppModel, window: NSWindow) {
+        window.tabbingMode = .disallowed
+        window.title = model.document.map { "\($0.name) — FileViewer" } ?? "FileViewer"
+        window.representedURL = model.document?.url
+        // Keep the Window menu and Dock window list in sync with tab selection
+        // and Save As, including the initial SwiftUI-created window.
+        NSApp?.changeWindowsItem(window, title: window.title, filename: false)
+    }
+
+    func updateDocumentIdentity(for model: AppModel) {
+        guard let window = registeredWindows[ObjectIdentifier(model)]?.value else { return }
+        Self.updateDocumentIdentity(model, window: window)
     }
 
     func openExternal(_ urls: [URL]) {
@@ -152,7 +167,7 @@ final class FileViewerWindowRegistry {
             defer: false
         )
         window.minSize = NSSize(width: 520, height: 620)
-        window.title = initialURLs.first?.lastPathComponent ?? "FileViewer"
+        window.title = initialURLs.first.map { "\($0.lastPathComponent) — FileViewer" } ?? "FileViewer"
         window.contentView = NSHostingView(rootView: ContentView(initialURLs: initialURLs))
         window.center()
         window.makeKeyAndOrderFront(nil)
@@ -168,7 +183,7 @@ final class FileViewerWindowRegistry {
             defer: false
         )
         window.minSize = NSSize(width: 520, height: 620)
-        window.title = session.tabs.first.map { URL(fileURLWithPath: $0.path).lastPathComponent } ?? "FileViewer"
+        window.title = session.tabs.first.map { "\(URL(fileURLWithPath: $0.path).lastPathComponent) — FileViewer" } ?? "FileViewer"
         window.contentView = NSHostingView(rootView: ContentView(restoring: session))
         if let frameString = session.frameString {
             let savedFrame = NSRectFromString(frameString)

@@ -3,8 +3,12 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="FileViewer"
-APP_BUNDLE="$ROOT_DIR/build/$APP_NAME.app"
-EXECUTABLE="$ROOT_DIR/.build/release/$APP_NAME"
+APP_VERSION="0.1.1"
+APP_BUILD="2"
+CONFIGURATION="${1:-debug}"
+case "$CONFIGURATION" in debug|release) ;; *) echo "Usage: $0 [debug|release]" >&2; exit 2 ;; esac
+APP_BUNDLE="$ROOT_DIR/build/$APP_NAME $APP_VERSION.app"
+EXECUTABLE="$ROOT_DIR/.build/$CONFIGURATION/$APP_NAME"
 ICONSET="$ROOT_DIR/build/AppIcon.iconset"
 ICON_FILE="$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 
@@ -13,7 +17,7 @@ cd "$ROOT_DIR"
 # `SWIFT_BUILD_FLAGS=--disable-sandbox` is useful when packaging from a
 # sandboxed automation environment whose own restrictions prevent SwiftPM
 # from installing its manifest sandbox.  It is empty in normal local use.
-swift build -c release ${SWIFT_BUILD_FLAGS:-}
+swift build -c "$CONFIGURATION" ${SWIFT_BUILD_FLAGS:-}
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
@@ -83,7 +87,7 @@ source.save(
 )
 PY
 
-cat > "$APP_BUNDLE/Contents/Info.plist" <<'PLIST'
+cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -91,7 +95,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<'PLIST'
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>FileViewer</string>
+	<string>$APP_NAME $APP_VERSION</string>
 	<key>CFBundleExecutable</key>
 	<string>FileViewer</string>
 	<key>CFBundleIdentifier</key>
@@ -101,13 +105,13 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<'PLIST'
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>FileViewer</string>
+	<string>$APP_NAME $APP_VERSION</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.1.0</string>
+	<string>$APP_VERSION</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>$APP_BUILD</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>

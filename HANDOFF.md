@@ -1,6 +1,6 @@
 # FileViewer Handoff
 
-Last updated: 2026-08-25
+Last updated: 2026-09-09
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `feature/ai-assistant`
@@ -32,10 +32,10 @@ The repo still contains an older React/Vite prototype (`src/`, `dist/`, `package
 - Platform: `.macOS(.v26)`
 - Main app target: executable target `FileViewer`
 - App entry point: `Sources/FileViewer/FileViewerApp.swift`
-- Packaged app path:
+- Packaged development app path:
 
 ```text
-/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer.app
+/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.1.1.app
 ```
 
 Build commands:
@@ -43,13 +43,13 @@ Build commands:
 ```bash
 cd /Users/patrickshi/Documents/Codex/FileViewer
 swift build
-bash Scripts/package_app.sh
+bash scripts/package_app.sh debug
 ```
 
-`Scripts/package_app.sh`:
+`scripts/package_app.sh`:
 
-1. builds release executable with `swift build -c release`
-2. creates `build/FileViewer.app`
+1. builds the requested native configuration (`debug` by default; `release` is accepted)
+2. creates `build/FileViewer 0.1.1.app`
 3. generates the app icon using Python/Pillow
 4. writes `Info.plist`
 5. ad-hoc signs the app with `codesign --force --deep --sign -`
@@ -64,7 +64,7 @@ swift test
 They cover document safety and core AI context/profile behavior without connecting to a real AI provider. They do not replace manual PDFKit/UI regression testing. Standard verification is:
 
 - `swift build`
-- `bash Scripts/package_app.sh`
+- `bash scripts/package_app.sh debug`
 - user manual testing with real Markdown/PDF files
 - crash-log-driven fixes and focused manual PDF/Markdown/AI regression testing
 
@@ -97,6 +97,8 @@ Defines the app entry point:
 - Sets minimum frame size to `520 x 620`.
 - This smaller minimum is intentional. Patrick compares documents side-by-side and reported that Markdown windows could not be dragged narrow enough, unlike PDF Preview windows.
 - Uses `.windowStyle(.titleBar)`.
+- Adds a native `Settings` scene for sidebar launch behavior: Show Sidebar, Hide Sidebar, or Remember Last State. The choice applies to launch and newly-created document windows.
+- Disables AppKit automatic window tabbing because FileViewer owns its tab strip and separate document windows itself.
 - Registers `FileViewerCommands`.
 
 `FileViewerAppDelegate.application(_:open:)` routes Finder / Open With file-open events through `FileViewerWindowRegistry`. This replaced an earlier global notification approach after Patrick reported that opening document B from Finder caused every existing FileViewer window to switch to B.
@@ -122,6 +124,7 @@ Coordinates macOS external file-open events with per-window state.
   - otherwise creates a new window
 - `pendingExternalURLs` prevents a document-launched app from creating both an empty startup window and a separate document window when timing is unlucky.
 - Manually-created windows default to `760 x 720` with `minSize = 520 x 620`, so two Markdown windows can fit side-by-side more easily.
+- Registered windows display `<filename> — FileViewer` in the title bar and Window menu; the title and represented URL refresh when the selected tab or document filename changes, including Save As.
 - The registry also installs a retained `WindowCloseDelegate` for each registered `NSWindow`. This delegate calls `AppModel.canCloseAllDocuments()` so closing a whole window checks unsaved Markdown tabs before the window disappears.
 - This file exists specifically because Patrick wants Finder-opened documents to appear in separate windows, not merely separate tabs, and because broadcasting file-open events to every `ContentView` caused all windows to show the same document.
 
@@ -333,6 +336,7 @@ Main pieces:
   - Open button
   - Markdown mode control when Markdown tab is selected
   - PDF toolbar when PDF tab is selected
+- `sidebarVisible` is initialized from `SidebarPreferences`; toggling the toolbar button records the last visibility for the Remember Last State setting.
 - search field
   - implemented as `SearchTextField`, a small AppKit `NSTextField` bridge, because SwiftUI `TextField.onSubmit` did not reliably fire Return in the toolbar on macOS
   - shows current match / total matches while searching
@@ -704,6 +708,8 @@ Focused model:
 - `ContentView` sets both `.focusedSceneValue(\.fileViewerModel, model)` and `.focusedSceneObject(model)`.
 - 2026-07-02 fix: app menu commands now use `activeModel`, which falls back to `FileViewerWindowRegistry.shared.activeModel` when SwiftUI `@FocusedValue` is nil. Patrick reported that toolbar Save / Save As / Print worked, but File menu Save / Save As / Print were greyed out. The fallback uses the key window/main window to find the correct registered `AppModel`.
 - 2026-07-26 follow-up: `FileViewerCommands` also observes the focused `AppModel` through `@FocusedObject`. `@FocusedValue` by itself changes when focus moves but does not observe the model's published tab changes. Without the focused object, File > Save could remain disabled after New Markdown Document until FileViewer lost and regained focus. A fresh untitled Markdown document is saveable immediately; Save opens the normal Save As panel because it has no URL yet. `DocumentSafetyTests.testNewMarkdownDocumentIsImmediatelySaveable` guards the model-side contract.
+- The FileViewer app menu includes **Settings…**, which opens `FileViewerSettingsView` for sidebar launch behavior.
+- `FileViewerMenuPolicy` removes macOS text services (Writing Tools, AutoFill, Dictation, Emoji & Symbols) and automatic AppKit tab commands while preserving standard Edit actions. It listens for late AppKit menu insertions because those items can be added after SwiftUI constructs the menu.
 
 Menus:
 
@@ -716,7 +722,7 @@ Menus:
   - Save As...
 - Print replacement:
   - Print...
-- View menu:
+- Display menu:
   - Toggle Sidebar
   - Markdown Preview / Source / Split
   - Fit Page / Fit Width / Zoom In / Zoom Out
@@ -851,7 +857,7 @@ Expected after latest build:
 - App launches from:
 
 ```text
-/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer.app
+/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.1.1.app
 ```
 
 - Opening multiple files from inside a window can create tabs in that window.
@@ -859,6 +865,8 @@ Expected after latest build:
 - Dragging multiple files onto the app should open each supported file as a tab.
 - Finder / Open With file-open events should open in a separate window when existing windows already contain documents.
 - Opening document A from Finder, then document B from Finder, should leave the A window showing A and create/show a B window showing B.
+- Each document window title shows `<filename> — FileViewer`, and follows tab selection and Save As so multiple windows are distinguishable in the Dock and Window menu.
+- **FileViewer > Settings…** offers Show Sidebar, Hide Sidebar, and Remember Last State. The selected launch policy applies to the next app launch and newly-created document windows.
 - Markdown tabs should show `Preview / Source / Split`.
 - In Source or Split mode, the source editor should appear on the left/source pane with a formatting toolbar above it.
 - Selecting text and pressing Bold should wrap selected text in `**`; pressing Bold again on already-bold text should remove the markers.
@@ -1063,14 +1071,14 @@ For normal changes:
 ```bash
 cd /Users/patrickshi/Documents/Codex/FileViewer
 swift build
-bash Scripts/package_app.sh
+bash scripts/package_app.sh debug
 git status --short
 ```
 
 Then manually test the app bundle:
 
 ```text
-/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer.app
+/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.1.1.app
 ```
 
 If acceptable:
@@ -1089,7 +1097,7 @@ The repo contains build outputs and older prototype artifacts. Current source of
 
 - Swift app: `Sources/FileViewer`
 - Swift package: `Package.swift`
-- packaging: `Scripts/package_app.sh`
+- packaging: `scripts/package_app.sh`
 - documentation:
   - `README.md`
   - `docs/requirements-and-specification.md`
@@ -1249,6 +1257,6 @@ Verification commands:
 cd /Users/patrickshi/Documents/Codex/FileViewer
 swift test --jobs 1
 curl http://127.0.0.1:1234/v1/models
-bash Scripts/package_app.sh
-codesign --verify --deep --strict build/FileViewer.app
+bash scripts/package_app.sh debug
+codesign --verify --deep --strict "build/FileViewer 0.1.1.app"
 ```

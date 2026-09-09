@@ -59,6 +59,7 @@ Expected behavior:
 - Opening files from Finder / Open With uses separate windows when existing windows already contain documents, so comparing two Markdown/PDF files side-by-side is practical.
 - Opening document A from Finder, then document B from Finder, should leave the A window showing A and open/show B in a different window.
 - Opening the same supported file again should bring its existing FileViewer tab/window forward. FileViewer intentionally keeps one writable in-memory instance per file to prevent two windows from silently overwriting each other.
+- Each document window displays its current document name as `<filename> — FileViewer` in the title bar and Window menu, including after tab selection or Save As.
 - Each open tab keeps its own search text, current search match, PDF page, and zoom state during the current session.
 - File-backed tabs/windows restore after app restart.
 - Session windows restore saved size and position when possible.
@@ -67,6 +68,8 @@ Expected behavior:
 - Reopened Markdown files restore Source and Preview vertical scroll position from per-file Markdown state after the previous tab/window was closed.
 - Unsaved Untitled Markdown documents are not restored unless they have been saved to a file.
 - Search text remains session-only by design unless a later workflow needs it.
+
+Sidebar launch behavior is configurable in **FileViewer > Settings…**. The user can choose Show Sidebar, Hide Sidebar, or Remember Last State. The choice applies when the app launches and when a new document window is created; an existing window keeps its current visibility until toggled.
 
 ### 5.2 Read and Edit a Markdown File
 
@@ -142,6 +145,7 @@ Required:
 
 - Top toolbar with file open, search, and document-specific view controls. File creation, saving, Save As, and printing remain available from app menus and keyboard shortcuts rather than consuming toolbar space.
 - Left sidebar that can switch between thumbnails, table of contents, and recent files, with one stable compact toggle at the leading edge of the document toolbar. The toggle must remain available in both open and closed states.
+- The sidebar launch preference must be available from **FileViewer > Settings…** with Show Sidebar, Hide Sidebar, and Remember Last State choices.
 - Main document viewing area.
 - Status area showing file name, current page or section, and loading state.
 - Keyboard-friendly navigation.
@@ -346,6 +350,7 @@ The MVP should include:
 - Recent files.
 - Light and dark theme.
 - Restore last position per file.
+- Give separate document windows filename-based titles so multiple FileViewer windows can be distinguished in the Dock, app switcher, and Window menu.
 
 The MVP should not include:
 
