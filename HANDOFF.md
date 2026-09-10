@@ -4,7 +4,7 @@ Last updated: 2026-09-10
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `feature/ai-assistant`
-Current committed baseline: `c9166fd` (`Polish FileViewer menus, settings, and app identity`)
+Current committed baseline: `a378eed` (`Apply Markdown default view when opening files`)
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
