@@ -904,6 +904,7 @@ final class AppModel: ObservableObject {
         }
         do {
             if Self.isMarkdown(url) {
+                markdownMode = MarkdownPreferences.defaultMode()
                 let text = try String(contentsOf: url, encoding: .utf8)
                 let savedState = Self.loadMarkdownState(for: url)
                 appendTab(DocumentTab(
