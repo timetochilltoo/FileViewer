@@ -23,6 +23,12 @@ struct FileViewerCommands: Commands {
     }
 
     var body: some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button("About FileViewer") {
+                FileViewerAboutPresenter.shared.show()
+            }
+        }
+
         CommandGroup(replacing: .newItem) {
             Button("New Markdown Document") {
                 activeModel?.newMarkdownDocument()

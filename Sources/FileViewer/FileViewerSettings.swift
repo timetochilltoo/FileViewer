@@ -29,8 +29,29 @@ enum SidebarPreferences {
     }
 }
 
+enum MarkdownPreferences {
+    static let defaultModeKey = "FileViewer.markdown.defaultMode"
+    static let legacyModeKey = "FileViewer.markdownMode"
+
+    static func defaultMode(defaults: UserDefaults = .standard) -> MarkdownMode {
+        if let rawValue = defaults.string(forKey: defaultModeKey),
+           let mode = MarkdownMode(rawValue: rawValue) {
+            return mode
+        }
+
+        // Preserve an existing installation's last global mode until the user
+        // chooses an explicit default in Settings.
+        if let rawValue = defaults.string(forKey: legacyModeKey),
+           let mode = MarkdownMode(rawValue: rawValue) {
+            return mode
+        }
+        return .split
+    }
+}
+
 struct FileViewerSettingsView: View {
     @AppStorage(SidebarPreferences.launchModeKey) private var sidebarMode = SidebarLaunchMode.show.rawValue
+    @AppStorage(MarkdownPreferences.defaultModeKey) private var markdownDefaultMode = MarkdownMode.split.rawValue
 
     var body: some View {
         Form {
@@ -44,8 +65,19 @@ struct FileViewerSettingsView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
+
+            Section("Markdown") {
+                Picker("Default view for new documents", selection: $markdownDefaultMode) {
+                    ForEach(MarkdownMode.allCases, id: \.rawValue) { mode in
+                        Text(mode.title).tag(mode.rawValue)
+                    }
+                }
+                Text("Applies when a Markdown document window opens. You can still switch views from the toolbar or Display menu.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
-        .frame(width: 440, height: 210)
+        .frame(width: 460, height: 320)
     }
 }

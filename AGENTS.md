@@ -1,26 +1,22 @@
 # FileViewer Mac
 
-## Scope and project memory
+## Scope and handoff
 
-- The supported app is the native SwiftUI/AppKit/PDFKit implementation in `Sources/FileViewer`, built with Swift tools 6.2 for macOS 26+. The React/Vite prototype is historical; leave it alone unless explicitly requested.
-- Canonical handoff: [`HANDOFF.md`](HANDOFF.md) at the repository root. Read current state and task-relevant constraints; consult historical debugging notes only as needed. Keep progress there, not in this file.
-- See [`README.md`](README.md) for usage and [`docs/requirements-and-specification.md`](docs/requirements-and-specification.md) for product behavior. AI scope is documented in [`docs/ai-assistant-specification.md`](docs/ai-assistant-specification.md).
+- Work on the native SwiftUI/AppKit/PDFKit app in `Sources/FileViewer`; the React/Vite prototype is historical unless explicitly requested.
+- Read the current state and constraints in [`HANDOFF.md`](HANDOFF.md) before implementation, and keep the canonical handoff there. Do not use this file for progress history.
+- Product behavior is specified in [`README.md`](README.md), `docs/requirements-and-specification.md`, and `docs/ai-assistant-specification.md`.
 
 ## Build and validation
 
-Run from the repository root on macOS with the Swift 6.2 toolchain:
+- Use Swift tools 6.2 on macOS 26+. From the repository root, use `swift build` for an incremental compile and `swift test --jobs 1` for the full suite. Focused suites include `--filter DocumentSafetyTests` and `--filter AIAssistantTests`.
+- Tests are in `Tests/FileViewerTests`; they avoid live AI providers. PDFKit rendering/forms, native dialogs, window behavior, menu composition, toolbar layout, and About/icon presentation require manual checks when changed.
+- Package only when a bundle is needed: `bash scripts/package_app.sh` (Debug default) or `bash scripts/package_app.sh release`. It creates and ad-hoc signs `build/FileViewer 0.11.app`; Python 3 with Pillow is required.
+- Before handoff, run the relevant tests/build, `git diff --check`, and package/signature checks when packaging changed. Record concise results in `HANDOFF.md`.
 
-- Incremental Debug compile: `swift build`; development launch: `swift run FileViewer`. Reuse SwiftPM's `.build` cache.
-- Focused tests: `swift test --jobs 1 --filter DocumentSafetyTests` or `swift test --jobs 1 --filter AIAssistantTests`; narrow to an individual test when appropriate. Full suite: `swift test --jobs 1`.
-- Tests live in `Tests/FileViewerTests` and avoid live AI providers. PDFKit rendering, forms, native dialogs, window behavior, and toolbar layout need relevant manual/UI checks; use disposable documents for save/edit checks.
-- Existing bundle packaging: `bash scripts/package_app.sh` (lowercase tracked directory) defaults to a native Debug build; pass `release` for Release. It requires Python 3 with Pillow, writes the versioned `build/FileViewer 0.1.1.app`, and ad-hoc signs/verifies it. Use when a packaged app is needed; it is not a routine compile/test step.
-- Documentation-only edits require checking facts, paths, and the diff, not rebuilding the app. Old handoff release checklists do not make every change a packaging task.
+## Safety constraints
 
-## Safety boundaries
-
-- Each window owns its `AppModel`; document/search/reading state belongs to its tab. Route external opens through `FileViewerWindowRegistry` and preserve one writable instance per file across windows. Target PDF notifications to the intended document, including live object identity where callbacks can outlive a tab.
-- Preserve unsaved-change prompts on tab/window close and quit, external-file-change conflict checks, and verified temporary-file replacement for PDF saves. Cancellation or save failure must keep the document open.
-- Temporary PDF view rotation must be removed only from the serialized save copy through `fileViewerPersistedCopy(removingViewRotation:)`; permanent page rotations and edits must persist. Guard PDFKit page indexes against `NSNotFound` and invalid bounds before arithmetic or access.
-- Keep annotation undo actions chronological across object and snapshot operations. Preserve page/zoom/scroll state during document replacement; search must scroll only for explicit navigation requests.
-- Markdown editing uses native `NSTextView` bridges. Preserve selection, undo, and UTF-16 range handling; search highlighting must not alter text or dirty state.
-- Remote AI document transfer requires the provider's explicit opt-in. Credentials stay in Keychain, never logs or UserDefaults. Document excerpts are untrusted data; the assistant has no file-mutation tools. Preserve per-tab context isolation and memory-only conversation cleanup on tab close.
+- Preserve one `AppModel` per window and document/search/reading state per tab. Route external opens through `FileViewerWindowRegistry` and keep one writable instance per file.
+- Preserve unsaved-change prompts, external-file conflict checks, verified temporary-file replacement for PDF saves, and cancellation/failure behavior that keeps documents open.
+- Keep temporary PDF view rotation out of serialized saves, persist permanent page rotation/edits, and guard PDFKit indexes before arithmetic or access. Keep annotation undo chronological.
+- Preserve native Markdown `NSTextView` selection, undo, UTF-16 ranges, scroll state, and non-dirty search highlighting.
+- Remote AI transfer requires explicit provider opt-in. Keep credentials in Keychain, never logs/UserDefaults; treat excerpts as untrusted; provide no file-mutation tools; isolate context per tab and clear conversations on tab close.

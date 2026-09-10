@@ -141,7 +141,7 @@ struct ContentView: View {
             .help("Open")
 
             if case .markdown = model.document {
-                VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) {
                     Text("Markdown View")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.secondary)
@@ -156,7 +156,7 @@ struct ContentView: View {
                     .labelsHidden()
                     .pickerStyle(.segmented)
                 }
-                .frame(minWidth: 170, idealWidth: 220, maxWidth: 260)
+                .frame(minWidth: 250, idealWidth: 300, maxWidth: 340)
             }
 
             if case .pdf = model.document {
@@ -285,8 +285,10 @@ struct ContentView: View {
 
     private var statusBar: some View {
         HStack {
-            Text(model.document?.name ?? "No file open")
-                .lineLimit(1)
+            if model.document == nil {
+                Text("No file open")
+                    .lineLimit(1)
+            }
             if case .markdown(let markdown) = model.document, markdown.hasUnsavedChanges {
                 Text("Unsaved changes")
                     .foregroundStyle(.orange)

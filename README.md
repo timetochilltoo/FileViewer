@@ -19,6 +19,7 @@ Current MVP build includes:
 - Select text in Markdown preview and use formatting buttons to update the Markdown source.
 - Structured Markdown preview for headings, lists, quotes, code blocks, basic tables, task lists, and underline convenience.
 - Markdown split view.
+- Choose the default Markdown Preview, Source, or Split view from **FileViewer > Settings…**.
 - Markdown editing.
 - Markdown save and save-as.
 - Unsaved Markdown close confirmation for tabs and windows.
@@ -86,6 +87,7 @@ Current MVP build includes:
 - Light and dark theme.
 - Local AI assistant (feature branch `feature/ai-assistant`):
   - resizable right-side panel with per-document conversations
+  - compact Model controls with provider and model menus on one row
   - ask, summarize, and translate PDF or Markdown content
   - explicit Selected Text, Current Page/Section, Relevant Sections, and Whole Document scopes
   - PDF page and Markdown heading context labels for grounded answers
@@ -124,10 +126,12 @@ The suite verifies Markdown dirty-state behavior, file-version change detection,
 The current development app bundle is here:
 
 ```text
-build/FileViewer 0.1.1.app
+build/FileViewer 0.11.app
 ```
 
 It is built from the Swift executable and signed locally with an ad-hoc development signature. The package script defaults to a native Debug build; pass `release` when a Release bundle is needed.
+
+The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.11` and `By Patrick Shi`.
 
 To rebuild the app bundle:
 

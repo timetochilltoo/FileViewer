@@ -80,6 +80,7 @@ Expected behavior:
 - Headings, basic lists, links, code blocks, blockquotes, basic tables, task lists, and underline convenience render in the native preview.
 - Tables and task lists render in a basic readable form. Richer table styling, more polished checkbox visuals, and local images are known preview-fidelity improvement areas, not fully complete MVP behavior yet.
 - The user can switch between preview only, source only, and split view.
+- The user can choose the default Markdown view (Preview, Source, or Split) from **FileViewer > Settings…**.
 - The source view shows the original Markdown text.
 - The user can edit the Markdown source.
 - The preview updates while editing.

@@ -1,12 +1,20 @@
 # FileViewer Handoff
 
-Last updated: 2026-09-09
+Last updated: 2026-09-10
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `feature/ai-assistant`
-Current committed baseline: `34697fc` (`Record PDF toolbar chrome checkpoint`)
+Current committed baseline: `979a636` (`Add document window settings and menu cleanup`)
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
+
+## Current implementation updates (2026-09-10)
+
+- The packaged app is version `0.11` at `build/FileViewer 0.11.app`. `CFBundleDisplayName` and `CFBundleName` are `FileViewer`, so the app menu does not include a version suffix. The custom About panel shows the supplied app icon, `FileViewer`, `Version 0.11`, and `By Patrick Shi`.
+- `Resources/fileviewer-light-marker-lines.webp` is the source artwork for `AppIcon.icns`; `scripts/package_app.sh` resizes it with Pillow and signs the resulting bundle.
+- The duplicate filename status row below the tab strip is removed; the window title and Window menu continue to identify each document as `<filename> — FileViewer`.
+- The Markdown toolbar places `Markdown View` beside the Preview / Source / Split picker. **FileViewer > Settings…** now stores a default Markdown view for newly opened or created Markdown documents.
+- The AI panel presents the provider and model menus on one compact `Model` row and removes the two explanatory context/privacy lines from the visible configuration area. Remote document transfer still requires the provider's explicit opt-in in the model layer.
 
 ## 1. Project purpose
 
@@ -35,7 +43,7 @@ The repo still contains an older React/Vite prototype (`src/`, `dist/`, `package
 - Packaged development app path:
 
 ```text
-/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.1.1.app
+/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.11.app
 ```
 
 Build commands:
@@ -49,8 +57,8 @@ bash scripts/package_app.sh debug
 `scripts/package_app.sh`:
 
 1. builds the requested native configuration (`debug` by default; `release` is accepted)
-2. creates `build/FileViewer 0.1.1.app`
-3. generates the app icon using Python/Pillow
+2. creates `build/FileViewer 0.11.app`
+3. generates `AppIcon.icns` from `Resources/fileviewer-light-marker-lines.webp` using Python/Pillow
 4. writes `Info.plist`
 5. ad-hoc signs the app with `codesign --force --deep --sign -`
 6. verifies the app signature
@@ -97,7 +105,7 @@ Defines the app entry point:
 - Sets minimum frame size to `520 x 620`.
 - This smaller minimum is intentional. Patrick compares documents side-by-side and reported that Markdown windows could not be dragged narrow enough, unlike PDF Preview windows.
 - Uses `.windowStyle(.titleBar)`.
-- Adds a native `Settings` scene for sidebar launch behavior: Show Sidebar, Hide Sidebar, or Remember Last State. The choice applies to launch and newly-created document windows.
+- Adds a native `Settings` scene for sidebar launch behavior: Show Sidebar, Hide Sidebar, or Remember Last State, plus the default Markdown Preview / Source / Split view. These choices apply to future launches or newly-created document windows; existing windows keep their current layout.
 - Disables AppKit automatic window tabbing because FileViewer owns its tab strip and separate document windows itself.
 - Registers `FileViewerCommands`.
 
@@ -857,7 +865,7 @@ Expected after latest build:
 - App launches from:
 
 ```text
-/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.1.1.app
+/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.11.app
 ```
 
 - Opening multiple files from inside a window can create tabs in that window.
@@ -867,7 +875,8 @@ Expected after latest build:
 - Opening document A from Finder, then document B from Finder, should leave the A window showing A and create/show a B window showing B.
 - Each document window title shows `<filename> — FileViewer`, and follows tab selection and Save As so multiple windows are distinguishable in the Dock and Window menu.
 - **FileViewer > Settings…** offers Show Sidebar, Hide Sidebar, and Remember Last State. The selected launch policy applies to the next app launch and newly-created document windows.
-- Markdown tabs should show `Preview / Source / Split`.
+- **FileViewer > Settings…** also offers a default Markdown view: Preview, Source, or Split. Markdown windows use that choice when they open; the toolbar and Display menu can still change the active view.
+- Markdown tabs show `Markdown View` beside the `Preview / Source / Split` picker, and the status row does not repeat the selected filename.
 - In Source or Split mode, the source editor should appear on the left/source pane with a formatting toolbar above it.
 - Selecting text and pressing Bold should wrap selected text in `**`; pressing Bold again on already-bold text should remove the markers.
 - If no text is selected and Bold is pressed, placeholder `**bold text**` should be inserted.
@@ -1078,7 +1087,7 @@ git status --short
 Then manually test the app bundle:
 
 ```text
-/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.1.1.app
+/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.11.app
 ```
 
 If acceptable:
@@ -1228,7 +1237,7 @@ Privacy and safety behavior:
 - The common configured transport uses `GET /models` and streaming `POST /chat/completions`. It is compatible with LM Studio, Ollama's OpenAI-compatible API, custom compatible servers, and OpenAI's supported Chat Completions endpoint.
 - Some reasoning-capable models return private scratch work wrapped in `<think>…</think>`. FileViewer retains the raw response only while it streams, displays only the content outside those tags, then discards the raw buffer. The hidden material is therefore not copied, exported, or supplied as follow-up chat history.
 - Every assistant message stores the labels for the exact `AIContextPayload` chunks supplied to that request. The panel renders these as **Sources provided to the model**. PDF `Page N` labels are sorted into ascending page order for human review and are buttons that post the existing `.pdfGoToPage` command; Markdown heading labels remain informative chips. Sorting only affects display: Relevant Sections still sends chunks in relevance order. Do not call them citations or external links unless the answer itself makes a specific citation claim.
-- The assistant panel shows a local/remote disclosure derived from the active provider endpoint. A remote endpoint explicitly names its host; Whole Document additionally warns it is currently a 12,000-character preview. The header's download button performs an explicit **Save Conversation as Markdown** export; the transcript includes model/source metadata and assistant-message source labels. Sessions are still not persisted by the app.
+- The assistant panel keeps the Whole Document 12,000-character warning and explicit-transfer enforcement in the model layer. The compact configuration row labels the provider/model menus as `Model`; the former explanatory context/privacy lines are omitted from the visible panel. The header's download button performs an explicit **Save Conversation as Markdown** export; the transcript includes model/source metadata and assistant-message source labels. Sessions are still not persisted by the app.
 - Extraction and retrieval happen in the app. A request is made only after Send, Summarize, or Translate.
 - The system prompt treats document excerpts as untrusted reference data and forbids claiming file mutations.
 - AI has no save, annotation, deletion, shell, or file-editing tools.
@@ -1241,7 +1250,7 @@ Known limitations / next work:
 - context is capped at 12,000 characters to fit common local-model context windows while reserving 1,024 output tokens. Whole Document is therefore a preview rather than a complete-document synthesis; hierarchical summaries remain future work;
 - keyword scoring is intentionally simple and does not yet use the available embedding model;
 - the AI panel separates `Summary & Q&A` from `Translation`: questions and summaries use the per-session `Response language` setting (English, Traditional Chinese, or Simplified Chinese), while translation has an independent target-language setting with the same choices;
-- `Relevant Sections` is a keyword-retrieval mode for questions. Translation automatically changes this scope to `Current Page/Section`: a generic translation instruction cannot reliably retrieve the visible material and previously could select an unrelated page. The panel explains this behavior while Relevant Sections is selected;
+- `Relevant Sections` is a keyword-retrieval mode for questions. Translation automatically changes this scope to `Current Page/Section`: a generic translation instruction cannot reliably retrieve the visible material and previously could select an unrelated page. The behavior remains enforced in the request model even though the explanatory panel line was removed to save space;
 - summary and translation requests deliberately omit prior chat turns so an earlier response from another page cannot contaminate the new result. Normal Ask requests retain the most recent eight messages as conversational history;
 - the AppKit-backed composer deliberately uses Return to send and Shift-Return for a newline. Do not replace it with SwiftUI `TextEditor` without retaining this behavior;
 - the AI context builder currently performs PDF text extraction synchronously when sending; very large PDFs may briefly delay the UI and should later use a cached background extraction/index;
@@ -1258,5 +1267,5 @@ cd /Users/patrickshi/Documents/Codex/FileViewer
 swift test --jobs 1
 curl http://127.0.0.1:1234/v1/models
 bash scripts/package_app.sh debug
-codesign --verify --deep --strict "build/FileViewer 0.1.1.app"
+codesign --verify --deep --strict "build/FileViewer 0.11.app"
 ```

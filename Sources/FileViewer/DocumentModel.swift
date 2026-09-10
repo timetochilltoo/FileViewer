@@ -877,7 +877,7 @@ final class AppModel: ObservableObject {
         }
         let name = untitledCount == 0 ? "Untitled.md" : "Untitled \(untitledCount + 1).md"
         appendTab(.markdown(MarkdownDocument(url: nil, untitledName: name, text: "", savedText: "")))
-        markdownMode = .split
+        markdownMode = MarkdownPreferences.defaultMode()
         sidebarMode = .contents
         statusMessage = "New Markdown document."
         markdownEditorFocusRequest = UUID()
@@ -2332,10 +2332,7 @@ final class AppModel: ObservableObject {
     }
 
     private func loadSettings() {
-        if let mode = UserDefaults.standard.string(forKey: markdownModeKey),
-           let markdownMode = MarkdownMode(rawValue: mode) {
-            self.markdownMode = markdownMode
-        }
+        markdownMode = MarkdownPreferences.defaultMode()
 
         guard let data = UserDefaults.standard.data(forKey: recentsKey),
               let decoded = try? JSONDecoder().decode([RecentDocument].self, from: data) else {

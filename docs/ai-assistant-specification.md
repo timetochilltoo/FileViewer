@@ -109,12 +109,12 @@ The bottom input area should contain:
 - a multi-line question field;
 - a Send button;
 - the active context scope;
-- a short disclosure such as `Selected text will be sent to <provider>` or `Processed on this Mac`;
+- the active context scope and explicit provider-transfer consent in AI Provider Settings. The compact configuration area does not repeat a separate disclosure line;
 - a visible shortcut reminder: Return sends; Shift-Return inserts a new line.
 
 The current composer uses normal chat behaviour: Return sends the request and Shift-Return inserts a new line. The composer displays this shortcut. Command-Return also sends because it is treated as Return without Shift.
 
-Before an AI action, the configuration area identifies whether the selected endpoint is local to this Mac or a remote provider and names the remote host. Whole Document also warns that the present implementation uses a 12,000-character preview and may be truncated; it is not a complete-document synthesis.
+Before an AI action, the model enforces whether the selected endpoint is local to this Mac or a remote provider and whether remote transfer has been approved in AI Provider Settings. Whole Document also warns that the present implementation uses a 12,000-character preview and may be truncated; it is not a complete-document synthesis.
 
 ## 4. Context Scope
 

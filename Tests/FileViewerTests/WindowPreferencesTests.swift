@@ -22,6 +22,38 @@ final class WindowPreferencesTests: XCTestCase {
         XCTAssertTrue(SidebarPreferences.initialVisibility(defaults: reopened))
     }
 
+    func testMarkdownDefaultViewPreferenceUsesExplicitSettingAndLegacyFallback() throws {
+        let suite = "FileViewerTests.Markdown.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertEqual(MarkdownPreferences.defaultMode(defaults: defaults), .split)
+        defaults.set(MarkdownMode.source.rawValue, forKey: MarkdownPreferences.legacyModeKey)
+        XCTAssertEqual(MarkdownPreferences.defaultMode(defaults: defaults), .source)
+        defaults.set(MarkdownMode.preview.rawValue, forKey: MarkdownPreferences.defaultModeKey)
+        XCTAssertEqual(MarkdownPreferences.defaultMode(defaults: defaults), .preview)
+        defaults.set("invalid", forKey: MarkdownPreferences.defaultModeKey)
+        XCTAssertEqual(MarkdownPreferences.defaultMode(defaults: defaults), .source)
+    }
+
+    @MainActor
+    func testNewMarkdownDocumentUsesConfiguredDefaultView() {
+        let defaults = UserDefaults.standard
+        let previous = defaults.object(forKey: MarkdownPreferences.defaultModeKey)
+        defer {
+            if let previous {
+                defaults.set(previous, forKey: MarkdownPreferences.defaultModeKey)
+            } else {
+                defaults.removeObject(forKey: MarkdownPreferences.defaultModeKey)
+            }
+        }
+
+        defaults.set(MarkdownMode.preview.rawValue, forKey: MarkdownPreferences.defaultModeKey)
+        let model = AppModel()
+        model.newMarkdownDocument()
+        XCTAssertEqual(model.markdownMode, .preview)
+    }
+
     @MainActor
     func testWindowIdentityTracksDocumentChangesIndependently() {
         let first = AppModel()

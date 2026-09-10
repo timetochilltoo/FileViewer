@@ -114,26 +114,35 @@ struct AIAssistantPanel: View {
                 .font(.caption)
             }
 
-            Picker("Provider", selection: Binding(
-                get: { manager.activeProviderID },
-                set: { id in
-                    manager.setActiveProvider(id)
-                    Task { await manager.refreshModels() }
-                }
-            )) {
-                ForEach(manager.providerProfiles) { profile in
-                    Text(profile.name).tag(profile.id)
-                }
-            }
-            .pickerStyle(.menu)
+            HStack(spacing: 8) {
+                Text("Model")
+                    .frame(width: 58, alignment: .leading)
 
-            if !manager.availableModels.isEmpty {
-                Picker("Model", selection: $manager.selectedModel) {
-                    ForEach(manager.availableModels, id: \.self) { model in
-                        Text(model).tag(model)
+                Picker("Provider", selection: Binding(
+                    get: { manager.activeProviderID },
+                    set: { id in
+                        manager.setActiveProvider(id)
+                        Task { await manager.refreshModels() }
+                    }
+                )) {
+                    ForEach(manager.providerProfiles) { profile in
+                        Text(profile.name).tag(profile.id)
                     }
                 }
+                .labelsHidden()
                 .pickerStyle(.menu)
+                .accessibilityLabel("Provider")
+
+                if !manager.availableModels.isEmpty {
+                    Picker("Model", selection: $manager.selectedModel) {
+                        ForEach(manager.availableModels, id: \.self) { model in
+                            Text(model).tag(model)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .accessibilityLabel("Model")
+                }
             }
 
             Picker("Context", selection: sessionBinding(\.scope)) {
@@ -148,16 +157,6 @@ struct AIAssistantPanel: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
-
-            if session.scope == .relevantSections {
-                Text("Relevant Sections finds material matching a question. Translate will use the current page or section instead.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-
-            Label(privacyDisclosure, systemImage: privacyIcon)
-                .font(.caption2)
-                .foregroundStyle(privacyColor)
 
             if session.scope == .wholeDocument {
                 Text("Whole Document uses a 12,000-character preview; very large documents may be truncated.")
@@ -385,26 +384,6 @@ struct AIAssistantPanel: View {
         case .notChecked: .secondary
         case .unavailable: .red
         }
-    }
-
-    private var privacyDisclosure: String {
-        let profile = manager.activeProfile
-        guard let host = URL(string: profile.endpoint)?.host?.lowercased() else {
-            return "Check the provider endpoint before sending document text."
-        }
-        if host == "localhost" || host == "127.0.0.1" || host == "::1" {
-            return "Document context is sent to \(profile.name) on this Mac."
-        }
-        return "Document context is sent to remote provider \(profile.name) (\(host))."
-    }
-
-    private var privacyIcon: String {
-        let host = URL(string: manager.activeProfile.endpoint)?.host?.lowercased()
-        return (host == "localhost" || host == "127.0.0.1" || host == "::1") ? "lock" : "network"
-    }
-
-    private var privacyColor: Color {
-        privacyIcon == "lock" ? .secondary : .orange
     }
 
     private func sessionBinding<Value>(_ keyPath: WritableKeyPath<AIAssistantSession, Value>) -> Binding<Value> {

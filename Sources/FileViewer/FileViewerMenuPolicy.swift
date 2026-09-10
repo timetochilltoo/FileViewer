@@ -12,7 +12,16 @@ enum FileViewerMenuPolicy {
         for name in [NSMenu.didBeginTrackingNotification, NSMenu.didAddItemNotification,
                      NSMenu.didChangeItemNotification] {
             NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in
-                MainActor.assumeIsolated { scheduleCleanup() }
+                MainActor.assumeIsolated {
+                    if name == NSMenu.didBeginTrackingNotification {
+                        // Remove AppKit's system text services before the menu
+                        // is presented, so users never see transient entries
+                        // that do not belong to FileViewer.
+                        cleanMainMenu()
+                    } else {
+                        scheduleCleanup()
+                    }
+                }
             }
         }
         scheduleCleanup()
