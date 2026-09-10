@@ -15,6 +15,7 @@ Current committed baseline: `a378eed` (`Apply Markdown default view when opening
 - The duplicate filename status row below the tab strip is removed; the window title and Window menu continue to identify each document as `<filename> — FileViewer`.
 - The Markdown toolbar places `Markdown View` beside the Preview / Source / Split picker. **FileViewer > Settings…** now stores a default Markdown view for newly opened or created Markdown documents.
 - The AI panel presents the provider and model menus on one compact `Model` row and removes the two explanatory context/privacy lines from the visible configuration area. Remote document transfer still requires the provider's explicit opt-in in the model layer.
+- Latest validation: `swift test --jobs 1` passes all 23 tests; the debug bundle is packaged, ad-hoc signed, plist-linted, and manually checked in the About panel with the transparent icon.
 
 ## 1. Project purpose
 
