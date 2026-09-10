@@ -11,7 +11,7 @@ Current committed baseline: `a378eed` (`Apply Markdown default view when opening
 ## Current implementation updates (2026-09-10)
 
 - The packaged app is version `0.11` at `build/FileViewer 0.11.app`. `CFBundleDisplayName` and `CFBundleName` are `FileViewer`, so the app menu does not include a version suffix. The custom About panel shows the supplied app icon, `FileViewer`, `Version 0.11`, and `By Patrick Shi`.
-- `Resources/fileviewer-light-marker-lines.webp` is the source artwork for `AppIcon.icns`; `scripts/package_app.sh` resizes it with Pillow and signs the resulting bundle.
+- `Resources/fileviewer-light-marker-lines.webp` is the source artwork for `AppIcon.icns`; its white canvas has been cropped away and the rounded corners are transparent. `scripts/package_app.sh` resizes it with Pillow and signs the resulting bundle.
 - The duplicate filename status row below the tab strip is removed; the window title and Window menu continue to identify each document as `<filename> — FileViewer`.
 - The Markdown toolbar places `Markdown View` beside the Preview / Source / Split picker. **FileViewer > Settings…** now stores a default Markdown view for newly opened or created Markdown documents.
 - The AI panel presents the provider and model menus on one compact `Model` row and removes the two explanatory context/privacy lines from the visible configuration area. Remote document transfer still requires the provider's explicit opt-in in the model layer.
