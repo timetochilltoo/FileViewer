@@ -633,11 +633,13 @@ final class AIAssistantManager: ObservableObject {
     @Published private(set) var activeProviderID: UUID
 
     private var generationTasks: [DocumentTab.ID: Task<Void, Never>] = [:]
+    private var modelRefreshGeneration: UInt = 0
     // Some reasoning-capable local models stream their private scratch work in
     // `<think>…</think>` blocks. Keep the unfiltered response only for the
     // duration of the request so that it is never rendered, copied, exported,
     // or included in follow-up chat history.
     private var rawResponseBuffers: [UUID: String] = [:]
+    private static let maximumRawResponseCharacters = 256_000
     private static let profilesKey = "FileViewer.ai.providerProfiles"
     private static let activeProfileKey = "FileViewer.ai.activeProviderID"
     private var suppressModelPersistence = false
@@ -665,6 +667,7 @@ final class AIAssistantManager: ObservableObject {
 
     func setActiveProvider(_ id: UUID) {
         guard providerProfiles.contains(where: { $0.id == id }) else { return }
+        modelRefreshGeneration &+= 1
         activeProviderID = id
         UserDefaults.standard.set(id.uuidString, forKey: Self.activeProfileKey)
         suppressModelPersistence = true
@@ -694,6 +697,7 @@ final class AIAssistantManager: ObservableObject {
         }
         saveProfiles()
         if profile.id == activeProviderID {
+            modelRefreshGeneration &+= 1
             suppressModelPersistence = true
             selectedModel = profile.defaultModel
             suppressModelPersistence = false
@@ -778,10 +782,15 @@ final class AIAssistantManager: ObservableObject {
     }
 
     func refreshModels() async {
+        modelRefreshGeneration &+= 1
+        let refreshGeneration = modelRefreshGeneration
+        let refreshProviderID = activeProviderID
         connectionStatus = .checking
         do {
             let provider = try providerForActiveProfile()
             let models = try await provider.listModels()
+            guard refreshGeneration == modelRefreshGeneration,
+                  refreshProviderID == activeProviderID else { return }
             let chatModels = models.filter { !$0.lowercased().contains("embed") }
             availableModels = chatModels
             if !chatModels.contains(selectedModel), let first = chatModels.first {
@@ -789,6 +798,8 @@ final class AIAssistantManager: ObservableObject {
             }
             connectionStatus = chatModels.isEmpty ? .unavailable("No chat model found") : .connected
         } catch {
+            guard refreshGeneration == modelRefreshGeneration,
+                  refreshProviderID == activeProviderID else { return }
             connectionStatus = .unavailable(error.localizedDescription)
         }
     }
@@ -905,7 +916,12 @@ final class AIAssistantManager: ObservableObject {
             return
         }
         guard let index = current.messages.firstIndex(where: { $0.id == assistantID }) else { return }
-        let rawResponse = (rawResponseBuffers[assistantID] ?? "") + delta
+        let existing = rawResponseBuffers[assistantID] ?? ""
+        let remainingCharacters = Self.maximumRawResponseCharacters - existing.count
+        guard remainingCharacters > 0 else { return }
+        let boundedDelta = String(delta.prefix(remainingCharacters))
+        guard !boundedDelta.isEmpty else { return }
+        let rawResponse = existing + boundedDelta
         rawResponseBuffers[assistantID] = rawResponse
         current.messages[index].content = Self.displayableResponse(from: rawResponse)
         sessions[tabID] = current

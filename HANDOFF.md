@@ -18,7 +18,7 @@ Current committed baseline: `eeea929` (`Add New Markdown toolbar action and hard
 - The AI panel presents the provider and model menus on one compact `Model` row and removes the two explanatory context/privacy lines from the visible configuration area. Remote document transfer still requires the provider's explicit opt-in in the model layer.
 - The open-file panel and packaged document registration now expose PDF and Markdown only; plain-text opening remains future work. `AppModel.open(url:)` rejects non-file URLs before any file read.
 - The review hardened session restore path deduplication with standardized, symlink-resolved paths; PDF page navigation, permanent rotation, and annotation undo/redo guard empty or stale page indexes; and late AI stream callbacks are discarded after a tab closes so conversations cannot be recreated.
-- Configured AI endpoints now reject malformed URLs and embedded credentials, query strings, or fragments before provider access.
+- Configured AI endpoints now reject malformed URLs and embedded credentials, query strings, or fragments before provider access. Overlapping model-discovery requests are generation-checked, and streamed response buffers are capped at 256,000 characters.
 - Latest validation: `swift test --jobs 1` passes all 25 tests; `swift build` succeeds; the debug bundle is packaged, ad-hoc signed, plist-linted, and manually checked in the About panel with the transparent icon.
 
 ## 1. Project purpose
