@@ -1,6 +1,6 @@
 # FileViewer Handoff
 
-Last updated: 2026-09-10
+Last updated: 2026-09-12
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `feature/ai-assistant`
@@ -8,14 +8,18 @@ Current committed baseline: `a378eed` (`Apply Markdown default view when opening
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
-## Current implementation updates (2026-09-10)
+## Current implementation updates (2026-09-12)
 
 - The packaged app is version `0.11` at `build/FileViewer 0.11.app`. `CFBundleDisplayName` and `CFBundleName` are `FileViewer`, so the app menu does not include a version suffix. The custom About panel shows the supplied app icon, `FileViewer`, `Version 0.11`, and `By Patrick Shi`.
 - `Resources/fileviewer-light-marker-lines.webp` is the source artwork for `AppIcon.icns`; its white canvas has been cropped away and the rounded corners are transparent. `scripts/package_app.sh` resizes it with Pillow and signs the resulting bundle.
 - The duplicate filename status row below the tab strip is removed; the window title and Window menu continue to identify each document as `<filename> — FileViewer`.
+- The main toolbar now places an accessible **New Markdown** button between the sidebar toggle and **Open**. The same action remains available from **FileViewer > New Markdown Document** / Command-N.
 - The Markdown toolbar places `Markdown View` beside the Preview / Source / Split picker. **FileViewer > Settings…** now stores a default Markdown view for newly opened or created Markdown documents.
 - The AI panel presents the provider and model menus on one compact `Model` row and removes the two explanatory context/privacy lines from the visible configuration area. Remote document transfer still requires the provider's explicit opt-in in the model layer.
-- Latest validation: `swift test --jobs 1` passes all 23 tests; the debug bundle is packaged, ad-hoc signed, plist-linted, and manually checked in the About panel with the transparent icon.
+- The open-file panel and packaged document registration now expose PDF and Markdown only; plain-text opening remains future work. `AppModel.open(url:)` rejects non-file URLs before any file read.
+- The review hardened session restore path deduplication with standardized, symlink-resolved paths; PDF page navigation, permanent rotation, and annotation undo/redo guard empty or stale page indexes; and late AI stream callbacks are discarded after a tab closes so conversations cannot be recreated.
+- Configured AI endpoints now reject malformed URLs and embedded credentials, query strings, or fragments before provider access.
+- Latest validation: `swift test --jobs 1` passes all 25 tests; `swift build` succeeds; the debug bundle is packaged, ad-hoc signed, plist-linted, and manually checked in the About panel with the transparent icon.
 
 ## 1. Project purpose
 
@@ -67,7 +71,7 @@ bash scripts/package_app.sh debug
 Automated tests are present under `Tests/FileViewerTests` and are run with:
 
 ```bash
-swift test
+swift test --jobs 1
 ```
 
 They cover document safety and core AI context/profile behavior without connecting to a real AI provider. They do not replace manual PDFKit/UI regression testing. Standard verification is:
@@ -342,6 +346,7 @@ Main pieces:
   - optional resizable AI Assistant panel on the right
 - toolbar:
   - one compact `sidebar.left` button at the leading edge. It is always present, so the same hit target opens and closes the fixed-width sidebar in both states and in both PDF and Markdown modes
+  - New Markdown button between the sidebar toggle and Open
   - Open button
   - Markdown mode control when Markdown tab is selected
   - PDF toolbar when PDF tab is selected
@@ -357,7 +362,8 @@ Main pieces:
     - Save / Command-S
     - Save As / Command-Shift-S
     - Print / Command-P
-  - Do not re-add these as toolbar icons unless the toolbar layout is redesigned with overflow/adaptive grouping.
+  - Current implementation update: New Markdown was intentionally restored as the compact toolbar button described above; Save, Save As, and Print remain menu/shortcut actions.
+  - Do not re-add Save, Save As, or Print as toolbar icons unless the toolbar layout is redesigned with overflow/adaptive grouping.
   - Return in the search field moves to next match
 
 PDF rotation:
@@ -1148,7 +1154,7 @@ The AI assistant is implemented on `feature/ai-assistant`. See `docs/ai-assistan
 
 ## 10.1 Automated test baseline
 
-`Package.swift` declares `FileViewerTests`, with XCTest coverage in `Tests/FileViewerTests/DocumentSafetyTests.swift` and `Tests/FileViewerTests/AIAssistantTests.swift`. Run `swift test` before committing changes. Tests cover Markdown dirty state, fresh file-version detection, duplicate-open protection, Markdown extension recognition, PDF temporary-view-rotation save isolation, AI chunking/retrieval, selection isolation, local transport enforcement, and safe provider defaults. They intentionally avoid live network streaming, PDFKit drawing/form editing, native modal dialogs, and full UI interaction; those still require manual or future UI testing.
+`Package.swift` declares `FileViewerTests`, with XCTest coverage in `Tests/FileViewerTests/DocumentSafetyTests.swift`, `Tests/FileViewerTests/AIAssistantTests.swift`, and `Tests/FileViewerTests/WindowPreferencesTests.swift`. Run `swift test --jobs 1` before committing changes. Tests cover Markdown dirty state, fresh file-version detection, duplicate-open protection, non-file URL rejection, Markdown extension recognition, PDF temporary-view-rotation save isolation, AI chunking/retrieval, selection isolation, local transport enforcement, provider endpoint validation, safe provider defaults, menu cleanup, sidebar/default-view preferences, and window identity. They intentionally avoid live network streaming, PDFKit drawing/form editing, native modal dialogs, and full UI interaction; those still require manual or future UI testing.
 
 ### PDF rotation manual test procedure
 

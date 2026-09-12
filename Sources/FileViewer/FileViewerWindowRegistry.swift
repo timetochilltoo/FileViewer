@@ -219,7 +219,11 @@ final class FileViewerWindowRegistry {
                 var window = savedWindow
                 window.tabs.removeAll { tab in
                     guard !tab.path.isEmpty else { return false }
-                    return !seenPaths.insert(tab.path).inserted
+                    let normalizedPath = URL(fileURLWithPath: tab.path)
+                        .standardizedFileURL
+                        .resolvingSymlinksInPath()
+                        .path
+                    return !seenPaths.insert(normalizedPath).inserted
                 }
                 window.selectedTabIndex = min(
                     max(0, window.selectedTabIndex),

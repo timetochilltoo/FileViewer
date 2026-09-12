@@ -54,6 +54,17 @@ final class DocumentSafetyTests: XCTestCase {
     }
 
     @MainActor
+    func testOpeningNonFileURLDoesNotReadExternalContent() {
+        let model = AppModel()
+        let url = URL(string: "https://example.com/notes.md")!
+
+        model.open(url: url)
+
+        XCTAssertTrue(model.tabs.isEmpty)
+        XCTAssertEqual(model.statusMessage, "This file type is not supported yet.")
+    }
+
+    @MainActor
     func testNewMarkdownDocumentIsImmediatelySaveable() {
         let model = AppModel()
 

@@ -16,7 +16,8 @@
 ## Safety constraints
 
 - Preserve one `AppModel` per window and document/search/reading state per tab. Route external opens through `FileViewerWindowRegistry` and keep one writable instance per file.
+- Accept local file URLs only; the packaged app and open panel support PDF and Markdown, and non-file URLs must be rejected before reading.
 - Preserve unsaved-change prompts, external-file conflict checks, verified temporary-file replacement for PDF saves, and cancellation/failure behavior that keeps documents open.
-- Keep temporary PDF view rotation out of serialized saves, persist permanent page rotation/edits, and guard PDFKit indexes before arithmetic or access. Keep annotation undo chronological.
+- Keep temporary PDF view rotation out of serialized saves, persist permanent page rotation/edits, and guard PDFKit indexes before arithmetic or access (including annotation undo/redo). Keep annotation undo chronological.
 - Preserve native Markdown `NSTextView` selection, undo, UTF-16 ranges, scroll state, and non-dirty search highlighting.
-- Remote AI transfer requires explicit provider opt-in. Keep credentials in Keychain, never logs/UserDefaults; treat excerpts as untrusted; provide no file-mutation tools; isolate context per tab and clear conversations on tab close.
+- Remote AI transfer requires explicit provider opt-in; accept only HTTP(S) endpoints without embedded credentials, query strings, or fragments. Keep credentials in Keychain, never logs/UserDefaults; treat excerpts as untrusted; provide no file-mutation tools; isolate context per tab and clear conversations on tab close.

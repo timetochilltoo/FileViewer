@@ -276,6 +276,7 @@ struct PDFKitView: NSViewRepresentable {
 
         @MainActor @objc private func goToPage(_ notification: Notification) {
             guard receivesCommand(notification) else { return }
+            guard parent.document.pageCount > 0 else { return }
             let requestedPage = notification.object as? Int ?? parent.page
             guard let page = parent.document.page(at: max(0, min(parent.document.pageCount - 1, requestedPage - 1))) else { return }
             pdfView?.go(to: page)
@@ -283,7 +284,9 @@ struct PDFKitView: NSViewRepresentable {
         }
 
         @MainActor @objc private func goToAnnotation(_ notification: Notification) {
-            guard let target = notification.object as? PDFAnnotationNavigationTarget,
+            guard receivesCommand(notification),
+                  parent.document.pageCount > 0,
+                  let target = notification.object as? PDFAnnotationNavigationTarget,
                   target.url == parent.documentURL,
                   let page = parent.document.page(at: max(0, min(parent.document.pageCount - 1, target.page - 1))) else { return }
             if target.bounds.width > 0, target.bounds.height > 0 {
@@ -602,6 +605,7 @@ struct PDFKitView: NSViewRepresentable {
 
         @MainActor func applyPageAndScale(page requestedPage: Int, scale requestedScale: CGFloat) {
             guard let view = pdfView else { return }
+            guard parent.document.pageCount > 0 else { return }
             let requestedPage = max(1, min(requestedPage, max(parent.document.pageCount, 1)))
             if let currentPage = view.currentPage {
                 let currentIndex = parent.document.index(for: currentPage)

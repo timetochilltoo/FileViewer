@@ -51,12 +51,14 @@ The user can open a document by:
 - Selecting a recent file.
 - Opening a file from the operating system, if packaged as a desktop app.
 
+The user can create an unsaved Markdown document from the main toolbar's **New Markdown** button or **FileViewer > New Markdown Document** (Command-N).
+
 Expected behavior:
 
 - The app detects file type automatically.
 - Unsupported file types show a clear message.
 - Opening multiple supported files inside one app window keeps them available as tabs.
-- Opening files from Finder / Open With uses separate windows when existing windows already contain documents, so comparing two Markdown/PDF files side-by-side is practical.
+- Opening files from Finder / Open With uses separate windows when existing windows already contain documents, so comparing two Markdown/PDF files side-by-side is practical. The packaged app currently registers PDF and Markdown file types; plain-text support remains future work.
 - Opening document A from Finder, then document B from Finder, should leave the A window showing A and open/show B in a different window.
 - Opening the same supported file again should bring its existing FileViewer tab/window forward. FileViewer intentionally keeps one writable in-memory instance per file to prevent two windows from silently overwriting each other.
 - Each document window displays its current document name as `<filename> — FileViewer` in the title bar and Window menu, including after tab selection or Save As.
@@ -144,7 +146,7 @@ Expected behavior:
 
 Required:
 
-- Top toolbar with file open, search, and document-specific view controls. File creation, saving, Save As, and printing remain available from app menus and keyboard shortcuts rather than consuming toolbar space.
+- Top toolbar with a sidebar toggle, New Markdown, file open, search, and document-specific view controls. Save, Save As, and printing remain available from app menus and keyboard shortcuts rather than consuming toolbar space.
 - Left sidebar that can switch between thumbnails, table of contents, and recent files, with one stable compact toggle at the leading edge of the document toolbar. The toggle must remain available in both open and closed states.
 - The sidebar launch preference must be available from **FileViewer > Settings…** with Show Sidebar, Hide Sidebar, and Remember Last State choices.
 - Main document viewing area.
@@ -168,6 +170,7 @@ Required:
 - Edit Markdown source text.
 - Save Markdown changes.
 - Save Markdown as a new file.
+- Create a new unsaved Markdown document from the toolbar or File menu.
 - Switch between preview, source, and split view.
 - Update preview while editing.
 - Show saved and unsaved state.
@@ -258,7 +261,7 @@ Toolbar design note:
 
 - The PDF top toolbar should stay compact: navigation, zoom, search, Undo/Redo, and a single `Annotate` menu. Group markup, creation, edit modes, color, and stroke-width controls inside that menu rather than crowding the window with icon-only buttons.
 - PDF controls should use the small macOS/SwiftUI control size and fixed icon hit areas so PDF navigation remains visually aligned with the Markdown toolbar. The sidebar toggle is outside the PDF-specific group and is shared by PDF and Markdown.
-- These actions remain available from the app menus and shortcuts: New Markdown Document, Save / Command-S, Save As / Command-Shift-S, and Print / Command-P.
+- New Markdown is available in the compact main toolbar and from the app menu / Command-N. Save / Command-S, Save As / Command-Shift-S, and Print / Command-P remain menu and shortcut actions.
 
 Recommended:
 

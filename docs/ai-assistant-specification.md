@@ -2,9 +2,9 @@
 
 Status: implemented on `feature/ai-assistant` (current branch); configurable provider profiles support LM Studio, Ollama, OpenAI-compatible servers, and OpenAI
 
-## Current implementation — 2026-07-20
+## Current implementation — 2026-09-12
 
-The first functional vertical slice is implemented on the separate branch `feature/ai-assistant`:
+The current native implementation is on the `feature/ai-assistant` branch:
 
 - a toolbar sparkle button opens a resizable 280–600 point right panel;
 - the panel header's gear button opens **AI Provider Settings**, where the user adds, edits, removes, and selects provider profiles;
@@ -27,7 +27,9 @@ The first functional vertical slice is implemented on the separate branch `featu
 - summaries and translations use only the current request context; only a normal question carries the preceding conversation turns;
 - the chat composer uses Return or Command-Return to send and Shift-Return to insert a line break, with the shortcut displayed under the editor;
 - the manager depends on an `AIProvider` protocol and a common Chat-Completions transport, so compatible providers use the same document-context safeguards;
-- automated tests cover context chunking, selection isolation, basic retrieval, local-endpoint enforcement in the legacy LM Studio adapter, provider-profile defaults, and document safety.
+- the compact configuration row labels the provider and model controls together as `Model`; the explanatory context/privacy lines are omitted from the visible panel to preserve space;
+- provider endpoint validation accepts only HTTP(S) URLs without embedded credentials, query strings, or fragments;
+- automated tests cover context chunking, selection isolation, basic retrieval, local-endpoint enforcement in the legacy LM Studio adapter, provider-profile defaults, endpoint validation, and document safety.
 
 This is intentionally not the complete specification. Remaining work includes selection context-menu commands, hierarchical summaries for very large documents, persisted conversations, a mock streaming-provider test, accessibility review, and narrow-window overlay behavior. PDF page provenance chips are clickable; Markdown heading labels are informational only. Context is capped at 12,000 characters and reports when it is truncated; Whole Document is therefore a preview, not yet a complete-document synthesis. The request also reserves 1,024 output tokens. No document text is sent until the user presses Send, Summarize, or Translate.
 
@@ -108,8 +110,7 @@ The bottom input area should contain:
 
 - a multi-line question field;
 - a Send button;
-- the active context scope;
-- the active context scope and explicit provider-transfer consent in AI Provider Settings. The compact configuration area does not repeat a separate disclosure line;
+- the active context scope; remote document-transfer consent is configured per provider in AI Provider Settings, and the compact configuration area does not repeat a separate disclosure line;
 - a visible shortcut reminder: Return sends; Shift-Return inserts a new line.
 
 The current composer uses normal chat behaviour: Return sends the request and Shift-Return inserts a new line. The composer displays this shortcut. Command-Return also sends because it is treated as Return without Shift.

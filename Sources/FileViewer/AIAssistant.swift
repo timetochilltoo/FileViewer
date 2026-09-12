@@ -477,12 +477,23 @@ struct ConfiguredAIProviderClient: AIProvider {
     let baseURL: URL
     let apiKey: String?
 
-    init(profile: AIProviderProfile, apiKey: String?) throws {
-        let endpoint = profile.endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let url = URL(string: endpoint), url.scheme == "http" || url.scheme == "https" else {
+    static func validatedURL(from endpoint: String) throws -> URL {
+        let trimmedEndpoint = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmedEndpoint),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              url.host?.isEmpty == false,
+              url.user == nil,
+              url.password == nil,
+              url.query == nil,
+              url.fragment == nil else {
             throw LMStudioError.badResponse
         }
-        self.baseURL = url
+        return url
+    }
+
+    init(profile: AIProviderProfile, apiKey: String?) throws {
+        self.baseURL = try Self.validatedURL(from: profile.endpoint)
         self.apiKey = apiKey
     }
 
@@ -715,9 +726,8 @@ final class AIAssistantManager: ObservableObject {
 
     private func providerForActiveProfile() throws -> any AIProvider {
         let profile = activeProfile
-        guard let endpoint = URL(string: profile.endpoint), let host = endpoint.host?.lowercased() else {
-            throw LMStudioError.badResponse
-        }
+        let endpoint = try ConfiguredAIProviderClient.validatedURL(from: profile.endpoint)
+        let host = endpoint.host?.lowercased() ?? ""
         let isLocal = host == "localhost" || host == "127.0.0.1" || host == "::1"
         if !isLocal && !profile.allowRemoteAccess {
             throw LMStudioError.remoteProviderNotAllowed(profile.name)
@@ -890,7 +900,10 @@ final class AIAssistantManager: ObservableObject {
     }
 
     private func append(delta: String, to assistantID: UUID, tabID: DocumentTab.ID) {
-        var current = sessions[tabID] ?? AIAssistantSession()
+        guard var current = sessions[tabID] else {
+            rawResponseBuffers[assistantID] = nil
+            return
+        }
         guard let index = current.messages.firstIndex(where: { $0.id == assistantID }) else { return }
         let rawResponse = (rawResponseBuffers[assistantID] ?? "") + delta
         rawResponseBuffers[assistantID] = rawResponse
@@ -899,7 +912,11 @@ final class AIAssistantManager: ObservableObject {
     }
 
     private func finishResponse(assistantID: UUID, tabID: DocumentTab.ID, error: Error? = nil) {
-        var current = sessions[tabID] ?? AIAssistantSession()
+        guard var current = sessions[tabID] else {
+            rawResponseBuffers[assistantID] = nil
+            generationTasks[tabID] = nil
+            return
+        }
         current.isGenerating = false
         if let index = current.messages.firstIndex(where: { $0.id == assistantID }),
            let rawResponse = rawResponseBuffers.removeValue(forKey: assistantID) {

@@ -133,6 +133,15 @@ struct ContentView: View {
             .help(sidebarVisible ? "Hide Sidebar" : "Show Sidebar")
 
             Button {
+                model.newMarkdownDocument()
+            } label: {
+                Label("New Markdown", systemImage: "doc.badge.plus")
+                    .labelStyle(.iconOnly)
+            }
+            .help("New Markdown")
+            .accessibilityLabel("New Markdown")
+
+            Button {
                 model.openWithPanel()
             } label: {
                 Label("Open", systemImage: "folder")

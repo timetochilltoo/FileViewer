@@ -885,7 +885,7 @@ final class AppModel: ObservableObject {
 
     func openWithPanel() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.pdf, .text, .plainText]
+        panel.allowedContentTypes = Self.supportedOpenContentTypes
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
@@ -896,6 +896,10 @@ final class AppModel: ObservableObject {
     }
 
     func open(url: URL) {
+        guard url.isFileURL else {
+            statusMessage = "This file type is not supported yet."
+            return
+        }
         syncVisibleDocumentState()
         statusMessage = ""
         if selectOpenDocument(url: url) {
@@ -1314,7 +1318,9 @@ final class AppModel: ObservableObject {
     private func removePDFAnnotationObjects(_ items: [PDFAnnotationObjectItem], from document: PDFDocument) -> Bool {
         var didRemove = false
         for item in items.reversed() {
-            let page = document.page(at: item.pageIndex) ?? item.page
+            guard item.pageIndex >= 0,
+                  item.pageIndex < document.pageCount,
+                  let page = document.page(at: item.pageIndex) else { continue }
             if page.annotations.contains(where: { $0 === item.annotation }) {
                 page.removeAnnotation(item.annotation)
                 didRemove = true
@@ -1330,7 +1336,9 @@ final class AppModel: ObservableObject {
     private func addPDFAnnotationObjects(_ items: [PDFAnnotationObjectItem], to document: PDFDocument) -> Bool {
         var didAdd = false
         for item in items {
-            let page = document.page(at: item.pageIndex) ?? item.page
+            guard item.pageIndex >= 0,
+                  item.pageIndex < document.pageCount,
+                  let page = document.page(at: item.pageIndex) else { continue }
             let alreadyExists = page.annotations.contains { annotation in
                 annotation === item.annotation || annotation.fileViewerUndoID == item.annotationID
             }
@@ -1400,6 +1408,7 @@ final class AppModel: ObservableObject {
         guard let index = selectedTabIndex,
               tabs.indices.contains(index),
               case .pdf(let pdf) = tabs[index].document else { return }
+        guard pdf.document.pageCount > 0 else { return }
 
         let normalizedDegrees = normalizedPDFRotation(degrees)
         guard normalizedDegrees != 0 else { return }
@@ -2577,6 +2586,17 @@ final class AppModel: ObservableObject {
     static func isMarkdown(_ url: URL) -> Bool {
         let ext = url.pathExtension.lowercased()
         return ext == "md" || ext == "markdown"
+    }
+
+    private static var supportedOpenContentTypes: [UTType] {
+        var types: [UTType] = [.pdf]
+        if let markdown = UTType(filenameExtension: "md") {
+            types.append(markdown)
+        }
+        if let markdown = UTType(filenameExtension: "markdown") {
+            types.append(markdown)
+        }
+        return types
     }
 
     static func extractHeadings(from text: String) -> [MarkdownHeading] {

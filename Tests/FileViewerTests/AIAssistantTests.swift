@@ -164,6 +164,24 @@ final class AIAssistantTests: XCTestCase {
         XCTAssertFalse(openAI.allowRemoteAccess)
     }
 
+    func testConfiguredProviderRejectsEndpointCredentialsAndFragments() {
+        let endpoints = [
+            "https://user:secret@example.com/v1",
+            "https://example.com/v1?token=secret",
+            "https://example.com/v1#fragment"
+        ]
+
+        for endpoint in endpoints {
+            let profile = AIProviderProfile(
+                name: "Unsafe",
+                kind: .openAICompatible,
+                endpoint: endpoint,
+                allowRemoteAccess: true
+            )
+            XCTAssertThrowsError(try ConfiguredAIProviderClient(profile: profile, apiKey: nil), endpoint)
+        }
+    }
+
     func testOnlyOpenAIProfileRequiresAnAPIKeyByDefault() {
         XCTAssertTrue(AIProviderKind.openAI.needsAPIKey)
         XCTAssertFalse(AIProviderKind.lmStudio.needsAPIKey)

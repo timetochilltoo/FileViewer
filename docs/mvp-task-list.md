@@ -5,6 +5,7 @@
 The MVP is a native macOS SwiftUI document viewer and editor that supports:
 
 - Opening Markdown and PDF files.
+- Creating a new unsaved Markdown document from the main toolbar or File menu.
 - Viewing Markdown as rendered preview, source text, or split view.
 - Editing and saving Markdown files.
 - Formatting Markdown from source or preview selections.
@@ -20,6 +21,7 @@ PDF annotation and fillable-form support were implemented after the original MVP
 - Create native SwiftUI macOS app structure.
 - Set deployment target to macOS 26.
 - Add basic app layout with toolbar, sidebar, and main viewer area.
+- Add compact New Markdown action between the sidebar toggle and Open control.
 - Add app-wide native styling.
 - Support system light and dark appearance.
 - Add persistent local settings storage using `UserDefaults`.
@@ -35,6 +37,7 @@ Acceptance criteria:
 ## 3. File Opening
 
 - Add open-file button.
+- Add New Markdown button.
 - Add drag-and-drop file opening.
 - Add Finder/Open With file opening.
 - Detect file type by extension and file metadata.
@@ -342,6 +345,7 @@ This section records the boundary of the original viewer MVP. Some items, includ
 - Source-editor right-click formatting uses a custom Markdown command menu.
 - Unsaved Markdown tab/window close confirmation has been implemented.
 - A packaged `.app` bundle with icon and document type registration has been implemented.
+- The main toolbar includes New Markdown between the sidebar toggle and Open, while Save, Save As, and Print remain menu/shortcut actions.
 - The app builds successfully with Swift tools version 6.2 on macOS 26.
 - PDF annotations, drawing, notes, form editing, safe PDF save, and annotation reports have been implemented after the original MVP.
 - Reading-only view rotation plus permanent current-page/all-page rotation have been implemented. The permanent actions save only after an explicit Save or Save As.

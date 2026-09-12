@@ -13,7 +13,7 @@ Current MVP build includes:
 - Restore PDF page/zoom and Markdown Source/Preview scroll position for reopened files.
 - Markdown windows can be resized narrow enough for two documents side-by-side.
 - Drag-and-drop file opening, including multiple dropped files.
-- macOS Open With / external file-open handling for PDF, Markdown, and text files. Finder-opened documents use separate windows so existing windows do not all switch to the newest document.
+- macOS Open With / external file-open handling for PDF and Markdown files. Finder-opened documents use separate windows so existing windows do not all switch to the newest document; plain-text support remains future work.
 - Markdown source view.
 - Markdown rendered preview.
 - Select text in Markdown preview and use formatting buttons to update the Markdown source.
@@ -37,6 +37,7 @@ Current MVP build includes:
   - table insertion
   - task list insertion/conversion
 - Help menu Markdown syntax guide.
+- Compact New Markdown button between the sidebar toggle and Open button, with the same action also available from **FileViewer > New Markdown Document** / Command-N.
 - PDF rendering.
 - PDF page navigation.
 - PDF first/last page controls.
@@ -77,8 +78,8 @@ Current MVP build includes:
   - warn before closing a PDF tab/window with unsaved PDF changes
   - confirm unsaved documents before Command-Q, block overwriting files changed outside FileViewer, and write PDF saves through a verified temporary file before replacing the original
   - keep PDF controls compact with navigation/search/Undo/Redo in the toolbar and fixed-size icon-only `Annotate` and `Rotate` menus for markup, notes, shapes, drawing, edit modes, color, stroke width, and page rotation; PDF icon-only actions use a plain 32×28 hit target and borderless menus so the default macOS grey button capsules do not make the PDF controls look oversized beside the Markdown toolbar; fixed control widths prevent adjacent controls from visually overlapping
-- File-management actions are intentionally kept in menus/shortcuts instead of the crowded toolbar:
-  - New Markdown Document
+- File-management actions are available from the app menus and keyboard shortcuts:
+  - New Markdown Document / Command-N, also available from the main toolbar
   - Save / Command-S
   - Save As / Command-Shift-S
   - Print / Command-P
@@ -113,13 +114,13 @@ The earlier React/Vite prototype remains in the folder for reference, but SwiftU
 
 ## Automated Tests
 
-The Swift package includes an XCTest target for fast safety and document-model checks. Run it with:
+The Swift package includes an XCTest target for fast safety and document-model checks. Run it serially with:
 
 ```bash
-swift test
+swift test --jobs 1
 ```
 
-The suite verifies Markdown dirty-state behavior, file-version change detection, duplicate-open protection, Markdown file recognition, AI context chunking/retrieval, selected-text isolation, local-only legacy transport enforcement, and safe provider-profile defaults. PDFKit drawing and native window dialogs remain manual/UI-test work for now.
+The suite verifies Markdown dirty-state behavior, file-version change detection, duplicate-open protection, non-file URL rejection, Markdown file recognition, AI context chunking/retrieval, selected-text isolation, local-only legacy transport enforcement, safe provider-profile defaults, and provider endpoint validation. PDFKit drawing and native window dialogs remain manual/UI-test work for now.
 
 ## Packaged App
 
