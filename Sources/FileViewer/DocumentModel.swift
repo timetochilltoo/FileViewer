@@ -1733,6 +1733,7 @@ final class AppModel: ObservableObject {
     }
 
     func addRecent(name: String, kind: DocumentKind, url: URL) {
+        guard url.isFileURL else { return }
         let next = RecentDocument(name: name, kind: kind, url: url, openedAt: Date())
         recents.removeAll { $0.url == url }
         recents.insert(next, at: 0)
@@ -1741,6 +1742,13 @@ final class AppModel: ObservableObject {
     }
 
     func reopenRecent(_ recent: RecentDocument) {
+        guard recent.url.isFileURL,
+              FileManager.default.isReadableFile(atPath: recent.url.path) else {
+            recents.removeAll { $0.id == recent.id }
+            saveRecents()
+            statusMessage = "This recent file is no longer available."
+            return
+        }
         open(url: recent.url)
     }
 
@@ -2348,7 +2356,12 @@ final class AppModel: ObservableObject {
               let decoded = try? JSONDecoder().decode([RecentDocument].self, from: data) else {
             return
         }
-        recents = decoded
+        recents = decoded.filter {
+            $0.url.isFileURL && FileManager.default.isReadableFile(atPath: $0.url.path)
+        }
+        if recents.count != decoded.count {
+            saveRecents()
+        }
     }
 
     private func saveRecents() {
