@@ -17,6 +17,7 @@ Current committed baseline: `eaec82a` (`Prune unavailable recent files`)
 - The Markdown toolbar places `Markdown View` beside the Preview / Source / Split picker. **FileViewer > Settings…** now stores a default Markdown view for newly opened or created Markdown documents.
 - The AI panel presents the provider and model menus on one compact `Model` row and removes the two explanatory context/privacy lines from the visible configuration area. Remote document transfer still requires the provider's explicit opt-in in the model layer.
 - The open-file panel and packaged document registration now expose PDF and Markdown only; plain-text opening remains future work. `AppModel.open(url:)` rejects non-file URLs before any file read.
+- Password-protected/encrypted PDFs remain outside the current product scope; no password-entry flow is planned.
 - Recent-file loading now keeps only readable local file URLs and removes stale or non-file entries; attempts to reopen an unavailable recent file prune it immediately.
 - The review hardened session restore path deduplication with standardized, symlink-resolved paths; PDF page navigation, permanent rotation, and annotation undo/redo guard empty or stale page indexes; and late AI stream callbacks are discarded after a tab closes so conversations cannot be recreated.
 - Configured AI endpoints now reject malformed URLs and embedded credentials, query strings, or fragments before provider access. Overlapping model-discovery requests are generation-checked, and streamed response buffers are capped at 256,000 characters.

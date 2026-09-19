@@ -140,7 +140,7 @@ Acceptance criteria:
 - Render pages clearly.
 - Lazy-render pages for performance.
 - Add loading and error states.
-- Support password/error messaging for encrypted or damaged PDFs.
+- Treat encrypted/password-protected PDFs as unsupported; password-entry UI is outside the product scope.
 
 Acceptance criteria:
 
@@ -356,7 +356,7 @@ This section records the boundary of the original viewer MVP. Some items, includ
 The original viewer MVP and later PDF annotation/form and AI milestones are implemented. The following plan items remain unfinished or partial:
 
 - Markdown preview: richer GitHub-Flavored Markdown tables, local image rendering, richer code presentation, copy-code actions, and heading-to-source navigation.
-- PDF workflow: specific password guidance for encrypted PDFs, fullscreen/presentation mode, two-page spread or selectable single-page mode, and page delete/reorder/extract/merge/insert.
+- PDF workflow: fullscreen/presentation mode, two-page spread or selectable single-page mode, and page delete/reorder/extract/merge/insert.
 - PDF annotations: author and timestamp metadata.
 - Export: Markdown-to-PDF/HTML, PDF page/image export, and advanced PDF operations.
 - Advanced Markdown: Mermaid and math rendering.

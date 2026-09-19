@@ -220,7 +220,7 @@ Recommended:
 - Two-page spread mode.
 - Continuous scroll and single-page modes.
 - Remember last page and zoom per file.
-- Password-protected PDF support.
+- Password-protected PDF support is outside the current product scope.
 
 ## 6.4 PDF Annotation
 
@@ -324,7 +324,7 @@ The app should clearly distinguish between true content editing and annotation/p
 - PDF Save must write and verify a temporary file before atomically replacing the original.
 - For PDF edits, default to saving a new copy.
 - Recover gracefully if a file cannot be opened.
-- Show useful errors for corrupted, encrypted, or unsupported documents.
+- Show useful errors for corrupted or unsupported documents. Password-protected PDFs may be reported as unsupported; password entry is outside the product scope.
 
 ## 7.4 Accessibility
 
