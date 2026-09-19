@@ -2,12 +2,12 @@
 
 Status: implemented on `feature/ai-assistant` (current branch); configurable provider profiles support LM Studio, Ollama, OpenAI-compatible servers, and OpenAI
 
-## Current implementation — 2026-09-12
+## Current implementation — 2026-09-19
 
 The current native implementation is on the `feature/ai-assistant` branch:
 
 - a toolbar sparkle button opens a resizable 280–600 point right panel;
-- the panel header's gear button opens **AI Provider Settings**, where the user adds, edits, removes, and selects provider profiles;
+- the panel header's gear button opens **AI Provider Settings**, where the user adds, edits, removes, selects provider profiles, discovers models, and chooses the active model;
 - conversations are in memory and isolated by document tab;
 - provider profiles are persisted locally, with LM Studio (`http://127.0.0.1:1234/v1`) as the safe default;
 - the built-in profile choices are LM Studio, Ollama (`http://127.0.0.1:11434/v1`), a custom OpenAI-compatible server, and OpenAI (`https://api.openai.com/v1`);
@@ -21,13 +21,14 @@ The current native implementation is on the `feature/ai-assistant` branch:
 - Selected Text, Current Page/Section, Relevant Sections, and Whole Document scopes are implemented;
 - PDF pages and Markdown headings are used as context labels;
 - question, short-overview/key-points summary, translation, cancellation, errors, basic Markdown response rendering, and model selection are implemented;
-- the configuration clearly separates `Summary & Q&A` from `Translation`: summaries and normal questions share a `Response language` selector (English, Traditional Chinese, or Simplified Chinese), while translation has its own three-language `Translate to` selector;
+- the compact configuration row keeps the context scope visible and puts summary, translation, and language choices in an `Actions` menu;
 - the request transcript accurately names the selected scope, for example `Translate the selected text into Traditional Chinese` rather than implying the whole document is translated;
 - `Relevant Sections` is intended for question answering. If it is selected when Translate is pressed, the app changes the effective scope to Current Page/Section, because translation prompts have no meaningful search terms and must not retrieve unrelated pages;
 - summaries and translations use only the current request context; only a normal question carries the preceding conversation turns;
 - the chat composer uses Return or Command-Return to send and Shift-Return to insert a line break, with the shortcut displayed under the editor;
 - the manager depends on an `AIProvider` protocol and a common Chat-Completions transport, so compatible providers use the same document-context safeguards;
-- the compact configuration row labels the provider and model controls together as `Model`; the explanatory context/privacy lines are omitted from the visible panel to preserve space;
+- provider and model controls are kept in **AI Provider Settings** to preserve panel space; the header shows the active model on the far right beside `AI Assistant`;
+- completed responses use readable line spacing and offer **Open in Markdown**, which opens a clean temporary Preview tab alongside the existing copy and save actions;
 - provider endpoint validation accepts only HTTP(S) URLs without embedded credentials, query strings, or fragments;
 - automated tests cover context chunking, selection isolation, basic retrieval, local-endpoint enforcement in the legacy LM Studio adapter, provider-profile defaults, endpoint validation, and document safety.
 
@@ -79,15 +80,16 @@ The current header shows:
 
 - `AI Assistant`;
 - the current document name;
+- the active model on the far right; clicking it opens **AI Provider Settings**;
 - clear-conversation, conversation-export, provider-settings, and panel-close controls;
 - a panel close button.
 
 ### 3.3 Primary Actions
 
-The current panel separates the actions to avoid ambiguous language controls:
+The compact panel keeps the actions available without reserving a permanent section for each one:
 
-- **Summary & Q&A** contains the `Answer in` selector and `Summarize` button;
-- **Translation** contains its separate `Translate to` selector and `Translate` button;
+- the context scope remains visible in the configuration row;
+- an **Actions** menu contains the `Answer in` selector, `Summarize Context`, `Translate to` selector, and `Translate Context`;
 - **Ask a Question** is the composer at the bottom of the panel.
 
 ### 3.4 Conversation Area
@@ -100,7 +102,8 @@ The conversation area should show:
 - a **Sources provided to the model** strip on every completed response. It lists the exact page or Markdown-heading chunks included in that individual request; PDF page chips are presented in ascending page order and are clickable to navigate to that page. This is provenance, not an external reference link and not a claim that the model necessarily cited every chip in its prose;
 - a **Save Conversation** command that writes the current in-memory conversation to a Markdown file, including source/model metadata and the source chunks provided to each answer. Conversations remain memory-only unless the user explicitly exports one;
 - the exact request provenance labels; PDF page labels are clickable and open the corresponding page, while Markdown heading labels are not yet navigable;
-- **Copy Answer** (plain text with Markdown syntax removed), **Copy as Markdown**, and **Save as Markdown** for each completed response;
+- **Open in Markdown**, **Copy Answer** (plain text with Markdown syntax removed), **Copy as Markdown**, and **Save as Markdown** for each completed response;
+- readable line spacing and a full-width temporary Markdown Preview tab for answers that need more room;
 - a clear error message when a request fails;
 - a Stop button during generation.
 
@@ -184,7 +187,7 @@ The current request supports cancellation, but page-by-page progress and hierarc
 - The source language defaults to automatic detection.
 - The result should preserve paragraphs, headings, lists, and simple tables where practical.
 - Translation output appears in the AI panel.
-- Every completed assistant response offers **Copy Answer**, **Copy as Markdown**, and **Save as Markdown**. **Copy Answer** converts the response to readable plain text before copying it, removing Markdown formatting syntax. The Markdown actions preserve the raw response Markdown and add source document, selected context, model, and generated-time provenance. Saving can target an Obsidian vault directly. Creating a new unsaved Markdown document from the response remains future work.
+- Every completed assistant response offers **Open in Markdown**, **Copy Answer**, **Copy as Markdown**, and **Save as Markdown**. **Open in Markdown** creates a clean in-memory Markdown tab in Preview mode; editing it makes the normal Save As flow available. **Copy Answer** converts the response to readable plain text before copying it, removing Markdown formatting syntax. The Markdown actions preserve the raw response Markdown and add source document, selected context, model, and generated-time provenance. Saving can target an Obsidian vault directly.
 - The original document is not modified.
 
 ### 6.2 Initial Languages

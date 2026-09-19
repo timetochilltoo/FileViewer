@@ -883,6 +883,23 @@ final class AppModel: ObservableObject {
         markdownEditorFocusRequest = UUID()
     }
 
+    /// Opens an AI response as an in-memory Markdown tab so it can be read at
+    /// full document width without asking the user to choose a save location.
+    /// The tab starts clean; editing it makes the normal Save As flow available.
+    func openTemporaryMarkdownDocument(name: String, text: String) {
+        let preferredName = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "AI Response.md" : name
+        let uniqueName = uniqueMarkdownName(preferredName)
+        appendTab(.markdown(MarkdownDocument(
+            url: nil,
+            untitledName: uniqueName,
+            text: text,
+            savedText: text
+        )))
+        markdownMode = .preview
+        sidebarMode = .contents
+        statusMessage = "Opened AI response in Markdown."
+    }
+
     func openWithPanel() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = Self.supportedOpenContentTypes
@@ -2572,6 +2589,25 @@ final class AppModel: ObservableObject {
     private func appendTab(_ tab: DocumentTab) {
         tabs.append(tab)
         selectedTabID = tab.id
+    }
+
+    private func uniqueMarkdownName(_ preferredName: String) -> String {
+        let existingNames = Set(tabs.compactMap { tab -> String? in
+            guard case .markdown(let markdown) = tab.document else { return nil }
+            return markdown.name
+        })
+        guard existingNames.contains(preferredName) else { return preferredName }
+
+        let preferredURL = URL(fileURLWithPath: preferredName)
+        let stem = preferredURL.deletingPathExtension().lastPathComponent
+        let suffix = preferredURL.pathExtension.isEmpty ? "" : ".\(preferredURL.pathExtension)"
+        var index = 2
+        var candidate = "\(stem) \(index)\(suffix)"
+        while existingNames.contains(candidate) {
+            index += 1
+            candidate = "\(stem) \(index)\(suffix)"
+        }
+        return candidate
     }
 
     private func updateSidebarForSelectedDocument() {

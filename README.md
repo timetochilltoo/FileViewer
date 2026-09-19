@@ -88,13 +88,14 @@ Current MVP build includes:
 - Light and dark theme.
 - Local AI assistant (feature branch `feature/ai-assistant`):
   - resizable right-side panel with per-document conversations
-  - compact Model controls with provider and model menus on one row
+  - compact panel with context and actions; provider/model selection lives in AI Provider Settings and the active model is shown in the header
   - ask, summarize, and translate PDF or Markdown content
   - explicit Selected Text, Current Page/Section, Relevant Sections, and Whole Document scopes
   - PDF page and Markdown heading context labels for grounded answers
   - streaming responses, Stop, model discovery, and connection status
   - persisted provider profiles for local LM Studio and Ollama, custom OpenAI-compatible servers, and OpenAI
   - local endpoints work immediately; remote profiles require explicit approval before document text is sent, and API keys are kept in macOS Keychain
+  - completed answers can be opened in a clean, temporary Markdown tab for full-width reading
 
 The current unfinished-feature audit and Mac-first post-MVP build plan are maintained in `docs/mvp-task-list.md`, section 22. It prioritizes local organization/search, PDF page tools, presentation and export workflows, Markdown fidelity, optional external-tablet input, on-device OCR, audio notes, and focused AI study helpers. Cloud sync, accounts, collaboration, whiteboards, marketplace features, mobile packaging, and native Study Sets are deferred.
 

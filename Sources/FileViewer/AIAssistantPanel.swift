@@ -64,6 +64,18 @@ struct AIAssistantPanel: View {
             }
             Spacer()
             Button {
+                showsProviderSettings = true
+            } label: {
+                Text(activeModelLabel)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: 150, alignment: .trailing)
+            }
+            .buttonStyle(.plain)
+            .help("Current AI model. Change it in AI Settings.")
+            Button {
                 manager.clearSession(for: tabID, hasSelection: hasSelection)
             } label: {
                 Image(systemName: "trash")
@@ -115,42 +127,47 @@ struct AIAssistantPanel: View {
             }
 
             HStack(spacing: 8) {
-                Text("Model")
-                    .frame(width: 58, alignment: .leading)
-
-                Picker("Provider", selection: Binding(
-                    get: { manager.activeProviderID },
-                    set: { id in
-                        manager.setActiveProvider(id)
-                        Task { await manager.refreshModels() }
-                    }
-                )) {
-                    ForEach(manager.providerProfiles) { profile in
-                        Text(profile.name).tag(profile.id)
+                Picker("Context", selection: sessionBinding(\.scope)) {
+                    ForEach(AIContextScope.allCases) { scope in
+                        Text(scope.title).tag(scope)
                     }
                 }
-                .labelsHidden()
                 .pickerStyle(.menu)
-                .accessibilityLabel("Provider")
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-                if !manager.availableModels.isEmpty {
-                    Picker("Model", selection: $manager.selectedModel) {
-                        ForEach(manager.availableModels, id: \.self) { model in
-                            Text(model).tag(model)
+                Menu {
+                    Section("Summary & Q&A") {
+                        Picker("Answer in", selection: sessionBinding(\.answerLanguage)) {
+                            ForEach(answerLanguages, id: \.self) { language in
+                                Text(language).tag(language)
+                            }
                         }
+                        Button {
+                            submit(.summarize)
+                        } label: {
+                            Label("Summarize Context", systemImage: "text.alignleft")
+                        }
+                        .disabled(!canSend)
                     }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .accessibilityLabel("Model")
+                    Section("Translation") {
+                        Picker("Translate to", selection: sessionBinding(\.targetLanguage)) {
+                            ForEach(answerLanguages, id: \.self) { language in
+                                Text(language).tag(language)
+                            }
+                        }
+                        Button {
+                            submit(.translate)
+                        } label: {
+                            Label("Translate Context", systemImage: "character.book.closed")
+                        }
+                        .disabled(!canSend)
+                    }
+                } label: {
+                    Label("Actions", systemImage: "ellipsis.circle")
                 }
+                .menuStyle(.borderlessButton)
+                .help("Summarize, translate, or change the response language")
             }
-
-            Picker("Context", selection: sessionBinding(\.scope)) {
-                ForEach(AIContextScope.allCases) { scope in
-                    Text(scope.title).tag(scope)
-                }
-            }
-            .pickerStyle(.menu)
 
             if session.scope == .selectedText && !hasSelection {
                 Label("Select text in the document first.", systemImage: "selection.pin.in.out")
@@ -161,52 +178,7 @@ struct AIAssistantPanel: View {
             if session.scope == .wholeDocument {
                 Text("Whole Document uses a 12,000-character preview; very large documents may be truncated.")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 7) {
-                Text("SUMMARY & Q&A")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Picker("Response language", selection: sessionBinding(\.answerLanguage)) {
-                    ForEach(answerLanguages, id: \.self) { language in
-                        Text(language).tag(language)
-                    }
-                }
-                .pickerStyle(.menu)
-                Text("Used for summaries and answers to questions below.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Button {
-                    submit(.summarize)
-                } label: {
-                    Label("Summarize Context", systemImage: "text.alignleft")
-                        .frame(maxWidth: .infinity)
-                }
-                .disabled(!canSend)
-            }
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 7) {
-                Text("TRANSLATION")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Picker("Translate to", selection: sessionBinding(\.targetLanguage)) {
-                    ForEach(answerLanguages, id: \.self) { language in
-                        Text(language).tag(language)
-                    }
-                }
-                .pickerStyle(.menu)
-                Button {
-                    submit(.translate)
-                } label: {
-                    Label("Translate Context", systemImage: "character.book.closed")
-                        .frame(maxWidth: .infinity)
-                }
-                .disabled(!canSend)
+                .foregroundStyle(.secondary)
             }
         }
         .padding(12)
@@ -255,6 +227,10 @@ struct AIAssistantPanel: View {
                     .controlSize(.small)
             } else {
                 Text(rendered(message.content))
+                    .font(.body)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
             }
             if message.role == .assistant, !message.content.isEmpty, !session.isGenerating {
@@ -274,23 +250,31 @@ struct AIAssistantPanel: View {
                     }
                 }
                 Divider()
-                HStack(spacing: 10) {
-                    Button {
-                        copyAnswer(for: message)
-                    } label: {
-                        Label("Copy Answer", systemImage: "doc.on.clipboard")
-                    }
-                    .help("Copy only the AI response")
-                    Button {
-                        copyMarkdown(for: message)
-                    } label: {
-                        Label("Copy as Markdown", systemImage: "doc.on.doc")
-                    }
-                    .help("Copy the response with document and model details")
-                    Button {
-                        saveMarkdown(for: message)
-                    } label: {
-                        Label("Save as Markdown…", systemImage: "square.and.arrow.down")
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        Button {
+                            openInMarkdown(for: message)
+                        } label: {
+                            Label("Open in Markdown", systemImage: "arrow.up.right.square")
+                        }
+                        .help("Open this response in a temporary Markdown tab")
+                        Button {
+                            copyAnswer(for: message)
+                        } label: {
+                            Label("Copy Answer", systemImage: "doc.on.clipboard")
+                        }
+                        .help("Copy only the AI response")
+                        Button {
+                            copyMarkdown(for: message)
+                        } label: {
+                            Label("Copy as Markdown", systemImage: "doc.on.doc")
+                        }
+                        .help("Copy the response with document and model details")
+                        Button {
+                            saveMarkdown(for: message)
+                        } label: {
+                            Label("Save as Markdown…", systemImage: "square.and.arrow.down")
+                        }
                     }
                 }
                 .font(.caption)
@@ -372,6 +356,11 @@ struct AIAssistantPanel: View {
         ["English", "Traditional Chinese", "Simplified Chinese"]
     }
 
+    private var activeModelLabel: String {
+        let model = manager.selectedModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        return model.isEmpty ? manager.activeProfile.name : model
+    }
+
     private var canSend: Bool {
         model.document != nil && manager.connectionStatus.isConnected && !session.isGenerating &&
             (session.scope != .selectedText || hasSelection)
@@ -427,6 +416,14 @@ struct AIAssistantPanel: View {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(AIResponsePlainTextExport.make(response: message.content), forType: .string)
+    }
+
+    private func openInMarkdown(for message: AIMessage) {
+        let sourceName = model.document?.name ?? "AI Response"
+        model.openTemporaryMarkdownDocument(
+            name: AIResponseMarkdownExport.suggestedFileName(sourceName: sourceName),
+            text: markdownExport(for: message)
+        )
     }
 
     private func saveMarkdown(for message: AIMessage) {
@@ -542,6 +539,46 @@ private struct AIProviderSettingsSheet: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    Section("Model") {
+                        TextField("Model ID (optional)", text: $defaultModel)
+                            .help("Used when the provider does not expose a model list.")
+                        if selectedID == manager.activeProviderID {
+                            if manager.availableModels.isEmpty {
+                                Text("Refresh the active provider to discover its available chat models.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Picker("Active model", selection: Binding(
+                                    get: { manager.selectedModel },
+                                    set: { value in
+                                        manager.selectedModel = value
+                                        defaultModel = value
+                                    }
+                                )) {
+                                    ForEach(manager.availableModels, id: \.self) { model in
+                                        Text(model).tag(model)
+                                    }
+                                }
+                                Text("This model is shown in the AI Assistant header and used for new requests.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Button {
+                                Task {
+                                    await manager.refreshModels()
+                                    defaultModel = manager.selectedModel
+                                }
+                            } label: {
+                                Label("Refresh Models", systemImage: "arrow.clockwise")
+                            }
+                            .disabled(manager.connectionStatus == .checking)
+                        } else {
+                            Text("Choose Use This Provider to select its active model.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
                     Section {
                         Button("Save Provider") { save() }
                         if selectedID != manager.activeProviderID {
@@ -568,7 +605,7 @@ private struct AIProviderSettingsSheet: View {
             }
             .frame(minWidth: 420)
         }
-        .frame(width: 700, height: 420)
+        .frame(width: 700, height: 500)
         .onAppear {
             selectedID = manager.activeProviderID
             loadSelectedProfile()

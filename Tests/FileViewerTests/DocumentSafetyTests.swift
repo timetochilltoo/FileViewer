@@ -75,6 +75,28 @@ final class DocumentSafetyTests: XCTestCase {
     }
 
     @MainActor
+    func testTemporaryMarkdownResponseOpensCleanPreviewTabWithUniqueName() throws {
+        let model = AppModel()
+        let response = "# AI Response\n\nReadable at full document width."
+
+        model.openTemporaryMarkdownDocument(name: "Notes AI Response.md", text: response)
+        model.openTemporaryMarkdownDocument(name: "Notes AI Response.md", text: response)
+
+        XCTAssertEqual(model.tabs.count, 2)
+        XCTAssertEqual(model.markdownMode, .preview)
+        XCTAssertEqual(model.statusMessage, "Opened AI response in Markdown.")
+        XCTAssertEqual(model.tabs.compactMap { tab -> String? in
+            guard case .markdown(let document) = tab.document else { return nil }
+            return document.name
+        }, ["Notes AI Response.md", "Notes AI Response 2.md"])
+        guard case .markdown(let document) = model.document else {
+            return XCTFail("Expected the temporary response tab to be Markdown.")
+        }
+        XCTAssertEqual(document.text, response)
+        XCTAssertFalse(document.hasUnsavedChanges)
+    }
+
+    @MainActor
     func testMarkdownExtensionRecognitionIsCaseInsensitive() {
         XCTAssertTrue(AppModel.isMarkdown(URL(fileURLWithPath: "/tmp/notes.MD")))
         XCTAssertTrue(AppModel.isMarkdown(URL(fileURLWithPath: "/tmp/notes.markdown")))

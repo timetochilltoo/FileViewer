@@ -4,7 +4,7 @@ Last updated: 2026-09-19
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `feature/ai-assistant`
-Current committed baseline: `eaec82a` (`Prune unavailable recent files`)
+Current committed baseline: `699b6a3` (`Compact AI panel and open responses in Markdown`)
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
@@ -15,14 +15,14 @@ Current committed baseline: `eaec82a` (`Prune unavailable recent files`)
 - The duplicate filename status row below the tab strip is removed; the window title and Window menu continue to identify each document as `<filename> — FileViewer`.
 - The main toolbar now places an accessible **New Markdown** button between the sidebar toggle and **Open**. The same action remains available from **FileViewer > New Markdown Document** / Command-N.
 - The Markdown toolbar places `Markdown View` beside the Preview / Source / Split picker. **FileViewer > Settings…** now stores a default Markdown view for newly opened or created Markdown documents.
-- The AI panel presents the provider and model menus on one compact `Model` row and removes the two explanatory context/privacy lines from the visible configuration area. Remote document transfer still requires the provider's explicit opt-in in the model layer.
+- The AI panel keeps provider/model selection in AI Provider Settings, shows the active model in the header beside `AI Assistant`, and keeps only context plus a compact Actions menu in the visible configuration area. Remote document transfer still requires the provider's explicit opt-in in the model layer.
 - The open-file panel and packaged document registration now expose PDF and Markdown only; plain-text opening remains future work. `AppModel.open(url:)` rejects non-file URLs before any file read.
 - Password-protected/encrypted PDFs remain outside the current product scope; no password-entry flow is planned.
 - Recent-file loading now keeps only readable local file URLs and removes stale or non-file entries; attempts to reopen an unavailable recent file prune it immediately.
 - The review hardened session restore path deduplication with standardized, symlink-resolved paths; PDF page navigation, permanent rotation, and annotation undo/redo guard empty or stale page indexes; and late AI stream callbacks are discarded after a tab closes so conversations cannot be recreated.
 - Configured AI endpoints now reject malformed URLs and embedded credentials, query strings, or fragments before provider access. Overlapping model-discovery requests are generation-checked, and streamed response buffers are capped at 256,000 characters.
 - The build-plan audit in `docs/mvp-task-list.md` section 22 now separates unfinished MVP/post-MVP items from the active Mac-first roadmap: local library/search, PDF page tools, presentation/export, Markdown fidelity/templates, optional tablet input, on-device OCR, audio notes, and focused AI study helpers. Cloud sync, accounts, collaboration, whiteboards, marketplace features, mobile packaging, and native Study Sets are deferred.
-- Latest validation: `swift test --jobs 1` passes all 25 tests; `swift build` succeeds; the debug bundle is packaged, ad-hoc signed, plist-linted, and manually checked in the About panel with the transparent icon.
+- Latest validation: `swift test --jobs 1` passes all 26 tests; `swift build` succeeds; the debug bundle is packaged, ad-hoc signed, and plist-linted. Manual panel inspection could not run because the Mac was locked when Computer Use attempted to launch the app.
 
 ## 1. Project purpose
 
@@ -1228,12 +1228,12 @@ ContentView
             └── LMStudioClient (legacy loopback-only adapter retained for local transport testing)
 ```
 
-User setup: open the AI panel with the sparkle toolbar icon, then use the gear in the panel header to open **AI Provider Settings**. Add a profile, select its type, endpoint, optional/default model and API key, explicitly enable remote document transfer if its host is not local, save it, then select it from the panel's Provider picker and press Retry to discover models. For OpenAI, use the built-in OpenAI profile, enter an API key, enable remote transfer, save, select the profile, then press Retry.
+User setup: open the AI panel with the sparkle toolbar icon, then use the gear in the panel header to open **AI Provider Settings**. Add a profile, select its type, endpoint, model and API key, explicitly enable remote document transfer if its host is not local, save it, choose the active discovered model in the settings sheet, and use **Refresh Models** when needed. For OpenAI, use the built-in OpenAI profile, enter an API key, enable remote transfer, save, choose a model, and refresh the connection.
 
 Source files:
 
 - `Sources/FileViewer/AIAssistant.swift`: messages, scopes, sessions, persisted `AIProviderProfile` definitions, `AIProviderCredentialStore` Keychain access, provider protocol, configured HTTP/SSE Chat-Completions transport, legacy LM Studio loopback adapter, streaming orchestration, prompt construction, document extraction, chunking, keyword retrieval, the 12,000-character safety cap, and filtering of streamed `<think>…</think>` reasoning before it reaches visible messages or chat history.
-- `Sources/FileViewer/AIAssistantPanel.swift`: provider/model controls, the AI Provider Settings sheet, scope picker, Summarize/Translate actions, conversation rendering, draft editor, Stop/Send controls, and local-processing disclosure.
+- `Sources/FileViewer/AIAssistantPanel.swift`: compact context/actions controls, the AI Provider Settings sheet with model discovery/selection, active-model header, readable conversation rendering, answer export actions, draft editor, and Stop/Send controls.
 - `Sources/FileViewer/ContentView.swift`: sparkle toolbar button, panel layout, and drag resizing.
 - `Sources/FileViewer/DocumentModel.swift`: panel state, assistant manager ownership, per-tab PDF selection state, Markdown selection capture, and session cleanup on tab close.
 - `Sources/FileViewer/PDFWorkspace.swift`: observes `PDFViewSelectionChanged` and stores selected text/page in the selected tab.
@@ -1247,7 +1247,7 @@ Privacy and safety behavior:
 - The common configured transport uses `GET /models` and streaming `POST /chat/completions`. It is compatible with LM Studio, Ollama's OpenAI-compatible API, custom compatible servers, and OpenAI's supported Chat Completions endpoint.
 - Some reasoning-capable models return private scratch work wrapped in `<think>…</think>`. FileViewer retains the raw response only while it streams, displays only the content outside those tags, then discards the raw buffer. The hidden material is therefore not copied, exported, or supplied as follow-up chat history.
 - Every assistant message stores the labels for the exact `AIContextPayload` chunks supplied to that request. The panel renders these as **Sources provided to the model**. PDF `Page N` labels are sorted into ascending page order for human review and are buttons that post the existing `.pdfGoToPage` command; Markdown heading labels remain informative chips. Sorting only affects display: Relevant Sections still sends chunks in relevance order. Do not call them citations or external links unless the answer itself makes a specific citation claim.
-- The assistant panel keeps the Whole Document 12,000-character warning and explicit-transfer enforcement in the model layer. The compact configuration row labels the provider/model menus as `Model`; the former explanatory context/privacy lines are omitted from the visible panel. The header's download button performs an explicit **Save Conversation as Markdown** export; the transcript includes model/source metadata and assistant-message source labels. Sessions are still not persisted by the app.
+- The assistant panel keeps the Whole Document 12,000-character warning and explicit-transfer enforcement in the model layer. Provider/model selection lives in AI Provider Settings, while the header shows the active model and the configuration row keeps only context plus an Actions menu. The header's download button performs an explicit **Save Conversation as Markdown** export; each completed response also offers **Open in Markdown**, which creates a clean temporary Preview tab for full-width reading. The transcript includes model/source metadata and assistant-message source labels. Sessions are still not persisted by the app.
 - Extraction and retrieval happen in the app. A request is made only after Send, Summarize, or Translate.
 - The system prompt treats document excerpts as untrusted reference data and forbids claiming file mutations.
 - AI has no save, annotation, deletion, shell, or file-editing tools.
@@ -1259,7 +1259,7 @@ Known limitations / next work:
 - selection-based context works from the panel, but contextual `Ask AI About Selection` menu items are not implemented;
 - context is capped at 12,000 characters to fit common local-model context windows while reserving 1,024 output tokens. Whole Document is therefore a preview rather than a complete-document synthesis; hierarchical summaries remain future work;
 - keyword scoring is intentionally simple and does not yet use the available embedding model;
-- the AI panel separates `Summary & Q&A` from `Translation`: questions and summaries use the per-session `Response language` setting (English, Traditional Chinese, or Simplified Chinese), while translation has an independent target-language setting with the same choices;
+- summary and translation language choices are available from the compact Actions menu: questions and summaries use the per-session `Response language` setting (English, Traditional Chinese, or Simplified Chinese), while translation has an independent target-language setting with the same choices;
 - `Relevant Sections` is a keyword-retrieval mode for questions. Translation automatically changes this scope to `Current Page/Section`: a generic translation instruction cannot reliably retrieve the visible material and previously could select an unrelated page. The behavior remains enforced in the request model even though the explanatory panel line was removed to save space;
 - summary and translation requests deliberately omit prior chat turns so an earlier response from another page cannot contaminate the new result. Normal Ask requests retain the most recent eight messages as conversational history;
 - the AppKit-backed composer deliberately uses Return to send and Shift-Return for a newline. Do not replace it with SwiftUI `TextEditor` without retaining this behavior;
@@ -1268,7 +1268,7 @@ Known limitations / next work:
 - provider profiles, active provider, selected model, endpoints, and remote-access approval persist in UserDefaults; credentials persist only in Keychain;
 - OpenAI is supported through its Chat Completions endpoint for common streaming transport. Migrating the OpenAI profile to the Responses API is an optional future enhancement, not a current functional requirement;
 - summary and translation use the currently selected scope; translation changes `Relevant Sections` to `Current Page/Section` and labels the effective scope accurately. Future polish could add task-specific automatic defaults unless the user explicitly changed the scope;
-- conversations are not persisted. **Retry** is implemented for provider connection/model discovery. Each completed assistant response has **Copy Answer** (readable plain text with Markdown syntax removed), **Copy as Markdown**, and **Save as Markdown** actions. The Markdown export prepends source document, context, model, and timestamp metadata, and the normal Save panel can target an Obsidian vault; there is no direct Obsidian integration.
+- conversations are not persisted. **Retry** and **Refresh Models** are implemented for provider connection/model discovery. Each completed assistant response has **Open in Markdown**, **Copy Answer** (readable plain text with Markdown syntax removed), **Copy as Markdown**, and **Save as Markdown** actions. The Markdown export prepends source document, context, model, and timestamp metadata, and the normal Save panel can target an Obsidian vault; there is no direct Obsidian integration.
 
 Verification commands:
 
