@@ -527,7 +527,6 @@ private struct AIProviderSettingsSheet: View {
                             allowRemoteAccess = false
                         }
                         TextField("Server URL", text: $endpoint)
-                        TextField("Default model (optional)", text: $defaultModel)
                         Toggle("Allow this provider to receive document text", isOn: $allowRemoteAccess)
                         SecureField(
                             kind.needsAPIKey ? "API key" : "API key (optional)",
