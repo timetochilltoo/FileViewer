@@ -4,7 +4,7 @@ Last updated: 2026-09-19
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `feature/ai-assistant`
-Current committed baseline: `dedb5da` (`Remove duplicate AI model field`)
+Current committed baseline: `451c4fd` (`Open AI responses at full window width`)
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
@@ -22,7 +22,7 @@ Current committed baseline: `dedb5da` (`Remove duplicate AI model field`)
 - The review hardened session restore path deduplication with standardized, symlink-resolved paths; PDF page navigation, permanent rotation, and annotation undo/redo guard empty or stale page indexes; and late AI stream callbacks are discarded after a tab closes so conversations cannot be recreated.
 - Configured AI endpoints now reject malformed URLs and embedded credentials, query strings, or fragments before provider access. Overlapping model-discovery requests are generation-checked, and streamed response buffers are capped at 256,000 characters.
 - The build-plan audit in `docs/mvp-task-list.md` section 22 now separates unfinished MVP/post-MVP items from the active Mac-first roadmap: local library/search, PDF page tools, presentation/export, Markdown fidelity/templates, optional tablet input, on-device OCR, audio notes, and focused AI study helpers. Cloud sync, accounts, collaboration, whiteboards, marketplace features, mobile packaging, and native Study Sets are deferred.
-- Latest validation: `swift test --jobs 1` passes all 26 tests; `swift build` succeeds; the debug bundle is packaged, ad-hoc signed, and plist-linted. Manual panel inspection could not run because the Mac was locked when Computer Use attempted to launch the app.
+- Latest validation: `swift test --jobs 1` passes all 26 tests; `swift build` succeeds; the debug bundle is packaged, ad-hoc signed, and plist-linted. Manual inspection after the Mac was unlocked verified the compact AI header/model badge, Actions menu, provider/model settings, answer action row, and the temporary Markdown response flow; opening a response now hides the AI panel so the document uses the full window width.
 
 ## 1. Project purpose
 
