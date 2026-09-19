@@ -4,7 +4,7 @@ Last updated: 2026-09-19
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `feature/ai-assistant`
-Current committed baseline: `699b6a3` (`Compact AI panel and open responses in Markdown`)
+Current committed baseline: `4cd7bf4` (`Compact AI panel and open responses in Markdown`)
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
