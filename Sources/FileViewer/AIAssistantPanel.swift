@@ -424,6 +424,7 @@ struct AIAssistantPanel: View {
             name: AIResponseMarkdownExport.suggestedFileName(sourceName: sourceName),
             text: markdownExport(for: message)
         )
+        model.aiPanelVisible = false
     }
 
     private func saveMarkdown(for message: AIMessage) {
