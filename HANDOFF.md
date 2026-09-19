@@ -1,6 +1,6 @@
 # FileViewer Handoff
 
-Last updated: 2026-09-12
+Last updated: 2026-09-19
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `feature/ai-assistant`
@@ -8,7 +8,7 @@ Current committed baseline: `eaec82a` (`Prune unavailable recent files`)
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
-## Current implementation updates (2026-09-12)
+## Current implementation updates (2026-09-19)
 
 - The packaged app is version `0.11` at `build/FileViewer 0.11.app`. `CFBundleDisplayName` and `CFBundleName` are `FileViewer`, so the app menu does not include a version suffix. The custom About panel shows the supplied app icon, `FileViewer`, `Version 0.11`, and `By Patrick Shi`.
 - `Resources/fileviewer-light-marker-lines.webp` is the source artwork for `AppIcon.icns`; its white canvas has been cropped away and the rounded corners are transparent. `scripts/package_app.sh` resizes it with Pillow and signs the resulting bundle.
@@ -20,6 +20,7 @@ Current committed baseline: `eaec82a` (`Prune unavailable recent files`)
 - Recent-file loading now keeps only readable local file URLs and removes stale or non-file entries; attempts to reopen an unavailable recent file prune it immediately.
 - The review hardened session restore path deduplication with standardized, symlink-resolved paths; PDF page navigation, permanent rotation, and annotation undo/redo guard empty or stale page indexes; and late AI stream callbacks are discarded after a tab closes so conversations cannot be recreated.
 - Configured AI endpoints now reject malformed URLs and embedded credentials, query strings, or fragments before provider access. Overlapping model-discovery requests are generation-checked, and streamed response buffers are capped at 256,000 characters.
+- The build-plan audit in `docs/mvp-task-list.md` section 22 now separates unfinished MVP/post-MVP items from the active Mac-first roadmap: local library/search, PDF page tools, presentation/export, Markdown fidelity/templates, optional tablet input, on-device OCR, audio notes, and focused AI study helpers. Cloud sync, accounts, collaboration, whiteboards, marketplace features, mobile packaging, and native Study Sets are deferred.
 - Latest validation: `swift test --jobs 1` passes all 25 tests; `swift build` succeeds; the debug bundle is packaged, ad-hoc signed, plist-linted, and manually checked in the About panel with the transparent icon.
 
 ## 1. Project purpose

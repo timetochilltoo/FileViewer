@@ -401,17 +401,16 @@ The MVP should not include:
 ### Version 0.4: PDF Page Tools
 
 - Reading-only view rotation and permanent current-page/all-page rotation are implemented.
-- Delete and reorder pages.
-- Extract pages.
-- Merge PDFs.
-- Insert blank pages.
+- Delete and reorder pages remain deferred.
+- Extract pages, merge PDFs, and insert blank pages remain deferred.
 
 ### Version 0.5: Export and Advanced Markdown
 
-- Markdown to PDF export.
-- Markdown to HTML export.
-- Mermaid diagrams.
-- Math rendering.
+- Markdown to PDF/HTML export, Mermaid diagrams, and math rendering remain deferred.
+
+### Version 0.6+: Mac-first post-MVP workspace
+
+The active roadmap is maintained in `docs/mvp-task-list.md`, section 22. It prioritizes local library/global search, PDF page tools, fullscreen/presentation reading, Markdown fidelity and templates, verified export, external-tablet input, on-device OCR, audio notes, and focused AI study helpers. Cloud sync, accounts, real-time collaboration, infinite whiteboards, marketplace features, mobile packaging, and native Study Sets remain deferred.
 
 ## 10. Technical Recommendations
 

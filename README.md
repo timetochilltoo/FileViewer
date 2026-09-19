@@ -96,6 +96,8 @@ Current MVP build includes:
   - persisted provider profiles for local LM Studio and Ollama, custom OpenAI-compatible servers, and OpenAI
   - local endpoints work immediately; remote profiles require explicit approval before document text is sent, and API keys are kept in macOS Keychain
 
+The current unfinished-feature audit and Mac-first post-MVP build plan are maintained in `docs/mvp-task-list.md`, section 22. It prioritizes local organization/search, PDF page tools, presentation and export workflows, Markdown fidelity, optional external-tablet input, on-device OCR, audio notes, and focused AI study helpers. Cloud sync, accounts, collaboration, whiteboards, marketplace features, mobile packaging, and native Study Sets are deferred.
+
 ## Run Locally
 
 The primary app is now a native SwiftUI macOS app targeting macOS Tahoe 26.5.1 / macOS 26.

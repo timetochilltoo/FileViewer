@@ -14,7 +14,7 @@ The MVP is a native macOS SwiftUI document viewer and editor that supports:
 - Light and dark themes.
 - Opening documents in tabs and Finder/Open With documents in separate windows for side-by-side comparison.
 
-PDF annotation and fillable-form support were implemented after the original MVP. View rotation and permanent rotation of the current page or all pages are also implemented. Larger PDF page-editing operations (reorder, delete, extract, merge) remain out of scope.
+PDF annotation and fillable-form support were implemented after the original MVP. View rotation and permanent rotation of the current page or all pages are also implemented. Larger PDF page-editing operations (reorder, delete, extract, merge) remain outside the original MVP and are tracked in the active post-MVP plan below.
 
 ## 2. Project Setup
 
@@ -153,7 +153,7 @@ Acceptance criteria:
 - Add next page and previous page controls.
 - Add page number input.
 - Add first page and last page actions.
-- Add continuous scroll mode for MVP.
+- Use continuous scroll mode for MVP. The native viewer currently uses continuous scrolling by default; user-selectable single-page and two-page modes remain future work.
 - Track current page while scrolling.
 - Remember last page per file.
 
@@ -351,10 +351,34 @@ This section records the boundary of the original viewer MVP. Some items, includ
 - Reading-only view rotation plus permanent current-page/all-page rotation have been implemented. The permanent actions save only after an explicit Save or Save As.
 - The original viewer MVP is complete. Later work has also implemented PDF annotation/form support and the AI assistant on `feature/ai-assistant`: a resizable right panel, per-tab in-memory conversations, PDF/Markdown selection capture, four explicit scopes, local retrieval, streaming, cancellation, provider/model discovery, and explicit remote document-transfer approval. Provider profiles now include LM Studio, Ollama, custom OpenAI-compatible servers, and OpenAI; credentials are stored only in Keychain.
 
-Next implementation work:
+## 22. Build-plan audit and Mac-first post-MVP plan (2026-09-19)
 
-- Continue PDF annotation support:
-  - add author name and timestamp metadata for annotations
-- Improve Markdown preview fidelity for richer GitHub-flavored tables, local images, and task-list polish if needed later.
-- Add focused UI/sample-file tests for PDF outline, search, annotation, form editing, multi-window restoration, and AI streaming/error states.
-- AI follow-up work: selection context-menu actions, richer retrieval/embedding search, hierarchical summaries for very large documents, conversation persistence, clickable model-generated citations, and a background extraction/index cache. Ollama and OpenAI-compatible/OpenAI provider profiles are already implemented.
+The original viewer MVP and later PDF annotation/form and AI milestones are implemented. The following plan items remain unfinished or partial:
+
+- Markdown preview: richer GitHub-Flavored Markdown tables, local image rendering, richer code presentation, copy-code actions, and heading-to-source navigation.
+- PDF workflow: specific password guidance for encrypted PDFs, fullscreen/presentation mode, two-page spread or selectable single-page mode, and page delete/reorder/extract/merge/insert.
+- PDF annotations: author and timestamp metadata.
+- Export: Markdown-to-PDF/HTML, PDF page/image export, and advanced PDF operations.
+- Advanced Markdown: Mermaid and math rendering.
+- AI: selection context-menu actions, richer retrieval/embedding search, complete-document hierarchical summaries, conversation persistence, clickable citations, and background extraction/index caching.
+- Verification: focused UI/sample-file tests for PDF outline/search/annotation/forms, multi-window restoration, and live AI streaming/error states.
+
+The active build plan deliberately targets local, single-user Mac workflows. Cloud sync, accounts, real-time collaboration, marketplace, infinite whiteboards, mobile packaging, and native Study Sets remain deferred.
+
+### Phase A — high-value Mac features
+
+1. **Local library and global search** — folders/tags, indexed titles/headings/Markdown/PDF text/annotation summaries, and clear local-only controls.
+2. **PDF page tools** — thumbnail multi-selection, reorder, duplicate, delete, extract/split, insert, and export, using the existing atomic-save and external-change protections.
+3. **Reading and presentation** — fullscreen reading, presentation mode, page-advance shortcuts, temporary cursor/laser focus, and optional two-page spread.
+4. **Markdown fidelity and templates** — local images, richer tables/task lists/code blocks, copy-code, heading navigation, and user-managed Markdown/PDF templates.
+5. **Export workflow** — export selected/current PDF pages as PDF/image and Markdown as PDF/HTML where the result can be verified.
+
+### Phase B — medium-effort features with optional hardware
+
+1. **Pointer and tablet annotation** — stroke smoothing, lasso/eraser/object selection, and optional AppKit pressure/tilt input for external tablets; keep mouse/trackpad as a usable baseline.
+2. **On-device OCR** — recognize scanned PDF text and captured ink locally, index results, and offer handwriting-to-text while preserving original strokes.
+3. **Audio notes** — local recording, page/selection timestamps, playback, and optional on-device transcription.
+4. **AI study helpers** — generate Markdown/CSV flashcards, summaries with stable source links, and Mermaid mind-map drafts from selected document context.
+5. **Focused UI/sample tests** — exercise the new flows with real PDFs and Markdown fixtures.
+
+Deliver one coherent feature at a time with safety tests and manual UI checks where PDFKit/AppKit behavior is involved.
