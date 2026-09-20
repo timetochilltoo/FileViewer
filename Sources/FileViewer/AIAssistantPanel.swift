@@ -136,6 +136,14 @@ struct AIAssistantPanel: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 Menu {
+                    if hasSelection {
+                        Button {
+                            model.askAIAboutSelection()
+                        } label: {
+                            Label("Ask AI About Selection…", systemImage: "sparkles")
+                        }
+                        Divider()
+                    }
                     Section("Summary & Q&A") {
                         Picker("Answer in", selection: sessionBinding(\.answerLanguage)) {
                             ForEach(answerLanguages, id: \.self) { language in
@@ -188,6 +196,16 @@ struct AIAssistantPanel: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
+                    if session.isPreparingContext {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Preparing document context…")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                     if session.messages.isEmpty {
                         ContentUnavailableView(
                             "Ask About This Document",
@@ -394,7 +412,8 @@ struct AIAssistantPanel: View {
     }
 
     private func rendered(_ text: String) -> AttributedString {
-        (try? AttributedString(markdown: text)) ?? AttributedString(text)
+        let normalized = AIResponseMarkdownFormatting.normalizedForDisplay(text)
+        return (try? AttributedString(markdown: normalized)) ?? AttributedString(normalized)
     }
 
     private func markdownExport(for message: AIMessage) -> String {

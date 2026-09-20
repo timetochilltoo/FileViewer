@@ -97,6 +97,42 @@ final class DocumentSafetyTests: XCTestCase {
     }
 
     @MainActor
+    func testAskAIAboutSelectionPreparesSelectedTextSession() throws {
+        let model = AppModel()
+        let pdfURL = temporaryDirectory.appendingPathComponent("selection.pdf")
+        let pdf = PDFDocument()
+        let tab = DocumentTab(document: .pdf(PDFViewerDocument(url: pdfURL, document: pdf)))
+        model.tabs = [tab]
+        model.selectedTabID = tab.id
+        model.pdfSelectedText = "Selected source text"
+        model.pdfSelectedPage = 2
+        model.aiAssistant.connectionStatus = .unavailable("test")
+
+        model.askAIAboutSelection()
+
+        XCTAssertTrue(model.aiPanelVisible)
+        XCTAssertEqual(model.aiAssistant.session(for: tab.id).scope, .selectedText)
+        XCTAssertEqual(model.aiAssistant.session(for: tab.id).contextDescription, "Selected text")
+        XCTAssertEqual(model.statusMessage, "Selected text is ready for an AI question.")
+    }
+
+    @MainActor
+    func testAskAIAboutMarkdownSelectionRetainsContextAfterPanelOpens() {
+        let model = AppModel()
+        model.newMarkdownDocument()
+        guard let tabID = model.selectedTabID else {
+            return XCTFail("Expected a new Markdown tab")
+        }
+        model.aiAssistant.connectionStatus = .unavailable("test")
+
+        model.askAIAboutSelection(markdownSelection: "Selected note context")
+
+        XCTAssertEqual(model.currentMarkdownSelectedText(), "Selected note context")
+        XCTAssertTrue(model.aiPanelVisible)
+        XCTAssertEqual(model.aiAssistant.session(for: tabID).scope, .selectedText)
+    }
+
+    @MainActor
     func testMarkdownExtensionRecognitionIsCaseInsensitive() {
         XCTAssertTrue(AppModel.isMarkdown(URL(fileURLWithPath: "/tmp/notes.MD")))
         XCTAssertTrue(AppModel.isMarkdown(URL(fileURLWithPath: "/tmp/notes.markdown")))

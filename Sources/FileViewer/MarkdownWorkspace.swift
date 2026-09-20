@@ -39,6 +39,12 @@ struct MarkdownWorkspace: View {
                 }
             }
         }
+        .contextMenu {
+            Button("Ask AI About Selection…", systemImage: "sparkles") {
+                model.askAIAboutSelection()
+            }
+            .disabled(!model.canAskAIAboutSelection)
+        }
     }
 
     private var editorWithFormatting: some View {
@@ -121,6 +127,8 @@ struct MarkdownWorkspace: View {
            searchNavigationRequestID: model.searchNavigationRequestID,
            onFormatCommand: { command in
             model.applyMarkdownFormat(command)
+        }, onAskAIAboutSelection: { selection in
+            model.askAIAboutSelection(markdownSelection: selection)
         }, onViewportChanged: { scrollY, visibleLocation in
             model.recordMarkdownSourceViewport(scrollY: scrollY, visibleLocation: visibleLocation)
         }) { textView in
@@ -978,6 +986,7 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
     let searchMatchIndex: Int
     let searchNavigationRequestID: UUID
     let onFormatCommand: (MarkdownFormatCommand) -> Void
+    let onAskAIAboutSelection: (String?) -> Void
     let onViewportChanged: (Double, Int) -> Void
     let onTextViewReady: (NSTextView) -> Void
 
@@ -991,6 +1000,7 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
             searchMatchIndex: searchMatchIndex,
             searchNavigationRequestID: searchNavigationRequestID,
             onFormatCommand: onFormatCommand,
+            onAskAIAboutSelection: onAskAIAboutSelection,
             onViewportChanged: onViewportChanged,
             onTextViewReady: onTextViewReady
         )
@@ -1048,6 +1058,7 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
         context.coordinator.searchMatchIndex = searchMatchIndex
         context.coordinator.searchNavigationRequestID = searchNavigationRequestID
         context.coordinator.onFormatCommand = onFormatCommand
+        context.coordinator.onAskAIAboutSelection = onAskAIAboutSelection
         context.coordinator.onViewportChanged = onViewportChanged
         context.coordinator.onTextViewReady = onTextViewReady
         textView.menu = context.coordinator.contextMenu()
@@ -1078,6 +1089,7 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
         var searchMatchIndex: Int
         var searchNavigationRequestID: UUID
         var onFormatCommand: (MarkdownFormatCommand) -> Void
+        var onAskAIAboutSelection: (String?) -> Void
         var onViewportChanged: (Double, Int) -> Void
         var onTextViewReady: (NSTextView) -> Void
         weak var textView: NSTextView?
@@ -1098,6 +1110,7 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
             searchMatchIndex: Int,
             searchNavigationRequestID: UUID,
             onFormatCommand: @escaping (MarkdownFormatCommand) -> Void,
+            onAskAIAboutSelection: @escaping (String?) -> Void,
             onViewportChanged: @escaping (Double, Int) -> Void,
             onTextViewReady: @escaping (NSTextView) -> Void
         ) {
@@ -1109,6 +1122,7 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
             self.searchMatchIndex = searchMatchIndex
             self.searchNavigationRequestID = searchNavigationRequestID
             self.onFormatCommand = onFormatCommand
+            self.onAskAIAboutSelection = onAskAIAboutSelection
             self.onViewportChanged = onViewportChanged
             self.onTextViewReady = onTextViewReady
             super.init()
@@ -1314,6 +1328,14 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
             menu.addItem(NSMenuItem(title: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: ""))
             menu.addItem(NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: ""))
             menu.addItem(NSMenuItem(title: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: ""))
+            menu.addItem(.separator())
+            let askItem = NSMenuItem(
+                title: "Ask AI About Selection…",
+                action: #selector(askAIAboutSelectionFromMenu(_:)),
+                keyEquivalent: ""
+            )
+            askItem.target = self
+            menu.addItem(askItem)
             return menu
         }
 
@@ -1326,6 +1348,21 @@ private struct MarkdownSourceEditor: NSViewRepresentable {
                 onTextViewReady(textView)
             }
             onFormatCommand(command)
+        }
+
+        @objc private func askAIAboutSelectionFromMenu(_ sender: NSMenuItem) {
+            let selectedText: String?
+            if let textView {
+                let range = textView.selectedRange()
+                let length = (textView.string as NSString).length
+                selectedText = range.length > 0 && range.location != NSNotFound && NSMaxRange(range) <= length
+                    ? (textView.string as NSString).substring(with: range)
+                    : nil
+                onTextViewReady(textView)
+            } else {
+                selectedText = nil
+            }
+            onAskAIAboutSelection(selectedText)
         }
 
         func textDidBeginEditing(_ notification: Notification) {

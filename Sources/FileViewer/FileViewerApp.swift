@@ -13,6 +13,9 @@ struct FileViewerApp: App {
         .commands {
             FileViewerCommands()
         }
+        .commands {
+            FileViewerAICommands()
+        }
 
         Settings {
             FileViewerSettingsView()

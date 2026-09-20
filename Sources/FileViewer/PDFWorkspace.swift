@@ -71,6 +71,12 @@ struct PDFWorkspace: View {
             annotationStrokeWidth: model.pdfAnnotationLineWidth
         )
         .background(Color(nsColor: .underPageBackgroundColor))
+        .contextMenu {
+            Button("Ask AI About Selection…", systemImage: "sparkles") {
+                model.askAIAboutSelection()
+            }
+            .disabled(!model.canAskAIAboutSelection)
+        }
     }
 }
 

@@ -66,6 +66,40 @@ final class AIAssistantTests: XCTestCase {
         XCTAssertTrue(payload.text.contains("Encryption and access controls"))
     }
 
+    func testContextIndexRanksMatchingTermsWithoutRescanningPageText() {
+        let chunks = [
+            AIDocumentChunk(label: "Page 1", text: "General introduction."),
+            AIDocumentChunk(label: "Page 2", text: "Encryption controls protect private data."),
+            AIDocumentChunk(label: "Page 3", text: "Unrelated appendix.")
+        ]
+        let markdown = MarkdownDocument(
+            url: nil,
+            untitledName: "Indexed.md",
+            text: "",
+            savedText: ""
+        )
+        let document = ViewerDocument.markdown(markdown)
+        let payload = AIContextBuilder.build(
+            index: AIContextBuilder.makeIndex(from: chunks),
+            tab: DocumentTab(document: document),
+            markdownSelection: "",
+            scope: .relevantSections,
+            question: "Which encryption controls protect data?"
+        )
+
+        XCTAssertEqual(payload.sourceLabels.first, "Page 2")
+        XCTAssertTrue(payload.text.contains("Encryption controls"))
+    }
+
+    func testResponseFormattingRestoresCommonBlockBoundaries() {
+        let output = AIResponseMarkdownFormatting.normalizedForDisplay(
+            "**Formula used:**NRV = Expected Selling Price • **Item A:** $2,400\n## Summary"
+        )
+        XCTAssertTrue(output.contains("**Formula used:**\n\nNRV"))
+        XCTAssertTrue(output.contains("\n- **Item A:**"))
+        XCTAssertTrue(output.contains("\n\n## Summary"))
+    }
+
     func testWholeDocumentUsesSafePreviewLimit() {
         let source = String(repeating: "A", count: 13_000)
         let markdown = MarkdownDocument(

@@ -398,6 +398,24 @@ struct FileViewerCommands: Commands {
     }
 }
 
+struct FileViewerAICommands: Commands {
+    @FocusedObject private var focusedModel: AppModel?
+    @FocusedValue(\.fileViewerModel) private var model
+
+    private var activeModel: AppModel? {
+        focusedModel ?? model ?? FileViewerWindowRegistry.shared.activeModel
+    }
+
+    var body: some Commands {
+        CommandMenu("AI") {
+            Button("Ask AI About Selection…") {
+                activeModel?.askAIAboutSelection()
+            }
+            .disabled(activeModel?.canAskAIAboutSelection != true)
+        }
+    }
+}
+
 private struct FileViewerRemovedCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .systemServices) { }

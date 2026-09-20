@@ -568,6 +568,7 @@ final class AppModel: ObservableObject {
     @Published var markdownEditorFocusRequest = UUID()
     @Published var aiPanelVisible = false
     @Published var aiPanelWidth: CGFloat = 380
+    @Published private(set) var selectionChangeToken = 0
     let aiAssistant = AIAssistantManager()
 
     private let recentsKey = "FileViewer.recents"
@@ -578,6 +579,8 @@ final class AppModel: ObservableObject {
     private weak var lastActiveMarkdownTextView: NSTextView?
     private var pdfAnnotationActionUndoStacks: [DocumentTab.ID: [PDFAnnotationUndoAction]] = [:]
     private var pdfAnnotationActionRedoStacks: [DocumentTab.ID: [PDFAnnotationUndoAction]] = [:]
+    private var lastMarkdownSelectionSignature: String?
+    private var pendingAISelections: [DocumentTab.ID: String] = [:]
 
     var pdfAnnotationNSColor: NSColor {
         NSColor(pdfAnnotationColor)
@@ -591,7 +594,9 @@ final class AppModel: ObservableObject {
         get { selectedTab?.pdfSelectedText ?? "" }
         set {
             guard let index = selectedTabIndex else { return }
+            guard tabs[index].pdfSelectedText != newValue else { return }
             tabs[index].pdfSelectedText = newValue
+            selectionChangeToken &+= 1
         }
     }
 
@@ -609,6 +614,7 @@ final class AppModel: ObservableObject {
     }
     private weak var lastActiveMarkdownPreviewTextView: NSTextView?
     private var lastActiveMarkdownSelectionKind: MarkdownSelectionKind = .source
+    private var lastActiveMarkdownSelectionTabID: DocumentTab.ID?
     private var isSavingSessionSnapshot = false
 
     private enum MarkdownSelectionKind {
@@ -847,6 +853,49 @@ final class AppModel: ObservableObject {
         return false
     }
 
+    var canAskAIAboutSelection: Bool {
+        _ = selectionChangeToken
+        guard document != nil else { return false }
+        if isPDFDocument {
+            return !pdfSelectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        return !currentMarkdownSelectedText().trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Opens the assistant with the current PDF/Markdown selection ready as
+    /// explicit context. The user still writes and sends the question, so a
+    /// contextual-menu action never transmits text by itself.
+    func askAIAboutSelection(markdownSelection: String? = nil) {
+        guard let selectedTabID else {
+            statusMessage = "Select text first to ask AI about it."
+            return
+        }
+        let selectedText: String
+        if isPDFDocument {
+            selectedText = pdfSelectedText
+        } else {
+            selectedText = markdownSelection ?? currentMarkdownSelectedText()
+        }
+        guard !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            statusMessage = "Select text first to ask AI about it."
+            return
+        }
+        if isMarkdownDocument {
+            pendingAISelections[selectedTabID] = selectedText
+        }
+        aiPanelVisible = true
+        aiAssistant.ensureSession(for: selectedTabID, hasSelection: true)
+        aiAssistant.updateSession(for: selectedTabID) { session in
+            session.scope = .selectedText
+            session.errorMessage = nil
+            session.contextDescription = "Selected text"
+        }
+        statusMessage = "Selected text is ready for an AI question."
+        if aiAssistant.connectionStatus == .notChecked {
+            Task { await aiAssistant.refreshModels() }
+        }
+    }
+
     var canPrintDocument: Bool {
         document != nil
     }
@@ -1045,6 +1094,7 @@ final class AppModel: ObservableObject {
         let id = tabs[index].id
         pdfAnnotationActionUndoStacks[id] = nil
         pdfAnnotationActionRedoStacks[id] = nil
+        pendingAISelections[id] = nil
         aiAssistant.closeSession(for: id)
         tabs.remove(at: index)
         if selectedTabID == id {
@@ -1830,16 +1880,29 @@ final class AppModel: ObservableObject {
     func rememberMarkdownTextView(_ textView: NSTextView) {
         lastActiveMarkdownTextView = textView
         lastActiveMarkdownSelectionKind = .source
+        lastActiveMarkdownSelectionTabID = selectedTabID
+        publishMarkdownSelectionIfNeeded(from: textView)
     }
 
     func rememberMarkdownPreviewTextView(_ textView: NSTextView) {
         lastActiveMarkdownPreviewTextView = textView
         lastActiveMarkdownSelectionKind = .preview
+        lastActiveMarkdownSelectionTabID = selectedTabID
+        publishMarkdownSelectionIfNeeded(from: textView)
+    }
+
+    private func publishMarkdownSelectionIfNeeded(from textView: NSTextView) {
+        let range = textView.selectedRange()
+        let signature = "\(selectedTabID?.uuidString ?? "none"):\(ObjectIdentifier(textView)):\(range.location):\(range.length)"
+        guard lastMarkdownSelectionSignature != signature else { return }
+        lastMarkdownSelectionSignature = signature
+        selectionChangeToken &+= 1
     }
 
     func currentMarkdownSelectedText() -> String {
+        let firstResponder = NSApplication.shared.keyWindow?.firstResponder as? NSTextView
         let candidates = [
-            NSApp.keyWindow?.firstResponder as? NSTextView,
+            firstResponder,
             lastActiveMarkdownSelectionKind == .preview ? lastActiveMarkdownPreviewTextView : lastActiveMarkdownTextView,
             lastActiveMarkdownTextView,
             lastActiveMarkdownPreviewTextView
@@ -1847,13 +1910,18 @@ final class AppModel: ObservableObject {
         for candidate in candidates {
             guard let textView = candidate,
                   textView.window != nil else { continue }
+            if candidate !== firstResponder,
+               lastActiveMarkdownSelectionTabID != selectedTabID {
+                continue
+            }
             let range = textView.selectedRange()
             guard range.length > 0,
                   range.location != NSNotFound,
                   NSMaxRange(range) <= (textView.string as NSString).length else { continue }
             return (textView.string as NSString).substring(with: range)
         }
-        return ""
+        guard let selectedTabID else { return "" }
+        return pendingAISelections[selectedTabID] ?? ""
     }
 
     func recordMarkdownSourceViewport(scrollY: Double, visibleLocation: Int) {
