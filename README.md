@@ -91,8 +91,10 @@ Current MVP build includes:
   - compact panel with context and actions; provider/model selection lives in AI Provider Settings and the active model is shown in the header
   - ask, summarize, and translate PDF or Markdown content
   - explicit Selected Text, Current Page/Section, Relevant Sections, and Whole Document scopes
+  - Ask AI About Selection from the AI menu, Actions menu, and document context menus without sending automatically
   - PDF page and Markdown heading context labels for grounded answers
-  - streaming responses, Stop, model discovery, and connection status
+  - streaming responses, Stop, model discovery, connection status, and readable Markdown block formatting
+  - background PDF text extraction with a per-tab page/token index cache for later requests
   - persisted provider profiles for local LM Studio and Ollama, custom OpenAI-compatible servers, and OpenAI
   - local endpoints work immediately; remote profiles require explicit approval before document text is sent, and API keys are kept in macOS Keychain
   - completed answers can be opened in a clean, temporary Markdown tab for full-width reading

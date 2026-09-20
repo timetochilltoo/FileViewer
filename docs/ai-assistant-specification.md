@@ -2,7 +2,7 @@
 
 Status: implemented on `feature/ai-assistant` (current branch); configurable provider profiles support LM Studio, Ollama, OpenAI-compatible servers, and OpenAI
 
-## Current implementation — 2026-09-19
+## Current implementation — 2026-09-20
 
 The current native implementation is on the `feature/ai-assistant` branch:
 
@@ -18,9 +18,12 @@ The current native implementation is on the `feature/ai-assistant` branch:
 - opening AI Provider Settings does not inspect or reveal saved Keychain credentials. A saved key is read only when the active provider needs it for a connection or request; leaving the key field blank preserves any existing saved key;
 - PDF text selection and its page number are captured from PDFKit;
 - Markdown source/preview selection is read from the active or most recently active text view;
+- **Ask AI About Selection…** is available from the AI menu, the Actions menu, and document context menus. It opens the panel with Selected Text active but does not send until the user writes and submits a question;
 - Selected Text, Current Page/Section, Relevant Sections, and Whole Document scopes are implemented;
 - PDF pages and Markdown headings are used as context labels;
-- question, short-overview/key-points summary, translation, cancellation, errors, basic Markdown response rendering, and model selection are implemented;
+- question, short-overview/key-points summary, translation, cancellation, errors, readable Markdown response rendering, and model selection are implemented;
+- compact model responses are normalized for display and single-response Markdown export so headings, labels, bullets, and formulas do not run together;
+- PDF page text extraction and the token-count retrieval index run in a background task after a request starts. The resulting index is cached per document tab and invalidated when its file version changes or the tab closes;
 - the compact configuration row keeps the context scope visible and puts summary, translation, and language choices in an `Actions` menu;
 - the request transcript accurately names the selected scope, for example `Translate the selected text into Traditional Chinese` rather than implying the whole document is translated;
 - `Relevant Sections` is intended for question answering. If it is selected when Translate is pressed, the app changes the effective scope to Current Page/Section, because translation prompts have no meaningful search terms and must not retrieve unrelated pages;
@@ -32,7 +35,7 @@ The current native implementation is on the `feature/ai-assistant` branch:
 - provider endpoint validation accepts only HTTP(S) URLs without embedded credentials, query strings, or fragments;
 - automated tests cover context chunking, selection isolation, basic retrieval, local-endpoint enforcement in the legacy LM Studio adapter, provider-profile defaults, endpoint validation, and document safety.
 
-This is intentionally not the complete specification. Remaining work includes selection context-menu commands, hierarchical summaries for very large documents, persisted conversations, a mock streaming-provider test, accessibility review, and narrow-window overlay behavior. PDF page provenance chips are clickable; Markdown heading labels are informational only. Context is capped at 12,000 characters and reports when it is truncated; Whole Document is therefore a preview, not yet a complete-document synthesis. Streamed response buffering is capped at 256,000 characters. The request also reserves 1,024 output tokens. No document text is sent until the user presses Send, Summarize, or Translate.
+This is intentionally not the complete specification. Remaining work includes hierarchical summaries for very large documents, persisted conversations, a mock streaming-provider test, accessibility review, and narrow-window overlay behavior. PDF page provenance chips are clickable; Markdown heading labels are informational only. Context is capped at 12,000 characters and reports when it is truncated; Whole Document is therefore a preview, not yet a complete-document synthesis. Streamed response buffering is capped at 256,000 characters. The request also reserves 1,024 output tokens. No document text is sent until the user presses Send, Summarize, or Translate.
 
 This document defines a provider-neutral AI assistant for FileViewer. It describes the user experience, document-context rules, privacy and security controls, internal interfaces, failure handling, and acceptance criteria. The active provider and model are selected at runtime; no provider credential is bundled with FileViewer.
 
@@ -187,7 +190,7 @@ The current request supports cancellation, but page-by-page progress and hierarc
 - The source language defaults to automatic detection.
 - The result should preserve paragraphs, headings, lists, and simple tables where practical.
 - Translation output appears in the AI panel.
-- Every completed assistant response offers **Open in Markdown**, **Copy Answer**, **Copy as Markdown**, and **Save as Markdown**. **Open in Markdown** creates a clean in-memory Markdown tab in Preview mode; editing it makes the normal Save As flow available. **Copy Answer** converts the response to readable plain text before copying it, removing Markdown formatting syntax. The Markdown actions preserve the raw response Markdown and add source document, selected context, model, and generated-time provenance. Saving can target an Obsidian vault directly.
+- Every completed assistant response offers **Open in Markdown**, **Copy Answer**, **Copy as Markdown**, and **Save as Markdown**. **Open in Markdown** creates a clean in-memory Markdown tab in Preview mode; editing it makes the normal Save As flow available. **Copy Answer** converts the response to readable plain text before copying it, removing Markdown formatting syntax. The Markdown actions preserve the response content, normalize collapsed block boundaries for readability, and add source document, selected context, model, and generated-time provenance. Saving can target an Obsidian vault directly.
 - The original document is not modified.
 
 ### 6.2 Initial Languages
@@ -449,8 +452,8 @@ Unsaved document text and conversations must not be restored silently after a cr
 
 ### Remaining implementation phases
 
-- Move extraction/indexing off the main actor, add a cache, hierarchical summaries, and richer progress.
-- Add selection contextual actions and true model-generated citations only if the product can make their semantics reliable.
+- Add hierarchical summaries for very large documents and richer progress around multi-stage context preparation.
+- Add true model-generated citations only if their semantics can be made reliable; current page/heading provenance remains the source of truth.
 
 - Add provider capability checks, optional provider-specific adapters, and quality benchmarking using representative English and Traditional Chinese documents.
 

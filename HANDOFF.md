@@ -1,10 +1,10 @@
 # FileViewer Handoff
 
-Last updated: 2026-09-19
+Last updated: 2026-09-20
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `feature/ai-assistant`
-Current committed baseline: `451c4fd` (`Open AI responses at full window width`)
+Current committed baseline: `c2b28b7` (`Improve AI response readability and context preparation`)
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
@@ -16,13 +16,16 @@ Current committed baseline: `451c4fd` (`Open AI responses at full window width`)
 - The main toolbar now places an accessible **New Markdown** button between the sidebar toggle and **Open**. The same action remains available from **FileViewer > New Markdown Document** / Command-N.
 - The Markdown toolbar places `Markdown View` beside the Preview / Source / Split picker. **FileViewer > Settings…** now stores a default Markdown view for newly opened or created Markdown documents.
 - The AI panel keeps provider/model selection in AI Provider Settings, shows the active model in the header beside `AI Assistant`, and keeps only context plus a compact Actions menu in the visible configuration area. Remote document transfer still requires the provider's explicit opt-in in the model layer.
+- AI responses now normalize common compact-model Markdown boundaries for the transcript and single-response Markdown export, keeping headings, labels, bullets, and formulas readable while keeping plain-text copy separate.
+- **Ask AI About Selection…** is available from the AI menu, the panel Actions menu, and Markdown/PDF context menus. It selects the current text scope and opens the assistant without sending until the user submits a question.
+- PDF context preparation now extracts page text and builds a token-count retrieval index in a background task. The index is cached per document tab, keyed by the local file version, and released when the tab closes.
 - The open-file panel and packaged document registration now expose PDF and Markdown only; plain-text opening remains future work. `AppModel.open(url:)` rejects non-file URLs before any file read.
 - Password-protected/encrypted PDFs remain outside the current product scope; no password-entry flow is planned.
 - Recent-file loading now keeps only readable local file URLs and removes stale or non-file entries; attempts to reopen an unavailable recent file prune it immediately.
 - The review hardened session restore path deduplication with standardized, symlink-resolved paths; PDF page navigation, permanent rotation, and annotation undo/redo guard empty or stale page indexes; and late AI stream callbacks are discarded after a tab closes so conversations cannot be recreated.
 - Configured AI endpoints now reject malformed URLs and embedded credentials, query strings, or fragments before provider access. Overlapping model-discovery requests are generation-checked, and streamed response buffers are capped at 256,000 characters.
 - The build-plan audit in `docs/mvp-task-list.md` section 22 now separates unfinished MVP/post-MVP items from the active Mac-first roadmap: local library/search, PDF page tools, presentation/export, Markdown fidelity/templates, optional tablet input, on-device OCR, audio notes, and focused AI study helpers. Cloud sync, accounts, collaboration, whiteboards, marketplace features, mobile packaging, and native Study Sets are deferred.
-- Latest validation: `swift test --jobs 1` passes all 26 tests; `swift build` succeeds; the debug bundle is packaged, ad-hoc signed, and plist-linted. Manual inspection after the Mac was unlocked verified the compact AI header/model badge, Actions menu, provider/model settings, answer action row, and the temporary Markdown response flow; opening a response now hides the AI panel so the document uses the full window width.
+- Latest validation: `swift test --jobs 1` passes all 30 tests; `swift build` succeeds; the debug bundle is packaged, ad-hoc signed, and plist-linted. Manual inspection after the Mac was unlocked verified the compact AI header/model badge, Actions menu, provider/model settings, answer action row, temporary Markdown response flow, and the Markdown selection context-menu action; opening a response now hides the AI panel so the document uses the full window width.
 
 ## 1. Project purpose
 
@@ -1232,7 +1235,7 @@ User setup: open the AI panel with the sparkle toolbar icon, then use the gear i
 
 Source files:
 
-- `Sources/FileViewer/AIAssistant.swift`: messages, scopes, sessions, persisted `AIProviderProfile` definitions, `AIProviderCredentialStore` Keychain access, provider protocol, configured HTTP/SSE Chat-Completions transport, legacy LM Studio loopback adapter, streaming orchestration, prompt construction, document extraction, chunking, keyword retrieval, the 12,000-character safety cap, and filtering of streamed `<think>…</think>` reasoning before it reaches visible messages or chat history.
+- `Sources/FileViewer/AIAssistant.swift`: messages, scopes, sessions, persisted `AIProviderProfile` definitions, `AIProviderCredentialStore` Keychain access, provider protocol, configured HTTP/SSE Chat-Completions transport, legacy LM Studio loopback adapter, streaming orchestration, prompt construction, background PDF extraction/index caching, Markdown response formatting, chunking, token-count retrieval, the 12,000-character safety cap, and filtering of streamed `<think>…</think>` reasoning before it reaches visible messages or chat history.
 - `Sources/FileViewer/AIAssistantPanel.swift`: compact context/actions controls, the AI Provider Settings sheet with model discovery/selection, active-model header, readable conversation rendering, answer export actions, draft editor, and Stop/Send controls.
 - `Sources/FileViewer/ContentView.swift`: sparkle toolbar button, panel layout, and drag resizing.
 - `Sources/FileViewer/DocumentModel.swift`: panel state, assistant manager ownership, per-tab PDF selection state, Markdown selection capture, and session cleanup on tab close.
@@ -1256,14 +1259,14 @@ Privacy and safety behavior:
 Known limitations / next work:
 
 - the app shows request provenance rather than model-generated citations: PDF `Page N` labels are clickable navigation targets, while Markdown heading labels are informational only;
-- selection-based context works from the panel, but contextual `Ask AI About Selection` menu items are not implemented;
+- selection-based context can be prepared from the AI menu, panel Actions menu, and document context menus; the action deliberately waits for the user to enter and send a question;
 - context is capped at 12,000 characters to fit common local-model context windows while reserving 1,024 output tokens. Whole Document is therefore a preview rather than a complete-document synthesis; hierarchical summaries remain future work;
-- keyword scoring is intentionally simple and does not yet use the available embedding model;
+- retrieval uses a cached per-tab token-count index for PDF page chunks and remains intentionally simple; it does not use the available embedding model;
 - summary and translation language choices are available from the compact Actions menu: questions and summaries use the per-session `Response language` setting (English, Traditional Chinese, or Simplified Chinese), while translation has an independent target-language setting with the same choices;
 - `Relevant Sections` is a keyword-retrieval mode for questions. Translation automatically changes this scope to `Current Page/Section`: a generic translation instruction cannot reliably retrieve the visible material and previously could select an unrelated page. The behavior remains enforced in the request model even though the explanatory panel line was removed to save space;
 - summary and translation requests deliberately omit prior chat turns so an earlier response from another page cannot contaminate the new result. Normal Ask requests retain the most recent eight messages as conversational history;
 - the AppKit-backed composer deliberately uses Return to send and Shift-Return for a newline. Do not replace it with SwiftUI `TextEditor` without retaining this behavior;
-- the AI context builder currently performs PDF text extraction synchronously when sending; very large PDFs may briefly delay the UI and should later use a cached background extraction/index;
+- the first request for a PDF reads the local file and extracts page text in a background task; later requests reuse the cached page/token index. The cache follows the file version captured when the tab was opened and is released when the tab closes;
 - the panel uses side-by-side resizing at all widths; the specified narrow-window overlay behavior remains future work;
 - provider profiles, active provider, selected model, endpoints, and remote-access approval persist in UserDefaults; credentials persist only in Keychain;
 - OpenAI is supported through its Chat Completions endpoint for common streaming transport. Migrating the OpenAI profile to the Responses API is an optional future enhancement, not a current functional requirement;
