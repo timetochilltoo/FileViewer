@@ -4,7 +4,7 @@ Last updated: 2026-09-21
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `feature/ai-assistant`
-Current committed baseline: `f5d3963` (`Retire closed windows from share pickers`)
+Current committed baseline: `0769234` (`Release closed window content from share pickers`)
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
@@ -14,7 +14,7 @@ Current committed baseline: `f5d3963` (`Retire closed windows from share pickers
 - `Resources/fileviewer-light-marker-lines.webp` is the source artwork for `AppIcon.icns`; its white canvas has been cropped away and the rounded corners are transparent. `scripts/package_app.sh` resizes it with Pillow and signs the resulting bundle.
 - The duplicate filename status row below the tab strip is removed; the window title and Window menu continue to identify each document as `<filename> — FileViewer`.
 - The tab strip now uses fixed-width, middle-truncated labels with full-path tooltips, scrolls the selected tab into view, and provides an **All Open Tabs** menu for long or crowded tab rows. The native Window menu also has an **Open Document Tabs** submenu plus `⌘⇧[` / `⌘⇧]` previous/next tab shortcuts, so tabs remain reachable even when the system window list contains only the current FileViewer window.
-- Closed FileViewer windows now opt out of external sharing and the native Window menu as soon as AppKit posts `willClose`; a notification observer covers close paths that bypass the retained delegate. Command-Q also retires registered and retained windows before termination, while the existing delayed release remains in place for the close-animation crash workaround.
+- Closed FileViewer windows now opt out of external sharing and the native Window menu as soon as AppKit posts `willClose`; a notification observer covers close paths that bypass the retained delegate. Command-Q also retires registered and retained windows before termination. The close teardown detaches the hosting view before the registry drops its last strong reference, so Gemini's Share Windows picker no longer lists the closed document while another FileViewer window remains open.
 - The main toolbar now places an accessible **New Markdown** button between the sidebar toggle and **Open**. The same action remains available from **FileViewer > New Markdown Document** / Command-N.
 - The Markdown toolbar places `Markdown View` beside the Preview / Source / Split picker. **FileViewer > Settings…** now stores a default Markdown view for newly opened or created Markdown documents.
 - The AI panel keeps provider/model selection in AI Provider Settings, shows the active model in the header beside `AI Assistant`, and keeps only context plus a compact Actions menu in the visible configuration area. Remote document transfer still requires the provider's explicit opt-in in the model layer.
@@ -27,7 +27,7 @@ Current committed baseline: `f5d3963` (`Retire closed windows from share pickers
 - The review hardened session restore path deduplication with standardized, symlink-resolved paths; PDF page navigation, permanent rotation, and annotation undo/redo guard empty or stale page indexes; and late AI stream callbacks are discarded after a tab closes so conversations cannot be recreated.
 - Configured AI endpoints now reject malformed URLs and embedded credentials, query strings, or fragments before provider access. Overlapping model-discovery requests are generation-checked, and streamed response buffers are capped at 256,000 characters.
 - The build-plan audit in `docs/mvp-task-list.md` section 22 now separates unfinished MVP/post-MVP items from the active Mac-first roadmap: local library/search, PDF page tools, presentation/export, Markdown fidelity/templates, optional tablet input, on-device OCR, audio notes, and focused AI study helpers. Cloud sync, accounts, collaboration, whiteboards, marketplace features, mobile packaging, and native Study Sets are deferred.
-- Latest validation: `swift test --jobs 1` passes all 33 tests; `swift build` succeeds; the debug bundle is packaged and ad-hoc signed. Native Gemini/share-picker verification is still pending a live FileViewer session; automated tests cover close-notification and termination retirement of registered windows.
+- Latest validation: `swift test --jobs 1` passes all 33 tests; `swift build` succeeds; the debug bundle is packaged and ad-hoc signed. Manual verification with the installed `/Applications/FileViewer 0.11.app` opened two PDFs, closed one, and confirmed FileViewer's Window menu and Gemini's Share Windows picker retained only the live document window.
 
 ## 1. Project purpose
 
