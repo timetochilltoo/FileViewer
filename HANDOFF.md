@@ -3,8 +3,8 @@
 Last updated: 2026-09-21
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
-Current branch at time of writing: `feature/ai-assistant`
-Current committed baseline: `2ac45a8` (`Record closed-window picker validation`)
+Current branch at time of writing: `main`
+Current committed baseline: `288cff2` (`Release AI response buffers on cancellation`)
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
@@ -26,6 +26,7 @@ Current committed baseline: `2ac45a8` (`Record closed-window picker validation`)
 - Recent-file loading now keeps only readable local file URLs and removes stale or non-file entries; attempts to reopen an unavailable recent file prune it immediately.
 - The review hardened session restore path deduplication with standardized, symlink-resolved paths; PDF page navigation, permanent rotation, and annotation undo/redo guard empty or stale page indexes; and late AI stream callbacks are discarded after a tab closes so conversations cannot be recreated.
 - Configured AI endpoints now reject malformed URLs and embedded credentials, query strings, or fragments before provider access. Overlapping model-discovery requests are generation-checked, and streamed response buffers are capped at 256,000 characters.
+- Cancelling, replacing, or closing an AI request releases its per-tab raw response buffer, including hidden reasoning, and late chunks from a cancelled request are ignored.
 - The build-plan audit in `docs/mvp-task-list.md` section 22 now separates unfinished MVP/post-MVP items from the active Mac-first roadmap: local library/search, PDF page tools, presentation/export, Markdown fidelity/templates, optional tablet input, on-device OCR, audio notes, and focused AI study helpers. Cloud sync, accounts, collaboration, whiteboards, marketplace features, mobile packaging, and native Study Sets are deferred.
 - Latest validation: `swift test --jobs 1` passes all 33 tests; `swift build` succeeds; the debug bundle is packaged and ad-hoc signed. Manual verification with the installed `/Applications/FileViewer 0.11.app` opened two PDFs, closed one, and confirmed FileViewer's Window menu and Gemini's Share Windows picker retained only the live document window.
 
