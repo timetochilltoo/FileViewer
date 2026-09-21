@@ -723,7 +723,11 @@ final class AIAssistantManager: ObservableObject {
     // `<think>…</think>` blocks. Keep the unfiltered response only for the
     // duration of the request so that it is never rendered, copied, exported,
     // or included in follow-up chat history.
-    private var rawResponseBuffers: [UUID: String] = [:]
+    private struct RawResponseBuffer {
+        let tabID: DocumentTab.ID
+        var content: String
+    }
+    private var rawResponseBuffers: [UUID: RawResponseBuffer] = [:]
     private static let maximumRawResponseCharacters = 256_000
     private static let profilesKey = "FileViewer.ai.providerProfiles"
     private static let activeProfileKey = "FileViewer.ai.activeProviderID"
@@ -850,6 +854,7 @@ final class AIAssistantManager: ObservableObject {
     func closeSession(for tabID: DocumentTab.ID) {
         generationTasks[tabID]?.cancel()
         generationTasks[tabID] = nil
+        removeRawResponseBuffers(for: tabID)
         sessions[tabID] = nil
         pdfContextIndexes[tabID] = nil
     }
@@ -864,6 +869,7 @@ final class AIAssistantManager: ObservableObject {
         guard let tabID else { return }
         generationTasks[tabID]?.cancel()
         generationTasks[tabID] = nil
+        removeRawResponseBuffers(for: tabID)
         updateSession(for: tabID) {
             $0.isGenerating = false
             $0.isPreparingContext = false
@@ -943,7 +949,15 @@ final class AIAssistantManager: ObservableObject {
         let history = historyMessages.map { message in
             AIProviderMessage(role: message.role.rawValue, content: message.content)
         }
+        // Cancel any earlier request for this tab before creating a new
+        // response buffer. Late deltas from the cancelled request then have no
+        // buffer to write into and cannot reappear in the new conversation.
+        generationTasks[tabID]?.cancel()
+        generationTasks[tabID] = nil
+        removeRawResponseBuffers(for: tabID)
+
         let assistantID = UUID()
+        rawResponseBuffers[assistantID] = RawResponseBuffer(tabID: tabID, content: "")
         updateSession(for: tabID) { session in
             session.messages.append(AIMessage(role: .user, content: requestText))
             session.messages.append(AIMessage(
@@ -960,7 +974,6 @@ final class AIAssistantManager: ObservableObject {
 
         let requestedModel = selectedModel
 
-        generationTasks[tabID]?.cancel()
         generationTasks[tabID] = Task { [weak self, document, tab, markdownSelection] in
             guard let self else { return }
             do {
@@ -1056,13 +1069,15 @@ final class AIAssistantManager: ObservableObject {
             return
         }
         guard let index = current.messages.firstIndex(where: { $0.id == assistantID }) else { return }
-        let existing = rawResponseBuffers[assistantID] ?? ""
+        guard var buffer = rawResponseBuffers[assistantID], buffer.tabID == tabID else { return }
+        let existing = buffer.content
         let remainingCharacters = Self.maximumRawResponseCharacters - existing.count
         guard remainingCharacters > 0 else { return }
         let boundedDelta = String(delta.prefix(remainingCharacters))
         guard !boundedDelta.isEmpty else { return }
         let rawResponse = existing + boundedDelta
-        rawResponseBuffers[assistantID] = rawResponse
+        buffer.content = rawResponse
+        rawResponseBuffers[assistantID] = buffer
         current.messages[index].content = Self.displayableResponse(from: rawResponse)
         sessions[tabID] = current
     }
@@ -1076,7 +1091,7 @@ final class AIAssistantManager: ObservableObject {
         current.isGenerating = false
         current.isPreparingContext = false
         if let index = current.messages.firstIndex(where: { $0.id == assistantID }),
-           let rawResponse = rawResponseBuffers.removeValue(forKey: assistantID) {
+           let rawResponse = rawResponseBuffers.removeValue(forKey: assistantID)?.content {
             current.messages[index].content = Self.displayableResponse(from: rawResponse)
         }
         if let error {
@@ -1087,6 +1102,10 @@ final class AIAssistantManager: ObservableObject {
         }
         sessions[tabID] = current
         generationTasks[tabID] = nil
+    }
+
+    private func removeRawResponseBuffers(for tabID: DocumentTab.ID) {
+        rawResponseBuffers = rawResponseBuffers.filter { $0.value.tabID != tabID }
     }
 
     /// Hides private reasoning emitted by models that use the conventional
