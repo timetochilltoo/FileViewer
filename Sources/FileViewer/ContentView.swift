@@ -248,48 +248,106 @@ struct ContentView: View {
     @ViewBuilder
     private var tabBar: some View {
         if !model.tabs.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
+            HStack(spacing: 0) {
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(model.tabs) { tab in
+                                documentTab(tab)
+                                    .id(tab.id)
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                    }
+                    .onAppear {
+                        guard let selectedID = model.selectedTabID else { return }
+                        DispatchQueue.main.async {
+                            proxy.scrollTo(selectedID, anchor: .center)
+                        }
+                    }
+                    .onChange(of: model.selectedTabID) { _, selectedID in
+                        guard let selectedID else { return }
+                        // Keep a tab selected from the Window menu or All Open
+                        // Tabs menu visible even when the strip is already full.
+                        DispatchQueue.main.async {
+                            withAnimation(.easeInOut(duration: 0.18)) {
+                                proxy.scrollTo(selectedID, anchor: .center)
+                            }
+                        }
+                    }
+                }
+
+                Divider()
+                    .frame(height: 28)
+
+                Menu {
                     ForEach(model.tabs) { tab in
                         Button {
                             model.selectTab(tab.id)
                         } label: {
-                            HStack(spacing: 7) {
-                                Image(systemName: tab.document.kind == .pdf ? "doc.richtext" : "doc.plaintext")
+                            if tab.id == model.selectedTabID {
+                                Label(tab.document.name, systemImage: "checkmark")
+                            } else {
                                 Text(tab.document.name)
-                                    .lineLimit(1)
-                                if case .markdown(let markdown) = tab.document, markdown.hasUnsavedChanges {
-                                    Circle()
-                                        .fill(.orange)
-                                        .frame(width: 7, height: 7)
-                                }
-                                Button {
-                                    model.requestCloseTab(tab.id)
-                                } label: {
-                                    Image(systemName: "xmark")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                .buttonStyle(.plain)
-                                .help("Close Tab")
                             }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(
-                                tab.id == model.selectedTabID
-                                    ? Color.accentColor.opacity(0.16)
-                                    : Color(nsColor: .controlBackgroundColor),
-                                in: RoundedRectangle(cornerRadius: 8)
-                            )
                         }
-                        .buttonStyle(.plain)
+                        .help(tab.document.url?.path ?? tab.document.name)
                     }
+                } label: {
+                    Image(systemName: "rectangle.stack")
+                        .frame(width: 18, height: 18)
+                        .contentShape(Rectangle())
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .menuStyle(.borderlessButton)
+                .padding(.horizontal, 10)
+                .help("All Open Tabs")
+                .accessibilityLabel("All Open Tabs")
             }
             .background(Color(nsColor: .windowBackgroundColor))
         }
+    }
+
+    private func documentTab(_ tab: DocumentTab) -> some View {
+        HStack(spacing: 6) {
+            Button {
+                model.selectTab(tab.id)
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: tab.document.kind == .pdf ? "doc.richtext" : "doc.plaintext")
+                    Text(tab.document.name)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(width: 150, alignment: .leading)
+                    if case .markdown(let markdown) = tab.document, markdown.hasUnsavedChanges {
+                        Circle()
+                            .fill(.orange)
+                            .frame(width: 7, height: 7)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .help(tab.document.url?.path ?? tab.document.name)
+
+            Button {
+                model.requestCloseTab(tab.id)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Close Tab")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            tab.id == model.selectedTabID
+                ? Color.accentColor.opacity(0.16)
+                : Color(nsColor: .controlBackgroundColor),
+            in: RoundedRectangle(cornerRadius: 8)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 8))
     }
 
     private var statusBar: some View {

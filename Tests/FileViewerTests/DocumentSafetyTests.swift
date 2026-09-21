@@ -54,6 +54,28 @@ final class DocumentSafetyTests: XCTestCase {
     }
 
     @MainActor
+    func testRelativeTabSelectionWrapsAcrossOpenDocuments() throws {
+        let firstURL = temporaryDirectory.appendingPathComponent("first.md")
+        let secondURL = temporaryDirectory.appendingPathComponent("second.md")
+        let thirdURL = temporaryDirectory.appendingPathComponent("third.md")
+        try "first".write(to: firstURL, atomically: true, encoding: .utf8)
+        try "second".write(to: secondURL, atomically: true, encoding: .utf8)
+        try "third".write(to: thirdURL, atomically: true, encoding: .utf8)
+
+        let model = AppModel()
+        model.open(url: firstURL)
+        model.open(url: secondURL)
+        model.open(url: thirdURL)
+        let firstTabID = try XCTUnwrap(model.tabs.first?.id)
+
+        model.selectTab(firstTabID)
+        model.selectPreviousTab()
+        XCTAssertEqual(model.selectedTab?.document.name, "third.md")
+        model.selectNextTab()
+        XCTAssertEqual(model.selectedTab?.document.name, "first.md")
+    }
+
+    @MainActor
     func testOpeningNonFileURLDoesNotReadExternalContent() {
         let model = AppModel()
         let url = URL(string: "https://example.com/notes.md")!

@@ -77,6 +77,7 @@ struct FileViewerCommands: Commands {
 
         // FileViewer has its own Markdown formatting and document controls.
         FileViewerRemovedCommands()
+
         CommandMenu("Display") {
             Button("Toggle Sidebar") {
                 if let activeModel {
@@ -417,8 +418,48 @@ struct FileViewerAICommands: Commands {
 }
 
 private struct FileViewerRemovedCommands: Commands {
+    @FocusedObject private var focusedModel: AppModel?
+    @FocusedValue(\.fileViewerModel) private var model
+
+    private var activeModel: AppModel? {
+        focusedModel ?? model ?? FileViewerWindowRegistry.shared.activeModel
+    }
+
     var body: some Commands {
         CommandGroup(replacing: .systemServices) { }
         CommandGroup(replacing: .toolbar) { }
+
+        CommandGroup(after: .windowList) {
+            Menu("Open Document Tabs") {
+                if let activeModel, !activeModel.tabs.isEmpty {
+                    ForEach(activeModel.tabs) { tab in
+                        Button {
+                            activeModel.selectTab(tab.id)
+                        } label: {
+                            if tab.id == activeModel.selectedTabID {
+                                Label(tab.document.name, systemImage: "checkmark")
+                            } else {
+                                Text(tab.document.name)
+                            }
+                        }
+                    }
+                } else {
+                    Text("No document tabs open")
+                }
+            }
+            .disabled(activeModel?.tabs.isEmpty != false)
+
+            Button("Next Document Tab") {
+                activeModel?.selectNextTab()
+            }
+            .keyboardShortcut("]", modifiers: [.command, .shift])
+            .disabled(activeModel?.tabs.count ?? 0 < 2)
+
+            Button("Previous Document Tab") {
+                activeModel?.selectPreviousTab()
+            }
+            .keyboardShortcut("[", modifiers: [.command, .shift])
+            .disabled(activeModel?.tabs.count ?? 0 < 2)
+        }
     }
 }

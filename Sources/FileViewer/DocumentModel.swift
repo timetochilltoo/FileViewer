@@ -1042,6 +1042,21 @@ final class AppModel: ObservableObject {
         saveCurrentSession()
     }
 
+    func selectNextTab() {
+        selectRelativeTab(offset: 1)
+    }
+
+    func selectPreviousTab() {
+        selectRelativeTab(offset: -1)
+    }
+
+    private func selectRelativeTab(offset: Int) {
+        guard tabs.count > 1 else { return }
+        let currentIndex = selectedTabIndex ?? 0
+        let nextIndex = (currentIndex + offset + tabs.count) % tabs.count
+        selectTab(tabs[nextIndex].id)
+    }
+
     func requestCloseTab(_ id: DocumentTab.ID) {
         guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
         guard canCloseTab(at: index) else { return }
