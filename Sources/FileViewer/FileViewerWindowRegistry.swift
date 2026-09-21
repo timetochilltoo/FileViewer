@@ -9,13 +9,25 @@ final class FileViewerWindowRegistry {
     private var registeredWindows: [ObjectIdentifier: WeakWindow] = [:]
     private var retainedWindows: [NSWindow] = []
     private var windowDelegates: [ObjectIdentifier: WindowCloseDelegate] = [:]
+    private var closingWindowIDs: Set<ObjectIdentifier> = []
+    private var windowLifecycleObserver: WindowLifecycleObserver!
     private var pendingExternalURLs: [URL] = []
     private var pendingFlushScheduled = false
     private var restoredAdditionalSessionWindows = false
     private var sessionRestoreScheduled = false
     private var suppressSessionRestore = false
 
-    private init() {}
+    private init() {
+        let observer = WindowLifecycleObserver()
+        windowLifecycleObserver = observer
+        observer.registry = self
+        NotificationCenter.default.addObserver(
+            observer,
+            selector: #selector(WindowLifecycleObserver.windowWillClose(_:)),
+            name: NSWindow.willCloseNotification,
+            object: nil
+        )
+    }
 
     var activeModel: AppModel? {
         cleanupModels()
@@ -48,6 +60,8 @@ final class FileViewerWindowRegistry {
     func register(_ model: AppModel, window: NSWindow) {
         register(model)
         Self.updateDocumentIdentity(model, window: window)
+        window.sharingType = .readOnly
+        window.isExcludedFromWindowsMenu = false
         registeredWindows[ObjectIdentifier(model)] = WeakWindow(value: window)
         let key = ObjectIdentifier(window)
         if let existingDelegate = windowDelegates[key] {
@@ -55,12 +69,7 @@ final class FileViewerWindowRegistry {
         } else {
             let delegate = WindowCloseDelegate(model: model) { [weak self, weak window, weak model] in
                 guard let self, let window else { return }
-                if let model {
-                    self.registeredModels.removeAll { $0.value === model }
-                    self.registeredWindows.removeValue(forKey: ObjectIdentifier(model))
-                }
-                self.saveCurrentSession()
-                self.releaseClosedWindowLater(window)
+                self.handleWindowWillClose(window, model: model)
             }
             window.delegate = delegate
             windowDelegates[key] = delegate
@@ -105,6 +114,20 @@ final class FileViewerWindowRegistry {
                 return model.sessionSnapshot(frameString: frameString)
             }
         AppModel.saveSessionWindows(snapshots)
+    }
+
+    /// Marks all registered FileViewer windows as unavailable to external
+    /// window-sharing pickers after the app has passed its termination checks.
+    /// The close notification normally handles this one window at a time; this
+    /// final pass also covers Command-Q paths where AppKit tears down windows
+    /// without delivering every delegate callback before termination.
+    func prepareForTermination() {
+        for window in registeredWindows.values.compactMap(\.value) {
+            retireWindowForSharing(window)
+        }
+        for window in retainedWindows {
+            retireWindowForSharing(window)
+        }
     }
 
     private func flushPendingExternalURLsIfPossible() {
@@ -259,12 +282,45 @@ final class FileViewerWindowRegistry {
         registeredWindows = registeredWindows.filter { $0.value.value != nil }
     }
 
+    private func handleWindowWillClose(_ window: NSWindow, model: AppModel? = nil) {
+        let isKnownWindow = retainedWindows.contains { $0 === window }
+            || registeredWindows.values.contains { $0.value === window }
+        guard isKnownWindow else { return }
+
+        let windowID = ObjectIdentifier(window)
+        guard closingWindowIDs.insert(windowID).inserted else { return }
+
+        retireWindowForSharing(window)
+        let model = model ?? registeredModels
+            .compactMap(\.value)
+            .first { registeredWindows[ObjectIdentifier($0)]?.value === window }
+        if let model {
+            registeredModels.removeAll { $0.value === model }
+            registeredWindows.removeValue(forKey: ObjectIdentifier(model))
+        }
+        saveCurrentSession()
+        releaseClosedWindowLater(window)
+    }
+
+    fileprivate func handleWindowWillCloseFromNotification(_ window: NSWindow) {
+        handleWindowWillClose(window)
+    }
+
+    private func retireWindowForSharing(_ window: NSWindow) {
+        // Keep the existing delayed object release for AppKit's close
+        // animation, but remove this surface from external share pickers now.
+        window.sharingType = .none
+        window.isExcludedFromWindowsMenu = true
+        window.orderOut(nil)
+    }
+
     private func releaseClosedWindowLater(_ window: NSWindow) {
         let key = ObjectIdentifier(window)
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
             guard let self else { return }
             self.windowDelegates.removeValue(forKey: key)
             self.retainedWindows.removeAll { $0 === window }
+            self.closingWindowIDs.remove(key)
         }
     }
 
@@ -284,6 +340,16 @@ private struct WeakAppModel {
 
 private struct WeakWindow {
     weak var value: NSWindow?
+}
+
+@MainActor
+private final class WindowLifecycleObserver: NSObject {
+    weak var registry: FileViewerWindowRegistry?
+
+    @objc func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow else { return }
+        registry?.handleWindowWillCloseFromNotification(window)
+    }
 }
 
 @MainActor

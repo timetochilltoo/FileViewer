@@ -35,6 +35,7 @@ final class FileViewerAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @MainActor func applicationWillTerminate(_ notification: Notification) {
+        FileViewerWindowRegistry.shared.prepareForTermination()
         FileViewerWindowRegistry.shared.saveCurrentSession()
     }
 

@@ -80,6 +80,32 @@ final class WindowPreferencesTests: XCTestCase {
     }
 
     @MainActor
+    func testTerminationRetiresRegisteredWindowFromExternalSharing() {
+        let model = AppModel()
+        model.newMarkdownDocument()
+        let window = NSWindow()
+
+        FileViewerWindowRegistry.shared.register(model, window: window)
+        FileViewerWindowRegistry.shared.prepareForTermination()
+
+        XCTAssertEqual(window.sharingType, .none)
+        XCTAssertTrue(window.isExcludedFromWindowsMenu)
+    }
+
+    @MainActor
+    func testWindowCloseNotificationRetiresRegisteredWindowFromExternalSharing() {
+        let model = AppModel()
+        model.newMarkdownDocument()
+        let window = NSWindow()
+
+        FileViewerWindowRegistry.shared.register(model, window: window)
+        NotificationCenter.default.post(name: NSWindow.willCloseNotification, object: window)
+
+        XCTAssertEqual(window.sharingType, .none)
+        XCTAssertTrue(window.isExcludedFromWindowsMenu)
+    }
+
+    @MainActor
     func testMenuCleanupPreservesNativeEditingAndRemovesInjectedServices() {
         let menu = NSMenu()
         menu.addItem(.separator())
