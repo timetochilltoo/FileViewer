@@ -39,6 +39,13 @@ struct FileViewerCommands: Commands {
                 activeModel?.openWithPanel()
             }
             .keyboardShortcut("o", modifiers: .command)
+
+            Divider()
+
+            Button("Search Library…") {
+                activeModel?.showLibrary()
+            }
+            .keyboardShortcut("f", modifiers: [.command, .option])
         }
 
         CommandGroup(replacing: .saveItem) {

@@ -3,7 +3,7 @@ import PDFKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-enum DocumentKind: String, Codable, CaseIterable {
+enum DocumentKind: String, Codable, CaseIterable, Sendable {
     case markdown
     case pdf
 }
@@ -110,6 +110,7 @@ enum MarkdownFormatCommand: String, CaseIterable {
 }
 
 enum SidebarMode: String, CaseIterable {
+    case library
     case recent
     case contents
     case pages
@@ -117,6 +118,7 @@ enum SidebarMode: String, CaseIterable {
 
     var title: String {
         switch self {
+        case .library: "Library"
         case .recent: "Recent"
         case .contents: "Contents"
         case .pages: "Pages"
@@ -556,6 +558,13 @@ final class AppModel: ObservableObject {
     @Published var markdownMode: MarkdownMode = .split
     @Published var statusMessage = ""
     @Published var recents: [RecentDocument] = []
+    @Published var libraryFolders: [URL] = []
+    @Published var libraryQuery = "" {
+        didSet { updateLibraryResults() }
+    }
+    @Published private(set) var libraryResults: [LibrarySearchResult] = []
+    @Published private(set) var isLibraryIndexing = false
+    @Published private(set) var libraryIndexedFileCount = 0
     @Published var isPDFNoteMoveModeEnabled = false
     @Published var isPDFAnnotationDeleteModeEnabled = false
     @Published var isPDFAnnotationEditModeEnabled = false
@@ -572,6 +581,7 @@ final class AppModel: ObservableObject {
     let aiAssistant = AIAssistantManager()
 
     private let recentsKey = "FileViewer.recents"
+    private static let libraryFoldersKey = "FileViewer.library.folders"
     private let markdownModeKey = "FileViewer.markdownMode"
     private static let sessionKey = "FileViewer.session.windows"
     private static let pdfStateKey = "FileViewer.pdf.lastStates"
@@ -581,6 +591,10 @@ final class AppModel: ObservableObject {
     private var pdfAnnotationActionRedoStacks: [DocumentTab.ID: [PDFAnnotationUndoAction]] = [:]
     private var lastMarkdownSelectionSignature: String?
     private var pendingAISelections: [DocumentTab.ID: String] = [:]
+    private var libraryEntries: [LibraryIndexEntry] = []
+    private var libraryIndexTask: Task<Void, Never>?
+    private var libraryIndexGeneration: UInt = 0
+    private var hasBuiltLibraryIndex = false
 
     var pdfAnnotationNSColor: NSColor {
         NSColor(pdfAnnotationColor)
@@ -1821,6 +1835,78 @@ final class AppModel: ObservableObject {
         recents.insert(next, at: 0)
         recents = Array(recents.prefix(12))
         saveRecents()
+        if hasBuiltLibraryIndex {
+            refreshLibraryIndex()
+        }
+    }
+
+    func showLibrary() {
+        sidebarMode = .library
+        ensureLibraryIndex()
+        NotificationCenter.default.post(name: .showLibrary, object: self)
+    }
+
+    func ensureLibraryIndex() {
+        guard !hasBuiltLibraryIndex, libraryIndexTask == nil else { return }
+        refreshLibraryIndex()
+    }
+
+    func refreshLibraryIndex() {
+        libraryIndexGeneration &+= 1
+        let generation = libraryIndexGeneration
+        libraryIndexTask?.cancel()
+        libraryIndexTask = nil
+        isLibraryIndexing = true
+
+        let roots = libraryFolders
+        let recentURLs = recents.map(\.url)
+        libraryIndexTask = Task { [weak self] in
+            let entries = await LocalLibraryIndexer.build(roots: roots, recentURLs: recentURLs)
+            guard !Task.isCancelled else { return }
+            guard let self, generation == self.libraryIndexGeneration else { return }
+            self.libraryEntries = entries
+            self.libraryIndexedFileCount = entries.count
+            self.isLibraryIndexing = false
+            self.hasBuiltLibraryIndex = true
+            self.libraryIndexTask = nil
+            self.updateLibraryResults()
+        }
+    }
+
+    func addLibraryFolder() {
+        let panel = NSOpenPanel()
+        panel.title = "Add Library Folder"
+        panel.prompt = "Add Folder"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+
+        guard panel.runModal() == .OK else { return }
+        let normalizedFolders = panel.urls.compactMap(normalizedLibraryFolder)
+        guard !normalizedFolders.isEmpty else { return }
+
+        var foldersByPath = Dictionary(uniqueKeysWithValues: libraryFolders.map { ($0.path, $0) })
+        normalizedFolders.forEach { foldersByPath[$0.path] = $0 }
+        libraryFolders = foldersByPath.values.sorted { $0.path.localizedCaseInsensitiveCompare($1.path) == .orderedAscending }
+        saveLibraryFolders()
+        refreshLibraryIndex()
+    }
+
+    func removeLibraryFolder(_ folder: URL) {
+        let normalizedPath = folder.standardizedFileURL.resolvingSymlinksInPath().path
+        libraryFolders.removeAll { $0.standardizedFileURL.resolvingSymlinksInPath().path == normalizedPath }
+        saveLibraryFolders()
+        refreshLibraryIndex()
+    }
+
+    func openLibraryResult(_ result: LibrarySearchResult) {
+        guard result.url.isFileURL,
+              FileManager.default.isReadableFile(atPath: result.url.path) else {
+            refreshLibraryIndex()
+            statusMessage = "This library file is no longer available."
+            return
+        }
+        open(url: result.url)
     }
 
     func reopenRecent(_ recent: RecentDocument) {
@@ -2452,21 +2538,54 @@ final class AppModel: ObservableObject {
     private func loadSettings() {
         markdownMode = MarkdownPreferences.defaultMode()
 
-        guard let data = UserDefaults.standard.data(forKey: recentsKey),
-              let decoded = try? JSONDecoder().decode([RecentDocument].self, from: data) else {
-            return
+        if let data = UserDefaults.standard.data(forKey: recentsKey),
+           let decoded = try? JSONDecoder().decode([RecentDocument].self, from: data) {
+            recents = decoded.filter {
+                $0.url.isFileURL && FileManager.default.isReadableFile(atPath: $0.url.path)
+            }
+            if recents.count != decoded.count {
+                saveRecents()
+            }
         }
-        recents = decoded.filter {
-            $0.url.isFileURL && FileManager.default.isReadableFile(atPath: $0.url.path)
-        }
-        if recents.count != decoded.count {
-            saveRecents()
-        }
+
+        loadLibraryFolders()
     }
 
     private func saveRecents() {
         guard let data = try? JSONEncoder().encode(recents) else { return }
         UserDefaults.standard.set(data, forKey: recentsKey)
+    }
+
+    private func loadLibraryFolders() {
+        guard let data = UserDefaults.standard.data(forKey: Self.libraryFoldersKey),
+              let paths = try? JSONDecoder().decode([String].self, from: data) else { return }
+
+        let folders = paths.compactMap { normalizedLibraryFolder(URL(fileURLWithPath: $0)) }
+        libraryFolders = Array(Dictionary(uniqueKeysWithValues: folders.map { ($0.path, $0) }).values)
+            .sorted { $0.path.localizedCaseInsensitiveCompare($1.path) == .orderedAscending }
+        if libraryFolders.map(\.path) != paths.sorted() {
+            saveLibraryFolders()
+        }
+    }
+
+    private func saveLibraryFolders() {
+        let paths = libraryFolders.map(\.path)
+        guard let data = try? JSONEncoder().encode(paths) else { return }
+        UserDefaults.standard.set(data, forKey: Self.libraryFoldersKey)
+    }
+
+    private func normalizedLibraryFolder(_ url: URL) -> URL? {
+        guard url.isFileURL else { return nil }
+        let normalized = url.standardizedFileURL.resolvingSymlinksInPath()
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: normalized.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            return nil
+        }
+        return normalized
+    }
+
+    private func updateLibraryResults() {
+        libraryResults = LocalLibraryIndexer.search(query: libraryQuery, entries: libraryEntries)
     }
 
     static func loadSavedSessionWindows() -> [SavedSessionWindow] {

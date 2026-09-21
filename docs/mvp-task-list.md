@@ -349,25 +349,27 @@ This section records the boundary of the original viewer MVP. Some items, includ
 - The app builds successfully with Swift tools version 6.2 on macOS 26.
 - PDF annotations, drawing, notes, form editing, safe PDF save, and annotation reports have been implemented after the original MVP.
 - Reading-only view rotation plus permanent current-page/all-page rotation have been implemented. The permanent actions save only after an explicit Save or Save As.
-- The original viewer MVP is complete. Later work has also implemented PDF annotation/form support and the AI assistant on `feature/ai-assistant`: a resizable right panel, per-tab in-memory conversations, PDF/Markdown selection capture, four explicit scopes, local retrieval, streaming, cancellation, provider/model discovery, and explicit remote document-transfer approval. Provider profiles now include LM Studio, Ollama, custom OpenAI-compatible servers, and OpenAI; credentials are stored only in Keychain.
+- The original viewer MVP is complete. Later work has also implemented PDF annotation/form support and the AI assistant on `main`: a resizable right panel, per-tab in-memory conversations, PDF/Markdown selection capture, four explicit scopes, local retrieval, streaming, cancellation, provider/model discovery, and explicit remote document-transfer approval. Provider profiles now include LM Studio, Ollama, custom OpenAI-compatible servers, and OpenAI; credentials are stored only in Keychain.
+- The Local Library slice now provides a Library sidebar with recent-file and user-selected-folder indexing, local filename/heading/text/annotation search, result snippets, and safe opening through the existing document flow. Indexed document text is memory-only; selected folder paths are stored locally.
 
 ## 22. Build-plan audit and Mac-first post-MVP plan (2026-09-19)
 
 The original viewer MVP and later PDF annotation/form and AI milestones are implemented. The following plan items remain unfinished or partial:
 
+- Local library: tags, incremental background refresh, and a durable searchable index remain future work; the current index is rebuilt on demand and keeps document text in memory only.
 - Markdown preview: richer GitHub-Flavored Markdown tables, local image rendering, richer code presentation, copy-code actions, and heading-to-source navigation.
 - PDF workflow: fullscreen/presentation mode, two-page spread or selectable single-page mode, and page delete/reorder/extract/merge/insert.
 - PDF annotations: author and timestamp metadata.
 - Export: Markdown-to-PDF/HTML, PDF page/image export, and advanced PDF operations.
 - Advanced Markdown: Mermaid and math rendering.
-- AI: selection context-menu actions, richer retrieval/embedding search, complete-document hierarchical summaries, conversation persistence, clickable citations, and background extraction/index caching.
+- AI: richer retrieval/embedding search, complete-document hierarchical summaries, conversation persistence, clickable citations, and broader cache invalidation. Selection actions and the PDF per-tab extraction/index cache are implemented.
 - Verification: focused UI/sample-file tests for PDF outline/search/annotation/forms, multi-window restoration, and live AI streaming/error states.
 
 The active build plan deliberately targets local, single-user Mac workflows. Cloud sync, accounts, real-time collaboration, marketplace, infinite whiteboards, mobile packaging, and native Study Sets remain deferred.
 
 ### Phase A — high-value Mac features
 
-1. **Local library and global search** — folders/tags, indexed titles/headings/Markdown/PDF text/annotation summaries, and clear local-only controls.
+1. **Local library and global search** — the first local folder/index/search slice is implemented; add tags, incremental refresh, durable index storage, and richer filters while keeping clear local-only controls.
 2. **PDF page tools** — thumbnail multi-selection, reorder, duplicate, delete, extract/split, insert, and export, using the existing atomic-save and external-change protections.
 3. **Reading and presentation** — fullscreen reading, presentation mode, page-advance shortcuts, temporary cursor/laser focus, and optional two-page spread.
 4. **Markdown fidelity and templates** — local images, richer tables/task lists/code blocks, copy-code, heading navigation, and user-managed Markdown/PDF templates.

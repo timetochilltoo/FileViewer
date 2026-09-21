@@ -19,6 +19,8 @@ struct SidebarView: View {
             Divider()
 
             switch model.sidebarMode {
+            case .library:
+                libraryList
             case .recent:
                 recentList
             case .contents:
@@ -81,6 +83,117 @@ struct SidebarView: View {
             if model.recents.isEmpty {
                 ContentUnavailableView("No Recent Files", systemImage: "clock")
             }
+        }
+    }
+
+    private var libraryList: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                TextField("Search library", text: $model.libraryQuery)
+                    .textFieldStyle(.roundedBorder)
+                    .help("Search indexed filenames, headings, document text, and annotations")
+
+                Menu {
+                    Button("Add Folder…") {
+                        model.addLibraryFolder()
+                    }
+                    if !model.libraryFolders.isEmpty {
+                        Divider()
+                        Section("Indexed Folders") {
+                            ForEach(model.libraryFolders, id: \.path) { folder in
+                                Button {
+                                    model.removeLibraryFolder(folder)
+                                } label: {
+                                    Label("Remove \(folder.lastPathComponent)", systemImage: "minus.circle")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "folder.badge.gearshape")
+                        .frame(width: 24, height: 24)
+                }
+                .menuStyle(.borderlessButton)
+                .help("Manage Library Folders")
+                .accessibilityLabel("Manage Library Folders")
+
+                Button {
+                    model.refreshLibraryIndex()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .frame(width: 24, height: 24)
+                }
+                .buttonStyle(.borderless)
+                .disabled(model.isLibraryIndexing)
+                .help("Refresh Library Index")
+                .accessibilityLabel("Refresh Library Index")
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+
+            HStack(spacing: 6) {
+                if model.isLibraryIndexing {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Indexing local files…")
+                } else if model.libraryFolders.isEmpty {
+                    Text("Recent files only")
+                } else {
+                    Text("\(model.libraryFolders.count) folder\(model.libraryFolders.count == 1 ? "" : "s")")
+                }
+                Spacer()
+                Text("\(model.libraryIndexedFileCount) files")
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 14)
+            .padding(.bottom, 6)
+
+            Divider()
+
+            List(model.libraryResults) { result in
+                Button {
+                    model.openLibraryResult(result)
+                } label: {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: result.kind == .pdf ? "doc.richtext" : "doc.plaintext")
+                            .foregroundStyle(.secondary)
+                            .frame(width: 18)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(result.name)
+                                .lineLimit(1)
+                            Text(result.reason)
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                            if !result.snippet.isEmpty {
+                                Text(result.snippet)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                            Text(result.location)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .help(result.url.path)
+            }
+            .overlay {
+                if model.libraryResults.isEmpty {
+                    ContentUnavailableView(
+                        model.libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "No Indexed Files" : "No Matches",
+                        systemImage: "magnifyingglass",
+                        description: Text(model.libraryFolders.isEmpty ? "Open files or add a local folder to build the library." : "Try another filename, heading, or document phrase.")
+                    )
+                }
+            }
+        }
+        .onAppear {
+            model.ensureLibraryIndex()
         }
     }
 

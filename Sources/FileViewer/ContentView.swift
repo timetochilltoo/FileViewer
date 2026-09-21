@@ -106,6 +106,14 @@ struct ContentView: View {
                 toggleSidebar()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .showLibrary)) { notification in
+            if let requestedModel = notification.object as? AppModel, requestedModel === model {
+                sidebarVisible = true
+                SidebarPreferences.remember(true)
+                model.sidebarMode = .library
+                model.ensureLibraryIndex()
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .pdfAnnotationDidChange)) { notification in
             guard let url = notification.object as? URL else { return }
             model.markPDFAnnotationsChanged(for: url)
@@ -712,6 +720,7 @@ extension Notification.Name {
     static let pdfFormFieldBaselineDidReset = Notification.Name("FileViewer.pdfFormFieldBaselineDidReset")
     static let markdownSyncCurrentState = Notification.Name("FileViewer.markdownSyncCurrentState")
     static let toggleSidebar = Notification.Name("FileViewer.toggleSidebar")
+    static let showLibrary = Notification.Name("FileViewer.showLibrary")
 }
 
 enum PDFNotificationUserInfo {

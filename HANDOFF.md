@@ -3,12 +3,18 @@
 Last updated: 2026-09-21
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
-Current branch at time of writing: `main`
-Current committed baseline: `288cff2` (`Release AI response buffers on cancellation`)
+Current branch at time of writing: `codex/local-library-search`
+Current committed baseline: `6a75f0f` (`Record AI review and main merge baseline`); the active branch adds the local-library milestone described below.
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
-## Current implementation updates (2026-09-19)
+## Current implementation updates (2026-09-21)
+
+- The active `codex/local-library-search` branch adds a **Library** sidebar and **Search Library…** / Command-Option-F. It indexes readable recent Markdown/PDF files plus user-selected local folders, searches filenames, Markdown headings, document text, and PDF annotation summaries, and opens results through the existing safe document flow. Searchable text is bounded and memory-only; only normalized selected-folder paths are stored in UserDefaults.
+- Local-library indexing is capped at 2,000 files and 20 million searchable characters, runs off the main actor, supports refresh/removal of selected folders, and stops cleanly when a refresh is replaced or cancelled.
+- Latest validation for this branch: `swift test --jobs 1` passes all 37 tests; `swift build` succeeds; the debug bundle is packaged and ad-hoc signed. Native UI verification of the new Library sidebar remains pending because the development bundle and installed bundle are both currently running, so LaunchServices did not launch a fresh copy reliably.
+
+## Previous implementation updates (2026-09-19)
 
 - The packaged app is version `0.11` at `build/FileViewer 0.11.app`. `CFBundleDisplayName` and `CFBundleName` are `FileViewer`, so the app menu does not include a version suffix. The custom About panel shows the supplied app icon, `FileViewer`, `Version 0.11`, and `By Patrick Shi`.
 - `Resources/fileviewer-light-marker-lines.webp` is the source artwork for `AppIcon.icns`; its white canvas has been cropped away and the rounded corners are transparent. `scripts/package_app.sh` resizes it with Pillow and signs the resulting bundle.
@@ -28,7 +34,7 @@ Current committed baseline: `288cff2` (`Release AI response buffers on cancellat
 - Configured AI endpoints now reject malformed URLs and embedded credentials, query strings, or fragments before provider access. Overlapping model-discovery requests are generation-checked, and streamed response buffers are capped at 256,000 characters.
 - Cancelling, replacing, or closing an AI request releases its per-tab raw response buffer, including hidden reasoning, and late chunks from a cancelled request are ignored.
 - The build-plan audit in `docs/mvp-task-list.md` section 22 now separates unfinished MVP/post-MVP items from the active Mac-first roadmap: local library/search, PDF page tools, presentation/export, Markdown fidelity/templates, optional tablet input, on-device OCR, audio notes, and focused AI study helpers. Cloud sync, accounts, collaboration, whiteboards, marketplace features, mobile packaging, and native Study Sets are deferred.
-- Latest validation: `swift test --jobs 1` passes all 33 tests; `swift build` succeeds; the debug bundle is packaged and ad-hoc signed. Manual verification with the installed `/Applications/FileViewer 0.11.app` opened two PDFs, closed one, and confirmed FileViewer's Window menu and Gemini's Share Windows picker retained only the live document window.
+- Validation recorded for the 2026-09-19 baseline: `swift test --jobs 1` passed 33 tests; `swift build` succeeded; the debug bundle was packaged and ad-hoc signed. Manual verification with the installed `/Applications/FileViewer 0.11.app` opened two PDFs, closed one, and confirmed FileViewer's Window menu and Gemini's Share Windows picker retained only the live document window.
 
 ## 1. Project purpose
 
@@ -105,6 +111,7 @@ Sources/FileViewer/
 ├── AIAssistantPanel.swift
 ├── MarkdownSyntaxHelp.swift
 ├── MarkdownWorkspace.swift
+├── LocalLibrary.swift
 ├── PDFWorkspace.swift
 └── SidebarView.swift
 ```
@@ -174,9 +181,11 @@ Important types:
   - `.link`
   - `.code`
 - `SidebarMode`
+  - `.library`
   - `.recent`
   - `.contents`
   - `.pages`
+  - `.annotations`
 - `RecentDocument`
 - `SavedSessionWindow`
 - `SavedSessionTab`
@@ -1147,23 +1156,24 @@ Patrick is newer to Markdown and wants the app to teach/assist him. The Help gui
 
 Recommended order:
 
-The AI assistant is implemented on `feature/ai-assistant`. See `docs/ai-assistant-specification.md` and the implementation section below before continuing it.
+The AI assistant is implemented on `main`. See `docs/ai-assistant-specification.md` and the implementation section below before continuing it.
 
-1. Continue PDF annotation:
+1. Extend the local Library slice with tags, incremental background refresh, durable indexing, and richer filters while keeping document text local and bounded.
+2. Continue PDF annotation:
    - author/timestamp metadata in annotation reports
    - consider explicit undo/redo support for permanent page rotations only if it can be implemented without replacing/reloading the full PDF document
-2. Improve Markdown preview rendering if Patrick relies heavily on richer tables/checklists.
-3. Add remaining Markdown formatting polish:
+3. Improve Markdown preview rendering if Patrick relies heavily on richer tables/checklists.
+4. Add remaining Markdown formatting polish:
    - smarter link editing/toggling for arbitrary existing Markdown links
    - more precise preview-to-source mapping when repeated phrases exist
-4. Add restore polish if needed:
+5. Add restore polish if needed:
    - restore exact window positions/sizes
    - optionally restore search text if Patrick later wants it
-5. Add repeatable sample files/tests for PDF outline, PDF search counts, Markdown formatting, PDF annotation, form editing, and multi-window restore.
+6. Add repeatable sample files/tests for PDF outline, PDF search counts, Markdown formatting, PDF annotation, form editing, and multi-window restore.
 
 ## 10.1 Automated test baseline
 
-`Package.swift` declares `FileViewerTests`, with XCTest coverage in `Tests/FileViewerTests/DocumentSafetyTests.swift`, `Tests/FileViewerTests/AIAssistantTests.swift`, and `Tests/FileViewerTests/WindowPreferencesTests.swift`. Run `swift test --jobs 1` before committing changes. Tests cover Markdown dirty state, fresh file-version detection, duplicate-open protection, non-file URL rejection, Markdown extension recognition, PDF temporary-view-rotation save isolation, AI chunking/retrieval, selection isolation, local transport enforcement, provider endpoint validation, safe provider defaults, menu cleanup, sidebar/default-view preferences, and window identity. They intentionally avoid live network streaming, PDFKit drawing/form editing, native modal dialogs, and full UI interaction; those still require manual or future UI testing.
+`Package.swift` declares `FileViewerTests`, with XCTest coverage in `Tests/FileViewerTests/DocumentSafetyTests.swift`, `Tests/FileViewerTests/AIAssistantTests.swift`, `Tests/FileViewerTests/LocalLibraryTests.swift`, and `Tests/FileViewerTests/WindowPreferencesTests.swift`. Run `swift test --jobs 1` before committing changes. Tests cover Markdown dirty state, fresh file-version detection, duplicate-open protection, non-file URL rejection, Markdown extension recognition, local-library indexing/ranking/snippets, PDF temporary-view-rotation save isolation, AI chunking/retrieval, selection isolation, local transport enforcement, provider endpoint validation, safe provider defaults, menu cleanup, sidebar/default-view preferences, and window identity. They intentionally avoid live network streaming, PDFKit drawing/form editing, native modal dialogs, and full UI interaction; those still require manual or future UI testing.
 
 ### PDF rotation manual test procedure
 
@@ -1216,7 +1226,7 @@ When debugging, first identify which boundary is involved.
 
 ## 12. AI assistant handoff
 
-Branch: `feature/ai-assistant`
+Branch: `main` (AI milestone merged)
 
 The first functional AI slice began with local LM Studio at `http://127.0.0.1:1234/v1`. It now supports persisted provider profiles for LM Studio, Ollama, custom OpenAI-compatible servers, and OpenAI. At implementation time the local LM Studio server exposed `qwen2.5-7b-instruct-uncensored` and an embedding model. A live streaming smoke test returned `LOCAL_OK` successfully. The code filters embedding models out of the chat-model picker.
 

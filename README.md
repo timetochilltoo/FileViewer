@@ -80,13 +80,15 @@ Current MVP build includes:
   - keep PDF controls compact with navigation/search/Undo/Redo in the toolbar and fixed-size icon-only `Annotate` and `Rotate` menus for markup, notes, shapes, drawing, edit modes, color, stroke width, and page rotation; PDF icon-only actions use a plain 32×28 hit target and borderless menus so the default macOS grey button capsules do not make the PDF controls look oversized beside the Markdown toolbar; fixed control widths prevent adjacent controls from visually overlapping
 - File-management actions are available from the app menus and keyboard shortcuts:
   - New Markdown Document / Command-N, also available from the main toolbar
+  - Search Library… / Command-Option-F
   - Save / Command-S
   - Save As / Command-Shift-S
   - Print / Command-P
 - Print support for PDFs and Markdown source text.
 - Recent files.
+- Local Library sidebar with a local-only in-memory index of recent files and user-selected folders. Search filenames, Markdown headings, PDF/Markdown text, and PDF annotation summaries; use **Search Library…** / Command-Option-F to reveal it.
 - Light and dark theme.
-- Local AI assistant (feature branch `feature/ai-assistant`):
+- Local AI assistant:
   - resizable right-side panel with per-document conversations
   - compact panel with context and actions; provider/model selection lives in AI Provider Settings and the active model is shown in the header
   - ask, summarize, and translate PDF or Markdown content
@@ -125,7 +127,7 @@ The Swift package includes an XCTest target for fast safety and document-model c
 swift test --jobs 1
 ```
 
-The suite verifies Markdown dirty-state behavior, file-version change detection, duplicate-open protection, non-file URL rejection, Markdown file recognition, AI context chunking/retrieval, selected-text isolation, local-only legacy transport enforcement, safe provider-profile defaults, and provider endpoint validation. PDFKit drawing and native window dialogs remain manual/UI-test work for now.
+The suite verifies Markdown dirty-state behavior, file-version change detection, duplicate-open protection, non-file URL rejection, Markdown file recognition, local library ranking and snippets, AI context chunking/retrieval, selected-text isolation, local-only legacy transport enforcement, safe provider-profile defaults, and provider endpoint validation. PDFKit drawing and native window dialogs remain manual/UI-test work for now.
 
 ## Packaged App
 
