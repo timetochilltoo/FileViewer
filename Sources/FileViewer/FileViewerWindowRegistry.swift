@@ -316,8 +316,15 @@ final class FileViewerWindowRegistry {
 
     private func releaseClosedWindowLater(_ window: NSWindow) {
         let key = ObjectIdentifier(window)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
             guard let self else { return }
+            // External document windows are backed by an NSHostingView. AppKit
+            // can keep that view (and its WindowServer surface) alive after the
+            // close notification unless the root content is detached. Release
+            // it before dropping the registry's last strong reference so
+            // window pickers cannot keep enumerating a closed document.
+            window.contentView = nil
+            window.delegate = nil
             self.windowDelegates.removeValue(forKey: key)
             self.retainedWindows.removeAll { $0 === window }
             self.closingWindowIDs.remove(key)
