@@ -76,6 +76,18 @@ struct PDFWorkspace: View {
                 model.askAIAboutSelection()
             }
             .disabled(!model.canAskAIAboutSelection)
+
+            Divider()
+
+            Button("Add to Library", systemImage: "books.vertical") {
+                model.addCurrentDocumentToLibrary()
+            }
+            .disabled(!model.canAddCurrentDocumentToLibrary)
+
+            Button("Copy to Library Folder…", systemImage: "doc.on.doc") {
+                model.copyCurrentDocumentToLibraryFolder()
+            }
+            .disabled(!model.canCopyCurrentDocumentToLibraryFolder)
         }
     }
 }

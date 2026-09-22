@@ -46,6 +46,18 @@ struct FileViewerCommands: Commands {
                 activeModel?.showLibrary()
             }
             .keyboardShortcut("f", modifiers: [.command, .option])
+
+            Divider()
+
+            Button("Add Current Document to Library") {
+                activeModel?.addCurrentDocumentToLibrary()
+            }
+            .disabled(activeModel?.canAddCurrentDocumentToLibrary != true)
+
+            Button("Copy Current Document to Library Folder…") {
+                activeModel?.copyCurrentDocumentToLibraryFolder()
+            }
+            .disabled(activeModel?.canCopyCurrentDocumentToLibraryFolder != true)
         }
 
         CommandGroup(replacing: .saveItem) {

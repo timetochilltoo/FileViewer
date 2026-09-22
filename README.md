@@ -81,12 +81,14 @@ Current MVP build includes:
 - File-management actions are available from the app menus and keyboard shortcuts:
   - New Markdown Document / Command-N, also available from the main toolbar
   - Search Library… / Command-Option-F
+  - Add Current Document to Library
+  - Copy Current Document to Library Folder…
   - Save / Command-S
   - Save As / Command-Shift-S
   - Print / Command-P
 - Print support for PDFs and Markdown source text.
 - Recent files.
-- Local Library sidebar with a local-only in-memory index of recent files and user-selected folders. Search filenames, Markdown headings, PDF/Markdown text, and PDF annotation summaries; use **Search Library…** / Command-Option-F to reveal it.
+- Local Library sidebar with a local-only in-memory index of recent files, explicitly added files, and user-selected folders. Recent files are highlighted; search filenames, Markdown headings, PDF/Markdown text, and PDF annotation summaries. Use **Search Library…** / Command-Option-F to reveal it, **Add to Library** to keep an individual file indexed, or **Copy to Library Folder…** to make a managed copy.
 - Light and dark theme.
 - Local AI assistant:
   - resizable right-side panel with per-document conversations
@@ -127,7 +129,7 @@ The Swift package includes an XCTest target for fast safety and document-model c
 swift test --jobs 1
 ```
 
-The suite verifies Markdown dirty-state behavior, file-version change detection, duplicate-open protection, non-file URL rejection, Markdown file recognition, local library ranking and snippets, AI context chunking/retrieval, selected-text isolation, local-only legacy transport enforcement, safe provider-profile defaults, and provider endpoint validation. PDFKit drawing and native window dialogs remain manual/UI-test work for now.
+The suite verifies Markdown dirty-state behavior, file-version change detection, duplicate-open protection, non-file URL rejection, Markdown file recognition, local library indexing/ranking/snippets and atomic copy behavior, AI context chunking/retrieval, selected-text isolation, local-only legacy transport enforcement, safe provider-profile defaults, and provider endpoint validation. PDFKit drawing and native window dialogs remain manual/UI-test work for now.
 
 ## Packaged App
 

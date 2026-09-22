@@ -3,16 +3,18 @@
 Last updated: 2026-09-21
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
-Current branch at time of writing: `codex/local-library-search`
-Current committed baseline: `6a75f0f` (`Record AI review and main merge baseline`); the active branch adds the local-library milestone described below.
+Current branch at time of writing: `codex/library-file-actions`
+Current committed baseline: `64a0f61` (`Add local library search`); the active branch adds persistent file actions described below.
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
 ## Current implementation updates (2026-09-21)
 
-- The active `codex/local-library-search` branch adds a **Library** sidebar and **Search Library…** / Command-Option-F. It indexes readable recent Markdown/PDF files plus user-selected local folders, searches filenames, Markdown headings, document text, and PDF annotation summaries, and opens results through the existing safe document flow. Searchable text is bounded and memory-only; only normalized selected-folder paths are stored in UserDefaults.
+- The active `codex/library-file-actions` branch builds on the **Library** sidebar and **Search Library…** / Command-Option-F from `codex/local-library-search`. It indexes readable recent Markdown/PDF files plus user-selected local folders, searches filenames, Markdown headings, document text, and PDF annotation summaries, and opens results through the existing safe document flow. Searchable text is bounded and memory-only; only normalized selected-folder paths are stored in UserDefaults.
 - Local-library indexing is capped at 2,000 files and 20 million searchable characters, runs off the main actor, supports refresh/removal of selected folders, and stops cleanly when a refresh is replaced or cancelled.
-- Latest validation for this branch: `swift test --jobs 1` passes all 37 tests; `swift build` succeeds; the debug bundle is packaged and ad-hoc signed. Native UI verification of the new Library sidebar remains pending because the development bundle and installed bundle are both currently running, so LaunchServices did not launch a fresh copy reliably.
+- The Library now marks Recent Files, persists explicitly added local file paths, and offers **Add to Library** / **Remove from Library** actions from document and Library/Recent context menus. Explicit files remain indexed even after they leave the short Recent Files list.
+- **Copy to Library Folder…** safely copies closed local files or the current in-memory Markdown/PDF document into a chosen writable folder. It handles conflicts with Replace / Keep Both / Cancel, writes through a temporary sibling, preserves unsaved Markdown/PDF state, and refreshes Library membership after success.
+- Latest validation for this branch: `swift test --jobs 1` passes all 40 tests; `swift build` succeeds; the debug bundle is packaged and ad-hoc signed. Native UI verification of the new Library actions remains pending because the development bundle and installed bundle are both currently running, so LaunchServices did not launch a fresh copy reliably.
 
 ## Previous implementation updates (2026-09-19)
 

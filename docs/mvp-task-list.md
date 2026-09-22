@@ -350,7 +350,7 @@ This section records the boundary of the original viewer MVP. Some items, includ
 - PDF annotations, drawing, notes, form editing, safe PDF save, and annotation reports have been implemented after the original MVP.
 - Reading-only view rotation plus permanent current-page/all-page rotation have been implemented. The permanent actions save only after an explicit Save or Save As.
 - The original viewer MVP is complete. Later work has also implemented PDF annotation/form support and the AI assistant on `main`: a resizable right panel, per-tab in-memory conversations, PDF/Markdown selection capture, four explicit scopes, local retrieval, streaming, cancellation, provider/model discovery, and explicit remote document-transfer approval. Provider profiles now include LM Studio, Ollama, custom OpenAI-compatible servers, and OpenAI; credentials are stored only in Keychain.
-- The Local Library slice now provides a Library sidebar with recent-file and user-selected-folder indexing, local filename/heading/text/annotation search, result snippets, and safe opening through the existing document flow. Indexed document text is memory-only; selected folder paths are stored locally.
+- The Local Library slice now provides a Library sidebar with highlighted recent files, persistent per-file membership, user-selected-folder indexing, local filename/heading/text/annotation search, result snippets, safe opening, and Add/Copy file actions. Indexed document text is memory-only; selected folder and explicit file paths are stored locally. Copying handles conflicts and preserves unsaved Markdown/PDF state.
 
 ## 22. Build-plan audit and Mac-first post-MVP plan (2026-09-19)
 

@@ -559,6 +559,7 @@ final class AppModel: ObservableObject {
     @Published var statusMessage = ""
     @Published var recents: [RecentDocument] = []
     @Published var libraryFolders: [URL] = []
+    @Published var libraryFiles: [URL] = []
     @Published var libraryQuery = "" {
         didSet { updateLibraryResults() }
     }
@@ -582,6 +583,7 @@ final class AppModel: ObservableObject {
 
     private let recentsKey = "FileViewer.recents"
     private static let libraryFoldersKey = "FileViewer.library.folders"
+    private static let libraryFilesKey = "FileViewer.library.files"
     private let markdownModeKey = "FileViewer.markdownMode"
     private static let sessionKey = "FileViewer.session.windows"
     private static let pdfStateKey = "FileViewer.pdf.lastStates"
@@ -656,6 +658,15 @@ final class AppModel: ObservableObject {
 
     var canAcceptExternalOpenInCurrentWindow: Bool {
         tabs.isEmpty
+    }
+
+    var canAddCurrentDocumentToLibrary: Bool {
+        guard let url = document?.url else { return false }
+        return url.isFileURL
+    }
+
+    var canCopyCurrentDocumentToLibraryFolder: Bool {
+        canAddCurrentDocumentToLibrary
     }
 
     var selectedTabIndex: Int? {
@@ -1860,8 +1871,13 @@ final class AppModel: ObservableObject {
 
         let roots = libraryFolders
         let recentURLs = recents.map(\.url)
+        let indexedLibraryFiles = libraryFiles
         libraryIndexTask = Task { [weak self] in
-            let entries = await LocalLibraryIndexer.build(roots: roots, recentURLs: recentURLs)
+            let entries = await LocalLibraryIndexer.build(
+                roots: roots,
+                recentURLs: recentURLs,
+                libraryFiles: indexedLibraryFiles
+            )
             guard !Task.isCancelled else { return }
             guard let self, generation == self.libraryIndexGeneration else { return }
             self.libraryEntries = entries
@@ -1897,6 +1913,89 @@ final class AppModel: ObservableObject {
         libraryFolders.removeAll { $0.standardizedFileURL.resolvingSymlinksInPath().path == normalizedPath }
         saveLibraryFolders()
         refreshLibraryIndex()
+    }
+
+    func addCurrentDocumentToLibrary() {
+        guard let url = document?.url else {
+            statusMessage = "Save this Markdown document before adding it to the Library."
+            return
+        }
+        addLibraryFile(url)
+    }
+
+    func addLibraryFile(_ url: URL) {
+        guard let normalized = normalizedLibraryFile(url) else {
+            statusMessage = "Only readable local Markdown and PDF files can be added to the Library."
+            return
+        }
+
+        let didAdd = registerLibraryFile(normalized)
+        if !didAdd, hasBuiltLibraryIndex {
+            refreshLibraryIndex()
+        }
+        statusMessage = didAdd
+            ? "Added \(normalized.lastPathComponent) to the Library."
+            : "This file is already in the Library."
+    }
+
+    func removeLibraryFile(_ url: URL) {
+        let normalizedPath = url.standardizedFileURL.resolvingSymlinksInPath().path
+        let originalCount = libraryFiles.count
+        libraryFiles.removeAll { $0.standardizedFileURL.resolvingSymlinksInPath().path == normalizedPath }
+        guard libraryFiles.count != originalCount else { return }
+        saveLibraryFiles()
+        refreshLibraryIndex()
+        statusMessage = "Removed " + url.lastPathComponent + " from the Library."
+    }
+
+    func copyCurrentDocumentToLibraryFolder() {
+        guard let url = document?.url else {
+            statusMessage = "Save this Markdown document before copying it to a Library folder."
+            return
+        }
+        copyDocumentToLibraryFolder(url)
+    }
+
+    func copyDocumentToLibraryFolder(_ url: URL) {
+        guard let source = normalizedLibraryFile(url) else {
+            statusMessage = "Only readable local Markdown and PDF files can be copied to the Library."
+            return
+        }
+        guard let folder = chooseLibraryFolder() else { return }
+        guard FileManager.default.isWritableFile(atPath: folder.path) else {
+            statusMessage = "The selected Library folder is not writable."
+            return
+        }
+
+        var destination = sourceDestinationURL(for: source, in: folder)
+        guard destination.path != source.path else {
+            addLibraryFile(source)
+            statusMessage = "This file is already in the selected Library folder."
+            return
+        }
+        guard let resolvedDestination = libraryCopyDestination(for: destination) else { return }
+        destination = resolvedDestination
+
+        let didCopy: Bool
+        if let index = tabs.firstIndex(where: { tab in
+            tab.document.url?.standardizedFileURL.resolvingSymlinksInPath().path == source.path
+        }) {
+            didCopy = copyOpenDocument(at: index, to: destination)
+        } else {
+            didCopy = copyLibraryFileAtomically(from: source, to: destination)
+        }
+
+        guard didCopy else {
+            statusMessage = "Could not copy " + source.lastPathComponent + " to the Library folder."
+            return
+        }
+
+        registerLibraryFolder(folder)
+        registerLibraryFile(destination, refresh: false)
+        if hasBuiltLibraryIndex {
+            refreshLibraryIndex()
+        }
+        statusMessage = "Copied " + source.lastPathComponent + " to the Library."
     }
 
     func openLibraryResult(_ result: LibrarySearchResult) {
@@ -2549,6 +2648,7 @@ final class AppModel: ObservableObject {
         }
 
         loadLibraryFolders()
+        loadLibraryFiles()
     }
 
     private func saveRecents() {
@@ -2574,6 +2674,24 @@ final class AppModel: ObservableObject {
         UserDefaults.standard.set(data, forKey: Self.libraryFoldersKey)
     }
 
+    private func loadLibraryFiles() {
+        guard let data = UserDefaults.standard.data(forKey: Self.libraryFilesKey),
+              let paths = try? JSONDecoder().decode([String].self, from: data) else { return }
+
+        let files = paths.compactMap { normalizedLibraryFile(URL(fileURLWithPath: $0)) }
+        libraryFiles = Array(Dictionary(uniqueKeysWithValues: files.map { ($0.path, $0) }).values)
+            .sorted { $0.path.localizedCaseInsensitiveCompare($1.path) == .orderedAscending }
+        if libraryFiles.map(\.path) != paths.sorted() {
+            saveLibraryFiles()
+        }
+    }
+
+    private func saveLibraryFiles() {
+        let paths = libraryFiles.map(\.path)
+        guard let data = try? JSONEncoder().encode(paths) else { return }
+        UserDefaults.standard.set(data, forKey: Self.libraryFilesKey)
+    }
+
     private func normalizedLibraryFolder(_ url: URL) -> URL? {
         guard url.isFileURL else { return nil }
         let normalized = url.standardizedFileURL.resolvingSymlinksInPath()
@@ -2586,6 +2704,126 @@ final class AppModel: ObservableObject {
 
     private func updateLibraryResults() {
         libraryResults = LocalLibraryIndexer.search(query: libraryQuery, entries: libraryEntries)
+    }
+
+    private func chooseLibraryFolder() -> URL? {
+        let panel = NSOpenPanel()
+        panel.title = "Choose Library Folder"
+        panel.prompt = "Copy Here"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        if libraryFolders.count == 1 {
+            panel.directoryURL = libraryFolders[0]
+        }
+        guard panel.runModal() == .OK,
+              let folder = panel.url,
+              let normalized = normalizedLibraryFolder(folder) else {
+            return nil
+        }
+        return normalized
+    }
+
+    private func registerLibraryFolder(_ folder: URL) {
+        guard let normalized = normalizedLibraryFolder(folder) else { return }
+        let exists = libraryFolders.contains { $0.path == normalized.path }
+        guard !exists else { return }
+        libraryFolders.append(normalized)
+        libraryFolders.sort { $0.path.localizedCaseInsensitiveCompare($1.path) == .orderedAscending }
+        saveLibraryFolders()
+    }
+
+    @discardableResult
+    private func registerLibraryFile(_ url: URL, refresh: Bool = true) -> Bool {
+        guard let normalized = normalizedLibraryFile(url) else { return false }
+        let exists = libraryFiles.contains { $0.path == normalized.path }
+        guard !exists else { return false }
+        libraryFiles.append(normalized)
+        libraryFiles.sort { $0.path.localizedCaseInsensitiveCompare($1.path) == .orderedAscending }
+        saveLibraryFiles()
+        if refresh, hasBuiltLibraryIndex {
+            refreshLibraryIndex()
+        }
+        return true
+    }
+
+    private func normalizedLibraryFile(_ url: URL) -> URL? {
+        guard url.isFileURL else { return nil }
+        let normalized = url.standardizedFileURL.resolvingSymlinksInPath()
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: normalized.path, isDirectory: &isDirectory),
+              !isDirectory.boolValue,
+              FileManager.default.isReadableFile(atPath: normalized.path),
+              Self.isMarkdown(normalized) || normalized.pathExtension.lowercased() == "pdf" else {
+            return nil
+        }
+        return normalized
+    }
+
+    private func sourceDestinationURL(for source: URL, in folder: URL) -> URL {
+        folder.appendingPathComponent(source.lastPathComponent, isDirectory: false)
+    }
+
+    private func libraryCopyDestination(for destination: URL) -> URL? {
+        guard FileManager.default.fileExists(atPath: destination.path) else {
+            return destination
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "A file named “" + destination.lastPathComponent + "” already exists."
+        alert.informativeText = "Choose whether to replace the existing Library copy or keep both files."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Replace")
+        alert.addButton(withTitle: "Keep Both")
+        alert.addButton(withTitle: "Cancel")
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            return destination
+        case .alertSecondButtonReturn:
+            return uniqueLibraryDestination(for: destination)
+        default:
+            return nil
+        }
+    }
+
+    private func uniqueLibraryDestination(for destination: URL) -> URL {
+        let base = destination.deletingPathExtension().lastPathComponent
+        let extensionName = destination.pathExtension
+        var suffix = 2
+        while true {
+            let name = extensionName.isEmpty
+                ? base + " " + String(suffix)
+                : base + " " + String(suffix) + "." + extensionName
+            let candidate = destination.deletingLastPathComponent().appendingPathComponent(name)
+            if !FileManager.default.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+            suffix += 1
+        }
+    }
+
+    private func copyOpenDocument(at index: Int, to destination: URL) -> Bool {
+        guard tabs.indices.contains(index) else { return false }
+        switch tabs[index].document {
+        case .markdown(let markdown):
+            return writeMarkdownAtomically(markdown.text, to: destination)
+        case .pdf(let pdf):
+            guard let persistedCopy = pdf.document.fileViewerPersistedCopy(
+                removingViewRotation: tabs[index].pdfViewRotation
+            ) else {
+                return false
+            }
+            return writePDFAtomically(persistedCopy, to: destination)
+        }
+    }
+
+    private func writeMarkdownAtomically(_ text: String, to destination: URL) -> Bool {
+        LocalLibraryFileOperations.writeMarkdownAtomically(text, to: destination)
+    }
+
+    private func copyLibraryFileAtomically(from source: URL, to destination: URL) -> Bool {
+        LocalLibraryFileOperations.copyFileAtomically(from: source, to: destination)
     }
 
     static func loadSavedSessionWindows() -> [SavedSessionWindow] {

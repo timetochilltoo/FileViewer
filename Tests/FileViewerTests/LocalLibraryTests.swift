@@ -21,6 +21,39 @@ final class LocalLibraryTests: XCTestCase {
         XCTAssertEqual(entries[0].titleText, "Security")
     }
 
+    func testIndexerMarksExplicitAndRecentFiles() async throws {
+        let explicitURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FileViewerExplicit-" + UUID().uuidString + ".md")
+        let recentURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FileViewerRecent-" + UUID().uuidString + ".md")
+        defer {
+            try? FileManager.default.removeItem(at: explicitURL)
+            try? FileManager.default.removeItem(at: recentURL)
+        }
+        try "# Explicit".write(to: explicitURL, atomically: true, encoding: .utf8)
+        try "# Recent".write(to: recentURL, atomically: true, encoding: .utf8)
+
+        let explicitEntries = await LocalLibraryIndexer.build(
+            roots: [],
+            recentURLs: [],
+            libraryFiles: [explicitURL]
+        )
+        XCTAssertEqual(explicitEntries.map(\.name), [explicitURL.lastPathComponent])
+        XCTAssertTrue(explicitEntries[0].isExplicit)
+        XCTAssertFalse(explicitEntries[0].isRecent)
+
+        let recentEntries = await LocalLibraryIndexer.build(
+            roots: [],
+            recentURLs: [recentURL]
+        )
+        XCTAssertTrue(recentEntries[0].isRecent)
+        XCTAssertFalse(recentEntries[0].isExplicit)
+        XCTAssertEqual(
+            LocalLibraryIndexer.search(query: "", entries: explicitEntries)[0].reason,
+            "Added to Library"
+        )
+    }
+
     func testLibrarySearchRanksFilenameBeforeBodyMatches() {
         let entries = [
             entry(path: "/tmp/meeting-notes.md", kind: .markdown, title: "Weekly meeting", text: "Discuss the security review."),
@@ -63,6 +96,36 @@ final class LocalLibraryTests: XCTestCase {
         XCTAssertEqual(results[0].location, "/Users/patrick/Documents/Study")
         XCTAssertEqual(results[0].snippet, "A useful security checklist for review.")
         XCTAssertEqual(results[0].reason, "Match in document text")
+    }
+
+    func testAtomicLibraryCopyPreservesSourceAndReplacesDestination() throws {
+        let source = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FileViewerCopySource-" + UUID().uuidString + ".md")
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FileViewerCopyDestination-" + UUID().uuidString + ".md")
+        defer {
+            try? FileManager.default.removeItem(at: source)
+            try? FileManager.default.removeItem(at: destination)
+        }
+
+        try "original".write(to: source, atomically: true, encoding: .utf8)
+        XCTAssertTrue(LocalLibraryFileOperations.copyFileAtomically(from: source, to: destination))
+        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "original")
+
+        try "updated".write(to: source, atomically: true, encoding: .utf8)
+        XCTAssertTrue(LocalLibraryFileOperations.copyFileAtomically(from: source, to: destination))
+        XCTAssertEqual(try String(contentsOf: source, encoding: .utf8), "updated")
+        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "updated")
+    }
+
+    func testAtomicMarkdownWriteKeepsMarkdownUTF8Content() throws {
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FileViewerMarkdownCopy-" + UUID().uuidString + ".md")
+        defer { try? FileManager.default.removeItem(at: destination) }
+
+        let content = "# 中文\n\nA local Library copy."
+        XCTAssertTrue(LocalLibraryFileOperations.writeMarkdownAtomically(content, to: destination))
+        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), content)
     }
 
     private func entry(

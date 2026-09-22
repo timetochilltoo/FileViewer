@@ -5,7 +5,7 @@ struct SidebarView: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        VStack(spacing: 0) {
+        return VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Sidebar")
                     .font(.caption.weight(.semibold))
@@ -78,6 +78,16 @@ struct SidebarView: View {
                 }
             }
             .buttonStyle(.plain)
+            .contextMenu {
+                Button("Add to Library", systemImage: "books.vertical") {
+                    model.addLibraryFile(recent.url)
+                }
+                .disabled(model.libraryFiles.contains { $0.path == recent.url.path })
+
+                Button("Copy to Library Folder…", systemImage: "doc.on.doc") {
+                    model.copyDocumentToLibraryFolder(recent.url)
+                }
+            }
         }
         .overlay {
             if model.recents.isEmpty {
@@ -87,7 +97,10 @@ struct SidebarView: View {
     }
 
     private var libraryList: some View {
-        VStack(spacing: 0) {
+        let recentResults = model.libraryResults.filter(\.isRecent)
+        let indexedResults = model.libraryResults.filter { !$0.isRecent }
+
+        return VStack(spacing: 0) {
             HStack(spacing: 6) {
                 TextField("Search library", text: $model.libraryQuery)
                     .textFieldStyle(.roundedBorder)
@@ -151,36 +164,21 @@ struct SidebarView: View {
 
             Divider()
 
-            List(model.libraryResults) { result in
-                Button {
-                    model.openLibraryResult(result)
-                } label: {
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: result.kind == .pdf ? "doc.richtext" : "doc.plaintext")
-                            .foregroundStyle(.secondary)
-                            .frame(width: 18)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(result.name)
-                                .lineLimit(1)
-                            Text(result.reason)
-                                .font(.caption2.weight(.medium))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                            if !result.snippet.isEmpty {
-                                Text(result.snippet)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                            }
-                            Text(result.location)
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                                .lineLimit(1)
+            List {
+                if !recentResults.isEmpty {
+                    Section("Recent Files") {
+                        ForEach(recentResults) { result in
+                            libraryResultRow(result)
                         }
                     }
                 }
-                .buttonStyle(.plain)
-                .help(result.url.path)
+                if !indexedResults.isEmpty {
+                    Section("Library") {
+                        ForEach(indexedResults) { result in
+                            libraryResultRow(result)
+                        }
+                    }
+                }
             }
             .overlay {
                 if model.libraryResults.isEmpty {
@@ -194,6 +192,68 @@ struct SidebarView: View {
         }
         .onAppear {
             model.ensureLibraryIndex()
+        }
+    }
+
+    private func libraryResultRow(_ result: LibrarySearchResult) -> some View {
+        Button {
+            model.openLibraryResult(result)
+        } label: {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: result.kind == .pdf ? "doc.richtext" : "doc.plaintext")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 5) {
+                        Text(result.name)
+                            .lineLimit(1)
+                        if result.isRecent {
+                            Text("Recent")
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
+                        if result.isExplicit {
+                            Image(systemName: "pin.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .help("Added to Library")
+                        }
+                    }
+                    Text(result.reason)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    if !result.snippet.isEmpty {
+                        Text(result.snippet)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                    Text(result.location)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .help(result.url.path)
+        .contextMenu {
+            Button("Add to Library", systemImage: "books.vertical") {
+                model.addLibraryFile(result.url)
+            }
+            .disabled(result.isExplicit)
+
+            Button("Copy to Library Folder…", systemImage: "doc.on.doc") {
+                model.copyDocumentToLibraryFolder(result.url)
+            }
+
+            if result.isExplicit {
+                Divider()
+                Button("Remove from Library", systemImage: "minus.circle") {
+                    model.removeLibraryFile(result.url)
+                }
+            }
         }
     }
 

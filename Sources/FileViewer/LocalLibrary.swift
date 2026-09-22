@@ -2,8 +2,8 @@ import Foundation
 import PDFKit
 
 /// A local-only entry built from a readable Markdown or PDF file. The full
-/// searchable text stays in memory for the current app session; only the
-/// user-selected folder paths are persisted by AppModel.
+/// searchable text stays in memory for the current app session; only normalized
+/// user-selected folder and file paths are persisted by AppModel.
 struct LibraryIndexEntry: Identifiable, Equatable, Sendable {
     let id: String
     let url: URL
@@ -13,6 +13,8 @@ struct LibraryIndexEntry: Identifiable, Equatable, Sendable {
     let titleText: String
     let searchableText: String
     let modifiedAt: Date
+    let isRecent: Bool
+    let isExplicit: Bool
 
     init(
         url: URL,
@@ -21,7 +23,9 @@ struct LibraryIndexEntry: Identifiable, Equatable, Sendable {
         folderPath: String,
         titleText: String,
         searchableText: String,
-        modifiedAt: Date
+        modifiedAt: Date,
+        isRecent: Bool = false,
+        isExplicit: Bool = false
     ) {
         let normalizedURL = url.standardizedFileURL.resolvingSymlinksInPath()
         self.id = normalizedURL.path
@@ -32,6 +36,8 @@ struct LibraryIndexEntry: Identifiable, Equatable, Sendable {
         self.titleText = titleText
         self.searchableText = searchableText
         self.modifiedAt = modifiedAt
+        self.isRecent = isRecent
+        self.isExplicit = isExplicit
     }
 }
 
@@ -44,19 +50,25 @@ struct LibrarySearchResult: Identifiable, Equatable, Sendable {
     let snippet: String
     let reason: String
     let modifiedAt: Date
+    let isRecent: Bool
+    let isExplicit: Bool
 }
 
-/// Builds a bounded in-memory index from recent files and explicitly selected
-/// local folders. It never follows network URLs and never writes document text
-/// to preferences or a cache file.
+/// Builds a bounded in-memory index from explicitly added files, recent files,
+/// and selected local folders. It never follows network URLs and never writes
+/// document text to preferences or a cache file.
 enum LocalLibraryIndexer {
     static let maximumFiles = 2_000
     static let maximumSearchableCharactersPerFile = 200_000
     static let maximumTotalSearchableCharacters = 20_000_000
 
-    static func build(roots: [URL], recentURLs: [URL]) async -> [LibraryIndexEntry] {
+    static func build(
+        roots: [URL],
+        recentURLs: [URL],
+        libraryFiles: [URL] = []
+    ) async -> [LibraryIndexEntry] {
         let worker = Task.detached(priority: .utility) {
-            buildSynchronously(roots: roots, recentURLs: recentURLs)
+            buildSynchronously(roots: roots, recentURLs: recentURLs, libraryFiles: libraryFiles)
         }
         return await withTaskCancellationHandler {
             await worker.value
@@ -72,6 +84,7 @@ enum LocalLibraryIndexer {
     ) -> [LibrarySearchResult] {
         let terms = normalizedTerms(query)
         let sortedEntries = entries.sorted { lhs, rhs in
+            if lhs.isRecent != rhs.isRecent { return lhs.isRecent }
             if lhs.modifiedAt != rhs.modifiedAt { return lhs.modifiedAt > rhs.modifiedAt }
             return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
         }
@@ -85,8 +98,10 @@ enum LocalLibraryIndexer {
                     kind: $0.kind,
                     location: $0.folderPath,
                     snippet: firstSnippet(in: $0.searchableText),
-                    reason: "Indexed file",
-                    modifiedAt: $0.modifiedAt
+                    reason: $0.isRecent ? "Recent file" : ($0.isExplicit ? "Added to Library" : "Indexed file"),
+                    modifiedAt: $0.modifiedAt,
+                    isRecent: $0.isRecent,
+                    isExplicit: $0.isExplicit
                 )
             }
         }
@@ -140,7 +155,9 @@ enum LocalLibraryIndexer {
                     location: entry.folderPath,
                     snippet: matchingSnippet(in: entry.searchableText, terms: terms),
                     reason: reason,
-                    modifiedAt: entry.modifiedAt
+                    modifiedAt: entry.modifiedAt,
+                    isRecent: entry.isRecent,
+                    isExplicit: entry.isExplicit
                 )
             )
         }
@@ -149,23 +166,36 @@ enum LocalLibraryIndexer {
             if lhs.result.modifiedAt != rhs.result.modifiedAt {
                 return lhs.result.modifiedAt > rhs.result.modifiedAt
             }
+            if lhs.result.isRecent != rhs.result.isRecent {
+                return lhs.result.isRecent
+            }
             return lhs.result.name.localizedCaseInsensitiveCompare(rhs.result.name) == .orderedAscending
         }
         .prefix(limit)
         .map(\.result)
     }
 
-    private static func buildSynchronously(roots: [URL], recentURLs: [URL]) -> [LibraryIndexEntry] {
-        var candidates: [URL] = []
+    private static func buildSynchronously(
+        roots: [URL],
+        recentURLs: [URL],
+        libraryFiles: [URL]
+    ) -> [LibraryIndexEntry] {
+        var candidates: [(url: URL, isExplicit: Bool)] = []
         var seenPaths = Set<String>()
+        let recentPaths = Set(recentURLs.compactMap { normalizedFileURL($0)?.path })
 
-        func addCandidate(_ url: URL) {
+        func addCandidate(_ url: URL, isExplicit: Bool = false) {
             guard !Task.isCancelled else { return }
             guard let normalized = normalizedFileURL(url),
                   isSupportedFile(normalized),
                   FileManager.default.isReadableFile(atPath: normalized.path),
                   seenPaths.insert(normalized.path).inserted else { return }
-            candidates.append(normalized)
+            candidates.append((normalized, isExplicit))
+        }
+
+        for libraryFile in libraryFiles {
+            guard !Task.isCancelled else { return [] }
+            addCandidate(libraryFile, isExplicit: true)
         }
 
         for recentURL in recentURLs {
@@ -192,12 +222,14 @@ enum LocalLibraryIndexer {
 
         var remainingCharacters = maximumTotalSearchableCharacters
         var entries: [LibraryIndexEntry] = []
-        for url in candidates.prefix(maximumFiles) {
+        for candidate in candidates.prefix(maximumFiles) {
             guard !Task.isCancelled else { return [] }
             guard remainingCharacters > 0,
                   let entry = indexEntry(
-                      for: url,
-                      maximumCharacters: min(maximumSearchableCharactersPerFile, remainingCharacters)
+                      for: candidate.url,
+                      maximumCharacters: min(maximumSearchableCharactersPerFile, remainingCharacters),
+                      isRecent: recentPaths.contains(candidate.url.path),
+                      isExplicit: candidate.isExplicit
                   ) else { continue }
             remainingCharacters -= entry.searchableText.count
             entries.append(entry)
@@ -205,7 +237,12 @@ enum LocalLibraryIndexer {
         return entries
     }
 
-    private static func indexEntry(for url: URL, maximumCharacters: Int) -> LibraryIndexEntry? {
+    private static func indexEntry(
+        for url: URL,
+        maximumCharacters: Int,
+        isRecent: Bool,
+        isExplicit: Bool
+    ) -> LibraryIndexEntry? {
         guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey]),
               let modifiedAt = values.contentModificationDate else { return nil }
 
@@ -237,7 +274,9 @@ enum LocalLibraryIndexer {
                     folderPath: url.deletingLastPathComponent().path,
                     titleText: titleText,
                     searchableText: searchableText,
-                    modifiedAt: modifiedAt
+                    modifiedAt: modifiedAt,
+                    isRecent: isRecent,
+                    isExplicit: isExplicit
                 )
             }
             kind = .pdf
@@ -254,7 +293,9 @@ enum LocalLibraryIndexer {
             folderPath: url.deletingLastPathComponent().path,
             titleText: titleText,
             searchableText: searchableText,
-            modifiedAt: modifiedAt
+            modifiedAt: modifiedAt,
+            isRecent: isRecent,
+            isExplicit: isExplicit
         )
     }
 
@@ -349,6 +390,74 @@ enum LocalLibraryIndexer {
     private static func snippet(_ value: String) -> String {
         let compact = value.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
         return compact.count > 180 ? "\(compact.prefix(177))..." : compact
+    }
+}
+
+/// File-backed operations used by Library actions. Each operation writes a
+/// temporary sibling first, validates that the temporary file is readable, and
+/// then installs it at the destination so a failed copy leaves the source and
+/// any existing destination untouched.
+enum LocalLibraryFileOperations {
+    static func copyFileAtomically(from source: URL, to destination: URL) -> Bool {
+        let normalizedSourcePath = source.standardizedFileURL.resolvingSymlinksInPath().path
+        let normalizedDestinationPath = destination.standardizedFileURL.resolvingSymlinksInPath().path
+        guard source.isFileURL,
+              destination.isFileURL,
+              normalizedSourcePath != normalizedDestinationPath,
+              FileManager.default.isReadableFile(atPath: source.path) else {
+            return false
+        }
+
+        let temporary = temporaryURL(for: destination)
+        defer { try? FileManager.default.removeItem(at: temporary) }
+
+        do {
+            try FileManager.default.copyItem(at: source, to: temporary)
+            guard FileManager.default.isReadableFile(atPath: temporary.path) else { return false }
+            return installTemporaryFile(temporary, at: destination)
+        } catch {
+            return false
+        }
+    }
+
+    static func writeMarkdownAtomically(_ text: String, to destination: URL) -> Bool {
+        guard destination.isFileURL else { return false }
+        let temporary = temporaryURL(for: destination)
+        defer { try? FileManager.default.removeItem(at: temporary) }
+
+        do {
+            try Data(text.utf8).write(to: temporary)
+            guard String(data: try Data(contentsOf: temporary), encoding: .utf8) != nil else {
+                return false
+            }
+            return installTemporaryFile(temporary, at: destination)
+        } catch {
+            return false
+        }
+    }
+
+    private static func temporaryURL(for destination: URL) -> URL {
+        destination.deletingLastPathComponent()
+            .appendingPathComponent(".FileViewer-" + UUID().uuidString)
+            .appendingPathExtension(destination.pathExtension)
+    }
+
+    private static func installTemporaryFile(_ temporary: URL, at destination: URL) -> Bool {
+        do {
+            if FileManager.default.fileExists(atPath: destination.path) {
+                _ = try FileManager.default.replaceItemAt(
+                    destination,
+                    withItemAt: temporary,
+                    backupItemName: nil,
+                    options: []
+                )
+            } else {
+                try FileManager.default.moveItem(at: temporary, to: destination)
+            }
+            return true
+        } catch {
+            return false
+        }
     }
 }
 
