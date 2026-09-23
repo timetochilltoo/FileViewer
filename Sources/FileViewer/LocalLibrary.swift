@@ -2,8 +2,8 @@ import Foundation
 import PDFKit
 
 /// A local-only entry built from a readable Markdown or PDF file. The full
-/// searchable text stays in memory for the current app session; only normalized
-/// user-selected folder and file paths are persisted by AppModel.
+/// searchable text stays in memory for the current app session; normalized
+/// folder/file paths and user tags are the only Library data persisted by AppModel.
 struct LibraryIndexEntry: Identifiable, Equatable, Sendable {
     let id: String
     let url: URL
@@ -52,6 +52,7 @@ struct LibrarySearchResult: Identifiable, Equatable, Sendable {
     let modifiedAt: Date
     let isRecent: Bool
     let isExplicit: Bool
+    let tags: [String]
 }
 
 /// Builds a bounded in-memory index from explicitly added files, recent files,
@@ -80,6 +81,7 @@ enum LocalLibraryIndexer {
     static func search(
         query: String,
         entries: [LibraryIndexEntry],
+        tagsByPath: [String: [String]] = [:],
         limit: Int = 200
     ) -> [LibrarySearchResult] {
         let terms = normalizedTerms(query)
@@ -101,7 +103,8 @@ enum LocalLibraryIndexer {
                     reason: $0.isRecent ? "Recent file" : ($0.isExplicit ? "Added to Library" : "Indexed file"),
                     modifiedAt: $0.modifiedAt,
                     isRecent: $0.isRecent,
-                    isExplicit: $0.isExplicit
+                    isExplicit: $0.isExplicit,
+                    tags: tagsByPath[$0.id] ?? []
                 )
             }
         }
@@ -111,12 +114,15 @@ enum LocalLibraryIndexer {
             let title = folded(entry.titleText)
             let folder = folded(entry.folderPath)
             let body = folded(entry.searchableText)
-            let searchable = "\(name)\n\(title)\n\(folder)\n\(body)"
+            let tags = tagsByPath[entry.id] ?? []
+            let tagText = folded(tags.joined(separator: " "))
+            let searchable = "\(name)\n\(title)\n\(folder)\n\(tagText)\n\(body)"
             guard terms.allSatisfy({ searchable.contains($0) }) else { return nil }
 
             var score = 0
             var matchedName = false
             var matchedTitle = false
+            var matchedTag = false
             var matchedBody = false
             for term in terms {
                 if name.contains(term) {
@@ -126,6 +132,10 @@ enum LocalLibraryIndexer {
                 if title.contains(term) {
                     score += 60
                     matchedTitle = true
+                }
+                if tagText.contains(term) {
+                    score += 80
+                    matchedTag = true
                 }
                 if folder.contains(term) { score += 20 }
                 if body.contains(term) {
@@ -139,6 +149,8 @@ enum LocalLibraryIndexer {
                 reason = "Match in filename"
             } else if matchedTitle {
                 reason = "Match in heading or title"
+            } else if matchedTag {
+                reason = "Match in tag"
             } else if matchedBody {
                 reason = "Match in document text"
             } else {
@@ -157,7 +169,8 @@ enum LocalLibraryIndexer {
                     reason: reason,
                     modifiedAt: entry.modifiedAt,
                     isRecent: entry.isRecent,
-                    isExplicit: entry.isExplicit
+                    isExplicit: entry.isExplicit,
+                    tags: tags
                 )
             )
         }

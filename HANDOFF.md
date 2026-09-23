@@ -1,20 +1,27 @@
 # FileViewer Handoff
 
-Last updated: 2026-09-21
+Last updated: 2026-09-23
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
-Current branch at time of writing: `codex/library-file-actions`
-Current committed baseline: `64a0f61` (`Add local library search`); the active branch adds persistent file actions described below.
+Current branch at time of writing: `codex/library-tags`
+Current committed baseline: `dbe3a99` (`Add library file actions`); the active worktree adds per-file Library tags described below.
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
-## Current implementation updates (2026-09-21)
+## Current implementation updates (2026-09-23)
 
-- The active `codex/library-file-actions` branch builds on the **Library** sidebar and **Search Library…** / Command-Option-F from `codex/local-library-search`. It indexes readable recent Markdown/PDF files plus user-selected local folders, searches filenames, Markdown headings, document text, and PDF annotation summaries, and opens results through the existing safe document flow. Searchable text is bounded and memory-only; only normalized selected-folder paths are stored in UserDefaults.
+- The Library supports up to 10 short, case-insensitively unique tags per local Markdown/PDF file. Tags are stored locally by normalized file path; indexed document text remains memory-only. Tagging a recent or folder-indexed file also pins its path into the Library so it remains available after it leaves Recents or its containing folder is removed.
+- **Tags > Add Tag…** is available from Recent, Library, and open-document context menus; existing tags can be removed there. The Library toolbar can filter by a tag, and Search Library matches tag names. Copies inherit the source file's tags.
+- Latest implementation is on `codex/library-tags`, based on commit `dbe3a99`. `swift build` and Debug packaging succeed; the `0.12` app passes `codesign --verify --deep --strict`, and its Info.plist reports version/build `0.12`/`12`. Automated tests were not run for this change. Native context-menu and tag-filter presentation remain to be checked in the app.
+- The next local-library steps are incremental background refresh and durable indexing. Keep the existing local-only boundary and do not persist extracted document text without an explicit product decision.
+
+## Previous implementation updates (2026-09-21)
+
+- The active `codex/library-file-actions` branch builds on the **Library** sidebar and **Search Library…** / Command-Option-F from `codex/local-library-search`. It indexes readable recent Markdown/PDF files plus user-selected local folders, searches filenames, Markdown headings, document text, and PDF annotation summaries, and opens results through the existing safe document flow. Searchable text is bounded and memory-only; only normalized selected-folder and explicit file paths were stored in UserDefaults at that milestone.
 - Local-library indexing is capped at 2,000 files and 20 million searchable characters, runs off the main actor, supports refresh/removal of selected folders, and stops cleanly when a refresh is replaced or cancelled.
 - The Library now marks Recent Files, persists explicitly added local file paths, and offers **Add to Library** / **Remove from Library** actions from document and Library/Recent context menus. Explicit files remain indexed even after they leave the short Recent Files list.
 - **Copy to Library Folder…** safely copies closed local files or the current in-memory Markdown/PDF document into a chosen writable folder. It handles conflicts with Replace / Keep Both / Cancel, writes through a temporary sibling, preserves unsaved Markdown/PDF state, and refreshes Library membership after success.
-- Latest validation for this branch: `swift test --jobs 1` passes all 40 tests; `swift build` succeeds; the debug bundle is packaged and ad-hoc signed. Native UI verification of the new Library actions remains pending because the development bundle and installed bundle are both currently running, so LaunchServices did not launch a fresh copy reliably.
+- Validation for the file-actions milestone: `swift test --jobs 1` passed all 40 tests; `swift build` succeeded; the debug bundle was packaged and ad-hoc signed. Native UI verification of the new Library actions remained pending because the development bundle and installed bundle were both running, so LaunchServices did not launch a fresh copy reliably.
 
 ## Previous implementation updates (2026-09-19)
 
@@ -65,7 +72,7 @@ The repo still contains an older React/Vite prototype (`src/`, `dist/`, `package
 - Packaged development app path:
 
 ```text
-/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.11.app
+/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.12.app
 ```
 
 Build commands:
@@ -79,7 +86,7 @@ bash scripts/package_app.sh debug
 `scripts/package_app.sh`:
 
 1. builds the requested native configuration (`debug` by default; `release` is accepted)
-2. creates `build/FileViewer 0.11.app`
+2. creates `build/FileViewer 0.12.app`
 3. generates `AppIcon.icns` from `Resources/fileviewer-light-marker-lines.webp` using Python/Pillow
 4. writes `Info.plist`
 5. ad-hoc signs the app with `codesign --force --deep --sign -`
@@ -892,7 +899,7 @@ Expected after latest build:
 - App launches from:
 
 ```text
-/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.11.app
+/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.12.app
 ```
 
 - Opening multiple files from inside a window can create tabs in that window.
@@ -1114,7 +1121,7 @@ git status --short
 Then manually test the app bundle:
 
 ```text
-/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.11.app
+/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.12.app
 ```
 
 If acceptable:
@@ -1160,7 +1167,7 @@ Recommended order:
 
 The AI assistant is implemented on `main`. See `docs/ai-assistant-specification.md` and the implementation section below before continuing it.
 
-1. Extend the local Library slice with tags, incremental background refresh, durable indexing, and richer filters while keeping document text local and bounded.
+1. Extend the local Library slice with incremental background refresh and durable indexing while keeping document text local and bounded.
 2. Continue PDF annotation:
    - author/timestamp metadata in annotation reports
    - consider explicit undo/redo support for permanent page rotations only if it can be implemented without replacing/reloading the full PDF document
@@ -1295,5 +1302,5 @@ cd /Users/patrickshi/Documents/Codex/FileViewer
 swift test --jobs 1
 curl http://127.0.0.1:1234/v1/models
 bash scripts/package_app.sh debug
-codesign --verify --deep --strict "build/FileViewer 0.11.app"
+codesign --verify --deep --strict "build/FileViewer 0.12.app"
 ```

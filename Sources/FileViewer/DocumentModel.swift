@@ -563,6 +563,9 @@ final class AppModel: ObservableObject {
     @Published var libraryQuery = "" {
         didSet { updateLibraryResults() }
     }
+    @Published var selectedLibraryTag: String? {
+        didSet { updateLibraryResults() }
+    }
     @Published private(set) var libraryResults: [LibrarySearchResult] = []
     @Published private(set) var isLibraryIndexing = false
     @Published private(set) var libraryIndexedFileCount = 0
@@ -584,6 +587,7 @@ final class AppModel: ObservableObject {
     private let recentsKey = "FileViewer.recents"
     private static let libraryFoldersKey = "FileViewer.library.folders"
     private static let libraryFilesKey = "FileViewer.library.files"
+    private static let libraryTagsKey = "FileViewer.library.tags"
     private let markdownModeKey = "FileViewer.markdownMode"
     private static let sessionKey = "FileViewer.session.windows"
     private static let pdfStateKey = "FileViewer.pdf.lastStates"
@@ -594,6 +598,7 @@ final class AppModel: ObservableObject {
     private var lastMarkdownSelectionSignature: String?
     private var pendingAISelections: [DocumentTab.ID: String] = [:]
     private var libraryEntries: [LibraryIndexEntry] = []
+    private var libraryTagsByPath: [String: [String]] = [:]
     private var libraryIndexTask: Task<Void, Never>?
     private var libraryIndexGeneration: UInt = 0
     private var hasBuiltLibraryIndex = false
@@ -1948,6 +1953,98 @@ final class AppModel: ObservableObject {
         statusMessage = "Removed " + url.lastPathComponent + " from the Library."
     }
 
+    func addLibraryTag(to url: URL) {
+        guard let normalized = normalizedLibraryFile(url) else {
+            statusMessage = "Only readable local Markdown and PDF files can be tagged."
+            return
+        }
+
+        let field = NSTextField(string: "")
+        field.placeholderString = "Tag name"
+        field.frame = NSRect(x: 0, y: 0, width: 280, height: 24)
+
+        let alert = NSAlert()
+        alert.messageText = "Add Library Tag"
+        alert.informativeText = normalized.lastPathComponent
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Add")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn,
+              let tag = Self.normalizedLibraryTag(field.stringValue) else {
+            return
+        }
+
+        let path = normalized.path
+        var tags = libraryTagsByPath[path] ?? []
+        guard !tags.contains(where: { $0.localizedCaseInsensitiveCompare(tag) == .orderedSame }) else {
+            let wasNewLibraryFile = registerLibraryFile(normalized, refresh: false)
+            if wasNewLibraryFile, hasBuiltLibraryIndex || libraryIndexTask != nil {
+                refreshLibraryIndex()
+            }
+            statusMessage = wasNewLibraryFile
+                ? "This file already has the “\(tag)” tag and is now in the Library."
+                : "This file already has the “\(tag)” tag."
+            return
+        }
+        guard tags.count < 10 else {
+            statusMessage = "A file can have up to 10 Library tags."
+            return
+        }
+
+        tags.append(tag)
+        tags.sort { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        libraryTagsByPath[path] = tags
+        saveLibraryTags()
+        let wasNewLibraryFile = registerLibraryFile(normalized, refresh: false)
+        if hasBuiltLibraryIndex || libraryIndexTask != nil {
+            refreshLibraryIndex()
+        } else {
+            updateLibraryResults()
+        }
+        statusMessage = wasNewLibraryFile
+            ? "Added the “\(tag)” tag and added \(normalized.lastPathComponent) to the Library."
+            : "Added the “\(tag)” tag to \(normalized.lastPathComponent)."
+    }
+
+    func removeLibraryTag(_ tag: String, from url: URL) {
+        let path = url.standardizedFileURL.resolvingSymlinksInPath().path
+        guard var tags = libraryTagsByPath[path] else { return }
+        tags.removeAll { $0.localizedCaseInsensitiveCompare(tag) == .orderedSame }
+        if tags.isEmpty {
+            libraryTagsByPath.removeValue(forKey: path)
+        } else {
+            libraryTagsByPath[path] = tags
+        }
+        saveLibraryTags()
+        if let selectedLibraryTag,
+           !libraryTagOptions.contains(where: {
+               $0.localizedCaseInsensitiveCompare(selectedLibraryTag) == .orderedSame
+           }) {
+            self.selectedLibraryTag = nil
+        } else {
+            updateLibraryResults()
+        }
+        statusMessage = "Removed the “\(tag)” tag from \(url.lastPathComponent)."
+    }
+
+    func libraryTags(for url: URL) -> [String] {
+        let path = url.standardizedFileURL.resolvingSymlinksInPath().path
+        return libraryTagsByPath[path] ?? []
+    }
+
+    var libraryTagOptions: [String] {
+        var tags: [String] = []
+        let indexedPaths = Set(libraryEntries.map(\.id))
+        for (path, fileTags) in libraryTagsByPath where indexedPaths.contains(path) {
+            for tag in fileTags {
+                if !tags.contains(where: { $0.localizedCaseInsensitiveCompare(tag) == .orderedSame }) {
+                    tags.append(tag)
+                }
+            }
+        }
+        return tags.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
     func copyCurrentDocumentToLibraryFolder() {
         guard let url = document?.url else {
             statusMessage = "Save this Markdown document before copying it to a Library folder."
@@ -1992,8 +2089,18 @@ final class AppModel: ObservableObject {
 
         registerLibraryFolder(folder)
         registerLibraryFile(destination, refresh: false)
+        let sourceTags = libraryTags(for: source)
+        let destinationPath = destination.standardizedFileURL.resolvingSymlinksInPath().path
+        if sourceTags.isEmpty {
+            libraryTagsByPath.removeValue(forKey: destinationPath)
+        } else {
+            libraryTagsByPath[destinationPath] = sourceTags
+        }
+        saveLibraryTags()
         if hasBuiltLibraryIndex {
             refreshLibraryIndex()
+        } else {
+            updateLibraryResults()
         }
         statusMessage = "Copied " + source.lastPathComponent + " to the Library."
     }
@@ -2649,6 +2756,7 @@ final class AppModel: ObservableObject {
 
         loadLibraryFolders()
         loadLibraryFiles()
+        loadLibraryTags()
     }
 
     private func saveRecents() {
@@ -2692,6 +2800,34 @@ final class AppModel: ObservableObject {
         UserDefaults.standard.set(data, forKey: Self.libraryFilesKey)
     }
 
+    private func loadLibraryTags() {
+        guard let data = UserDefaults.standard.data(forKey: Self.libraryTagsKey),
+              let decoded = try? JSONDecoder().decode([String: [String]].self, from: data) else { return }
+
+        var normalizedTags: [String: [String]] = [:]
+        for (path, values) in decoded.sorted(by: { $0.key < $1.key }).prefix(2_000) {
+            let url = URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath()
+            guard url.isFileURL, Self.isLibraryDocumentURL(url),
+                  let tags = Self.normalizedLibraryTags(values),
+                  !tags.isEmpty else { continue }
+            normalizedTags[url.path] = tags
+        }
+        libraryTagsByPath = normalizedTags
+        if libraryTagsByPath != decoded {
+            saveLibraryTags()
+        }
+    }
+
+    private func saveLibraryTags() {
+        let tags = libraryTagsByPath
+            .filter { !$0.value.isEmpty }
+            .sorted { $0.key < $1.key }
+            .prefix(2_000)
+            .reduce(into: [String: [String]]()) { $0[$1.key] = Array($1.value.prefix(10)) }
+        guard let data = try? JSONEncoder().encode(tags) else { return }
+        UserDefaults.standard.set(data, forKey: Self.libraryTagsKey)
+    }
+
     private func normalizedLibraryFolder(_ url: URL) -> URL? {
         guard url.isFileURL else { return nil }
         let normalized = url.standardizedFileURL.resolvingSymlinksInPath()
@@ -2703,7 +2839,18 @@ final class AppModel: ObservableObject {
     }
 
     private func updateLibraryResults() {
-        libraryResults = LocalLibraryIndexer.search(query: libraryQuery, entries: libraryEntries)
+        let results = LocalLibraryIndexer.search(
+            query: libraryQuery,
+            entries: libraryEntries,
+            tagsByPath: libraryTagsByPath
+        )
+        guard let selectedLibraryTag else {
+            libraryResults = results
+            return
+        }
+        libraryResults = results.filter { result in
+            result.tags.contains { $0.localizedCaseInsensitiveCompare(selectedLibraryTag) == .orderedSame }
+        }
     }
 
     private func chooseLibraryFolder() -> URL? {
@@ -2758,6 +2905,32 @@ final class AppModel: ObservableObject {
             return nil
         }
         return normalized
+    }
+
+    private static func normalizedLibraryTag(_ value: String) -> String? {
+        let compact = value
+            .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
+            .joined(separator: " ")
+        let tag = String(compact.prefix(48))
+        return tag.isEmpty ? nil : tag
+    }
+
+    private static func normalizedLibraryTags(_ values: [String]) -> [String]? {
+        var tags: [String] = []
+        for value in values {
+            guard let tag = normalizedLibraryTag(value),
+                  !tags.contains(where: { $0.localizedCaseInsensitiveCompare(tag) == .orderedSame }) else {
+                continue
+            }
+            tags.append(tag)
+            if tags.count == 10 { break }
+        }
+        tags.sort { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        return tags
+    }
+
+    private static func isLibraryDocumentURL(_ url: URL) -> Bool {
+        ["md", "markdown", "pdf"].contains(url.pathExtension.lowercased())
     }
 
     private func sourceDestinationURL(for source: URL, in folder: URL) -> URL {

@@ -350,13 +350,13 @@ This section records the boundary of the original viewer MVP. Some items, includ
 - PDF annotations, drawing, notes, form editing, safe PDF save, and annotation reports have been implemented after the original MVP.
 - Reading-only view rotation plus permanent current-page/all-page rotation have been implemented. The permanent actions save only after an explicit Save or Save As.
 - The original viewer MVP is complete. Later work has also implemented PDF annotation/form support and the AI assistant on `main`: a resizable right panel, per-tab in-memory conversations, PDF/Markdown selection capture, four explicit scopes, local retrieval, streaming, cancellation, provider/model discovery, and explicit remote document-transfer approval. Provider profiles now include LM Studio, Ollama, custom OpenAI-compatible servers, and OpenAI; credentials are stored only in Keychain.
-- The Local Library slice now provides a Library sidebar with highlighted recent files, persistent per-file membership, user-selected-folder indexing, local filename/heading/text/annotation search, result snippets, safe opening, and Add/Copy file actions. Indexed document text is memory-only; selected folder and explicit file paths are stored locally. Copying handles conflicts and preserves unsaved Markdown/PDF state.
+- The Local Library slice now provides a Library sidebar with highlighted recent files, persistent per-file membership and tags, user-selected-folder indexing, local filename/tag/heading/text/annotation search, result snippets, safe opening, and Add/Copy file actions. Indexed document text stays in memory; folder/file paths and tags are stored locally. Tags can be assigned from document, Recent, or Library context menus and filtered from the Library toolbar. Copying handles conflicts, preserves unsaved Markdown/PDF state, and carries source tags to the copy.
 
 ## 22. Build-plan audit and Mac-first post-MVP plan (2026-09-19)
 
 The original viewer MVP and later PDF annotation/form and AI milestones are implemented. The following plan items remain unfinished or partial:
 
-- Local library: tags, incremental background refresh, and a durable searchable index remain future work; the current index is rebuilt on demand and keeps document text in memory only.
+- Local library: incremental background refresh and a durable searchable index remain future work; tags and tag filtering are implemented. The current index is rebuilt on demand and keeps document text in memory only.
 - Markdown preview: richer GitHub-Flavored Markdown tables, local image rendering, richer code presentation, copy-code actions, and heading-to-source navigation.
 - PDF workflow: fullscreen/presentation mode, two-page spread or selectable single-page mode, and page delete/reorder/extract/merge/insert.
 - PDF annotations: author and timestamp metadata.
@@ -369,7 +369,7 @@ The active build plan deliberately targets local, single-user Mac workflows. Clo
 
 ### Phase A — high-value Mac features
 
-1. **Local library and global search** — the first local folder/index/search slice is implemented; add tags, incremental refresh, durable index storage, and richer filters while keeping clear local-only controls.
+1. **Local library and global search** — folder/file indexing, search, Add/Copy actions, tags, and tag filtering are implemented; add incremental refresh and durable index storage while keeping clear local-only controls.
 2. **PDF page tools** — thumbnail multi-selection, reorder, duplicate, delete, extract/split, insert, and export, using the existing atomic-save and external-change protections.
 3. **Reading and presentation** — fullscreen reading, presentation mode, page-advance shortcuts, temporary cursor/laser focus, and optional two-page spread.
 4. **Markdown fidelity and templates** — local images, richer tables/task lists/code blocks, copy-code, heading navigation, and user-managed Markdown/PDF templates.

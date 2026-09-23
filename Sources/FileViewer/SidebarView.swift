@@ -79,6 +79,10 @@ struct SidebarView: View {
             }
             .buttonStyle(.plain)
             .contextMenu {
+                LibraryTagMenu(model: model, url: recent.url)
+
+                Divider()
+
                 Button("Add to Library", systemImage: "books.vertical") {
                     model.addLibraryFile(recent.url)
                 }
@@ -104,7 +108,40 @@ struct SidebarView: View {
             HStack(spacing: 6) {
                 TextField("Search library", text: $model.libraryQuery)
                     .textFieldStyle(.roundedBorder)
-                    .help("Search indexed filenames, headings, document text, and annotations")
+                    .help("Search indexed filenames, tags, headings, document text, and annotations")
+
+                Menu {
+                    Button {
+                        model.selectedLibraryTag = nil
+                    } label: {
+                        if model.selectedLibraryTag == nil {
+                            Label("All Tags", systemImage: "checkmark")
+                        } else {
+                            Text("All Tags")
+                        }
+                    }
+                    if !model.libraryTagOptions.isEmpty {
+                        Divider()
+                        ForEach(model.libraryTagOptions, id: \.self) { tag in
+                            Button {
+                                model.selectedLibraryTag = tag
+                            } label: {
+                                if model.selectedLibraryTag?.localizedCaseInsensitiveCompare(tag) == .orderedSame {
+                                    Label(tag, systemImage: "checkmark")
+                                } else {
+                                    Text(tag)
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: model.selectedLibraryTag == nil ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                        .frame(width: 24, height: 24)
+                }
+                .menuStyle(.borderlessButton)
+                .disabled(model.libraryTagOptions.isEmpty && model.selectedLibraryTag == nil)
+                .help(model.selectedLibraryTag.map { "Filtered by \($0)" } ?? "Filter by tag")
+                .accessibilityLabel(model.selectedLibraryTag.map { "Filter by \($0)" } ?? "Filter by tag")
 
                 Menu {
                     Button("Add Folder…") {
@@ -183,9 +220,11 @@ struct SidebarView: View {
             .overlay {
                 if model.libraryResults.isEmpty {
                     ContentUnavailableView(
-                        model.libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "No Indexed Files" : "No Matches",
+                        model.libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.selectedLibraryTag == nil
+                            ? "No Indexed Files"
+                            : "No Matches",
                         systemImage: "magnifyingglass",
-                        description: Text(model.libraryFolders.isEmpty ? "Open files or add a local folder to build the library." : "Try another filename, heading, or document phrase.")
+                        description: Text(libraryEmptyDescription)
                     )
                 }
             }
@@ -219,6 +258,12 @@ struct SidebarView: View {
                                 .help("Added to Library")
                         }
                     }
+                    if !result.tags.isEmpty {
+                        Text(result.tags.joined(separator: " · "))
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.tint)
+                            .lineLimit(1)
+                    }
                     Text(result.reason)
                         .font(.caption2.weight(.medium))
                         .foregroundStyle(.secondary)
@@ -239,6 +284,10 @@ struct SidebarView: View {
         .buttonStyle(.plain)
         .help(result.url.path)
         .contextMenu {
+            LibraryTagMenu(model: model, url: result.url)
+
+            Divider()
+
             Button("Add to Library", systemImage: "books.vertical") {
                 model.addLibraryFile(result.url)
             }
@@ -255,6 +304,15 @@ struct SidebarView: View {
                 }
             }
         }
+    }
+
+    private var libraryEmptyDescription: String {
+        if let selectedLibraryTag = model.selectedLibraryTag {
+            return "No files are tagged “\(selectedLibraryTag)”. Choose another tag or clear the tag filter."
+        }
+        return model.libraryFolders.isEmpty
+            ? "Open files or add a local folder to build the library."
+            : "Try another filename, heading, or document phrase."
     }
 
     private var contentsList: some View {
@@ -407,6 +465,31 @@ struct SidebarView: View {
             }
         } else {
             ContentUnavailableView("No PDF Open", systemImage: "doc.richtext")
+        }
+    }
+}
+
+struct LibraryTagMenu: View {
+    @ObservedObject var model: AppModel
+    let url: URL
+
+    var body: some View {
+        Menu("Tags", systemImage: "tag") {
+            Button("Add Tag…", systemImage: "plus") {
+                model.addLibraryTag(to: url)
+            }
+
+            let tags = model.libraryTags(for: url)
+            if !tags.isEmpty {
+                Divider()
+                Section("Remove Tag") {
+                    ForEach(tags, id: \.self) { tag in
+                        Button(tag, systemImage: "tag.slash") {
+                            model.removeLibraryTag(tag, from: url)
+                        }
+                    }
+                }
+            }
         }
     }
 }
