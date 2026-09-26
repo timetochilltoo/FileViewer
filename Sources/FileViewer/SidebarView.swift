@@ -101,9 +101,6 @@ struct SidebarView: View {
     }
 
     private var libraryList: some View {
-        let recentResults = model.libraryResults.filter(\.isRecent)
-        let indexedResults = model.libraryResults.filter { !$0.isRecent }
-
         return VStack(spacing: 0) {
             HStack(spacing: 6) {
                 TextField("Search library", text: $model.libraryQuery)
@@ -202,16 +199,9 @@ struct SidebarView: View {
             Divider()
 
             List {
-                if !recentResults.isEmpty {
-                    Section("Recent Files") {
-                        ForEach(recentResults) { result in
-                            libraryResultRow(result)
-                        }
-                    }
-                }
-                if !indexedResults.isEmpty {
+                if !model.libraryResults.isEmpty {
                     Section("Library") {
-                        ForEach(indexedResults) { result in
+                        ForEach(consolidatedLibraryResults) { result in
                             libraryResultRow(result)
                         }
                     }
@@ -231,6 +221,16 @@ struct SidebarView: View {
         }
         .onAppear {
             model.ensureLibraryIndex()
+        }
+    }
+
+    private var consolidatedLibraryResults: [LibrarySearchResult] {
+        model.libraryResults.sorted { lhs, rhs in
+            let lhsPriority = lhs.isExplicit ? 0 : (lhs.isRecent ? 2 : 1)
+            let rhsPriority = rhs.isExplicit ? 0 : (rhs.isRecent ? 2 : 1)
+            if lhsPriority != rhsPriority { return lhsPriority < rhsPriority }
+            if lhs.modifiedAt != rhs.modifiedAt { return lhs.modifiedAt > rhs.modifiedAt }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
         }
     }
 

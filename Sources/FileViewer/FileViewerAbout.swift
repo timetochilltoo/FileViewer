@@ -66,6 +66,6 @@ struct FileViewerAboutView: View {
     }
 
     private var version: String {
-        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "0.12"
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "0.13"
     }
 }

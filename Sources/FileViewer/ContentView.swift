@@ -403,6 +403,8 @@ struct ContentView: View {
         case nil:
             EmptyDocumentView {
                 model.openWithPanel()
+            } newMarkdown: {
+                model.newMarkdownDocument()
             }
         }
     }
@@ -626,6 +628,7 @@ struct PDFToolbar: View {
 
 struct EmptyDocumentView: View {
     let open: () -> Void
+    let newMarkdown: () -> Void
 
     var body: some View {
         VStack(spacing: 14) {
@@ -636,10 +639,17 @@ struct EmptyDocumentView: View {
                 .font(.title2.weight(.semibold))
             Text("Drag a file into the window, or choose one from your Mac.")
                 .foregroundStyle(.secondary)
-            Button(action: open) {
-                Label("Open File", systemImage: "folder")
+            HStack(spacing: 10) {
+                Button(action: open) {
+                    Label("Open File", systemImage: "folder")
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button(action: newMarkdown) {
+                    Label("New Markdown", systemImage: "doc.badge.plus")
+                }
+                .buttonStyle(.bordered)
             }
-            .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

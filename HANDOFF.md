@@ -12,7 +12,9 @@ Current committed baseline: `282225f` (`Make library tags discoverable`).
 
 - The Library supports up to 10 short, case-insensitively unique tags per local Markdown/PDF file. Tags are stored locally by normalized file path; indexed document text remains memory-only. Tagging a recent or folder-indexed file also pins its path into the Library so it remains available after it leaves Recents or its containing folder is removed.
 - **Add Tag…** is a direct action in the File menu and Recent, Library, and open-document context menus; existing tags appear as direct remove actions. The Library toolbar can filter by a tag, and Search Library matches tag names. Copies inherit the source file's tags.
-- The tag feature is on `codex/library-tags`, based on commits `c7f78d3` and `282225f`. **Add Tag…** and each **Remove Tag: …** action are now flat actions in the File and document context menus, so there is no hidden Tags submenu. `swift build` passed; the Debug `0.12` app was packaged and passed `codesign --verify --deep --strict` and Info.plist checks. Native context-menu presentation remains to be checked in the app.
+- The tag feature is on `codex/library-tags`, based on commits `c7f78d3` and `282225f`. **Add Tag…** and each **Remove Tag: …** action are now flat actions in the File and document context menus, so there is no hidden Tags submenu. The earlier Debug `0.12` app passed `codesign --verify --deep --strict` and Info.plist checks; this follow-up delivers the `0.13` bundle below. Native context-menu presentation remains to be checked in the app.
+- The empty document view now offers **Open File** and **New Markdown** side by side. The Library view presents all indexed files in one consolidated **Library** section, with explicit Library files ordered ahead of folder-indexed and recent-only entries; the separate Recent sidebar mode remains available for a recency-focused list.
+- The current runnable delivery is version `0.13`; package metadata and the custom About fallback are synchronized with that version.
 - The next local-library steps are incremental background refresh and durable indexing. Keep the existing local-only boundary and do not persist extracted document text without an explicit product decision.
 
 ## Previous implementation updates (2026-09-21)
@@ -72,7 +74,7 @@ The repo still contains an older React/Vite prototype (`src/`, `dist/`, `package
 - Packaged development app path:
 
 ```text
-/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.12.app
+/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.13.app
 ```
 
 Build commands:
@@ -86,7 +88,7 @@ bash scripts/package_app.sh debug
 `scripts/package_app.sh`:
 
 1. builds the requested native configuration (`debug` by default; `release` is accepted)
-2. creates `build/FileViewer 0.12.app`
+2. creates `build/FileViewer 0.13.app`
 3. generates `AppIcon.icns` from `Resources/fileviewer-light-marker-lines.webp` using Python/Pillow
 4. writes `Info.plist`
 5. ad-hoc signs the app with `codesign --force --deep --sign -`

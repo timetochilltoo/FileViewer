@@ -88,7 +88,8 @@ Current MVP build includes:
   - Print / Command-P
 - Print support for PDFs and Markdown source text.
 - Recent files.
-- Local Library sidebar with a local-only in-memory index of recent files, explicitly added files, and user-selected folders. Recent files are highlighted; search filenames, tags, Markdown headings, PDF/Markdown text, and PDF annotation summaries. Add and remove per-file tags directly from the File menu or a file's context menu, and filter tags from the Library toolbar. Use **Search Library…** / Command-Option-F to reveal it, **Add to Library** to keep an individual file indexed, or **Copy to Library Folder…** to make a managed copy.
+- Local Library sidebar with a local-only in-memory index of recent files, explicitly added files, and user-selected folders. The Library view keeps all indexed files in one consolidated list and prioritizes explicitly added files; the Recent view remains available for recency-focused browsing. Search filenames, tags, Markdown headings, PDF/Markdown text, and PDF annotation summaries. Add and remove per-file tags directly from the File menu or a file's context menu, and filter tags from the Library toolbar. Use **Search Library…** / Command-Option-F to reveal it, **Add to Library** to keep an individual file indexed, or **Copy to Library Folder…** to make a managed copy.
+- The empty document view offers **Open File** and **New Markdown** actions side by side.
 - Light and dark theme.
 - Local AI assistant:
   - resizable right-side panel with per-document conversations
@@ -136,12 +137,12 @@ The suite verifies Markdown dirty-state behavior, file-version change detection,
 The current development app bundle is here:
 
 ```text
-build/FileViewer 0.12.app
+build/FileViewer 0.13.app
 ```
 
 It is built from the Swift executable and signed locally with an ad-hoc development signature. The package script defaults to a native Debug build; pass `release` when a Release bundle is needed.
 
-The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.12` and `By Patrick Shi`.
+The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.13` and `By Patrick Shi`.
 
 To rebuild the app bundle:
 
