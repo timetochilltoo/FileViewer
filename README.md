@@ -88,7 +88,7 @@ Current MVP build includes:
   - Print / Command-P
 - Print support for PDFs and Markdown source text.
 - Recent files.
-- Local Library sidebar with a local-only in-memory index of recent files, explicitly added files, and user-selected folders. Recent files are highlighted; search filenames, tags, Markdown headings, PDF/Markdown text, and PDF annotation summaries. Add and filter per-file tags from Library, Recent, or document context menus. Use **Search Library…** / Command-Option-F to reveal it, **Add to Library** to keep an individual file indexed, or **Copy to Library Folder…** to make a managed copy.
+- Local Library sidebar with a local-only in-memory index of recent files, explicitly added files, and user-selected folders. Recent files are highlighted; search filenames, tags, Markdown headings, PDF/Markdown text, and PDF annotation summaries. Add and remove per-file tags directly from the File menu or a file's context menu, and filter tags from the Library toolbar. Use **Search Library…** / Command-Option-F to reveal it, **Add to Library** to keep an individual file indexed, or **Copy to Library Folder…** to make a managed copy.
 - Light and dark theme.
 - Local AI assistant:
   - resizable right-side panel with per-document conversations

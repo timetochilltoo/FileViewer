@@ -670,6 +670,10 @@ final class AppModel: ObservableObject {
         return url.isFileURL
     }
 
+    var canTagCurrentDocument: Bool {
+        canAddCurrentDocumentToLibrary
+    }
+
     var canCopyCurrentDocumentToLibraryFolder: Bool {
         canAddCurrentDocumentToLibrary
     }
@@ -1926,6 +1930,14 @@ final class AppModel: ObservableObject {
             return
         }
         addLibraryFile(url)
+    }
+
+    func addTagToCurrentDocument() {
+        guard let url = document?.url else {
+            statusMessage = "Save this Markdown document before adding a Library tag."
+            return
+        }
+        addLibraryTag(to: url)
     }
 
     func addLibraryFile(_ url: URL) {

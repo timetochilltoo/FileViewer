@@ -54,6 +54,11 @@ struct FileViewerCommands: Commands {
             }
             .disabled(activeModel?.canAddCurrentDocumentToLibrary != true)
 
+            Button("Add Tag to Current Document…") {
+                activeModel?.addTagToCurrentDocument()
+            }
+            .disabled(activeModel?.canTagCurrentDocument != true)
+
             Button("Copy Current Document to Library Folder…") {
                 activeModel?.copyCurrentDocumentToLibraryFolder()
             }

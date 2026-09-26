@@ -53,7 +53,7 @@ struct MarkdownWorkspace: View {
             .disabled(!model.canAddCurrentDocumentToLibrary)
 
             if let url = model.document?.url {
-                LibraryTagMenu(model: model, url: url)
+                LibraryTagActions(model: model, url: url)
             }
 
             Button("Copy to Library Folder…", systemImage: "doc.on.doc") {

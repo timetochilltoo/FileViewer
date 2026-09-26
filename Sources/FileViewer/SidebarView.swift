@@ -79,7 +79,7 @@ struct SidebarView: View {
             }
             .buttonStyle(.plain)
             .contextMenu {
-                LibraryTagMenu(model: model, url: recent.url)
+                LibraryTagActions(model: model, url: recent.url)
 
                 Divider()
 
@@ -284,7 +284,7 @@ struct SidebarView: View {
         .buttonStyle(.plain)
         .help(result.url.path)
         .contextMenu {
-            LibraryTagMenu(model: model, url: result.url)
+            LibraryTagActions(model: model, url: result.url)
 
             Divider()
 
@@ -469,25 +469,22 @@ struct SidebarView: View {
     }
 }
 
-struct LibraryTagMenu: View {
+struct LibraryTagActions: View {
     @ObservedObject var model: AppModel
     let url: URL
 
+    @ViewBuilder
     var body: some View {
-        Menu("Tags", systemImage: "tag") {
-            Button("Add Tag…", systemImage: "plus") {
-                model.addLibraryTag(to: url)
-            }
+        Button("Add Tag…", systemImage: "tag") {
+            model.addLibraryTag(to: url)
+        }
 
-            let tags = model.libraryTags(for: url)
-            if !tags.isEmpty {
-                Divider()
-                Section("Remove Tag") {
-                    ForEach(tags, id: \.self) { tag in
-                        Button(tag, systemImage: "tag.slash") {
-                            model.removeLibraryTag(tag, from: url)
-                        }
-                    }
+        let tags = model.libraryTags(for: url)
+        if !tags.isEmpty {
+            Divider()
+            ForEach(tags, id: \.self) { tag in
+                Button("Remove Tag: \(tag)", systemImage: "tag.slash") {
+                    model.removeLibraryTag(tag, from: url)
                 }
             }
         }
