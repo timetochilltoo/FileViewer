@@ -4,7 +4,7 @@ Last updated: 2026-09-26
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `codex/library-tags`
-Current committed baseline: `282225f` (`Make library tags discoverable`).
+Current committed baseline: `dff915c` (`Consolidate library view and add empty-state markdown action`).
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
