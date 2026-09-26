@@ -4,7 +4,7 @@ Last updated: 2026-09-26
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `codex/library-tags`
-Current committed baseline: `c7f78d3` (`Add local library tags`); the active worktree adds tag-menu discoverability described below.
+Current committed baseline: `282225f` (`Make library tags discoverable`).
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
@@ -12,7 +12,7 @@ Current committed baseline: `c7f78d3` (`Add local library tags`); the active wor
 
 - The Library supports up to 10 short, case-insensitively unique tags per local Markdown/PDF file. Tags are stored locally by normalized file path; indexed document text remains memory-only. Tagging a recent or folder-indexed file also pins its path into the Library so it remains available after it leaves Recents or its containing folder is removed.
 - **Add Tag…** is a direct action in the File menu and Recent, Library, and open-document context menus; existing tags appear as direct remove actions. The Library toolbar can filter by a tag, and Search Library matches tag names. Copies inherit the source file's tags.
-- The tag feature is on `codex/library-tags`, based on commit `c7f78d3`. **Add Tag…** and each **Remove Tag: …** action are now flat actions in the File and document context menus, so there is no hidden Tags submenu. `swift build` passed; the Debug `0.12` app was packaged and passed `codesign --verify --deep --strict` and Info.plist checks. Native context-menu presentation remains to be checked in the app.
+- The tag feature is on `codex/library-tags`, based on commits `c7f78d3` and `282225f`. **Add Tag…** and each **Remove Tag: …** action are now flat actions in the File and document context menus, so there is no hidden Tags submenu. `swift build` passed; the Debug `0.12` app was packaged and passed `codesign --verify --deep --strict` and Info.plist checks. Native context-menu presentation remains to be checked in the app.
 - The next local-library steps are incremental background refresh and durable indexing. Keep the existing local-only boundary and do not persist extracted document text without an explicit product decision.
 
 ## Previous implementation updates (2026-09-21)
