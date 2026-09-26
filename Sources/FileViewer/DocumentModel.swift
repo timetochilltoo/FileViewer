@@ -2854,7 +2854,8 @@ final class AppModel: ObservableObject {
         let results = LocalLibraryIndexer.search(
             query: libraryQuery,
             entries: libraryEntries,
-            tagsByPath: libraryTagsByPath
+            tagsByPath: libraryTagsByPath,
+            limit: LocalLibraryIndexer.maximumFiles
         )
         guard let selectedLibraryTag else {
             libraryResults = results
