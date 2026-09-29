@@ -13,6 +13,7 @@ struct LibraryIndexEntry: Identifiable, Equatable, Sendable {
     let titleText: String
     let searchableText: String
     let modifiedAt: Date
+    let fileSize: Int64
     let isRecent: Bool
     let isExplicit: Bool
 
@@ -24,6 +25,7 @@ struct LibraryIndexEntry: Identifiable, Equatable, Sendable {
         titleText: String,
         searchableText: String,
         modifiedAt: Date,
+        fileSize: Int64 = 0,
         isRecent: Bool = false,
         isExplicit: Bool = false
     ) {
@@ -36,6 +38,7 @@ struct LibraryIndexEntry: Identifiable, Equatable, Sendable {
         self.titleText = titleText
         self.searchableText = searchableText
         self.modifiedAt = modifiedAt
+        self.fileSize = fileSize
         self.isRecent = isRecent
         self.isExplicit = isExplicit
     }
@@ -66,10 +69,16 @@ enum LocalLibraryIndexer {
     static func build(
         roots: [URL],
         recentURLs: [URL],
-        libraryFiles: [URL] = []
+        libraryFiles: [URL] = [],
+        existingEntries: [LibraryIndexEntry] = []
     ) async -> [LibraryIndexEntry] {
         let worker = Task.detached(priority: .utility) {
-            buildSynchronously(roots: roots, recentURLs: recentURLs, libraryFiles: libraryFiles)
+            buildSynchronously(
+                roots: roots,
+                recentURLs: recentURLs,
+                libraryFiles: libraryFiles,
+                existingEntries: existingEntries
+            )
         }
         return await withTaskCancellationHandler {
             await worker.value
@@ -191,11 +200,13 @@ enum LocalLibraryIndexer {
     private static func buildSynchronously(
         roots: [URL],
         recentURLs: [URL],
-        libraryFiles: [URL]
+        libraryFiles: [URL],
+        existingEntries: [LibraryIndexEntry]
     ) -> [LibraryIndexEntry] {
         var candidates: [(url: URL, isExplicit: Bool)] = []
         var seenPaths = Set<String>()
         let recentPaths = Set(recentURLs.compactMap { normalizedFileURL($0)?.path })
+        let existingByPath = Dictionary(uniqueKeysWithValues: existingEntries.map { ($0.id, $0) })
 
         func addCandidate(_ url: URL, isExplicit: Bool = false) {
             guard !Task.isCancelled else { return }
@@ -237,13 +248,28 @@ enum LocalLibraryIndexer {
         var entries: [LibraryIndexEntry] = []
         for candidate in candidates.prefix(maximumFiles) {
             guard !Task.isCancelled else { return [] }
-            guard remainingCharacters > 0,
-                  let entry = indexEntry(
-                      for: candidate.url,
-                      maximumCharacters: min(maximumSearchableCharactersPerFile, remainingCharacters),
-                      isRecent: recentPaths.contains(candidate.url.path),
-                      isExplicit: candidate.isExplicit
-                  ) else { continue }
+            guard remainingCharacters > 0 else { break }
+            let isRecent = recentPaths.contains(candidate.url.path)
+            let maximumCharacters = min(maximumSearchableCharactersPerFile, remainingCharacters)
+            let cachedEntry = existingByPath[candidate.url.path]
+            let entry: LibraryIndexEntry?
+            if let cachedEntry,
+               cachedEntry.isRecent == isRecent,
+               cachedEntry.isExplicit == candidate.isExplicit,
+               let metadata = fileMetadata(for: candidate.url),
+               cachedEntry.modifiedAt == metadata.modifiedAt,
+               cachedEntry.fileSize == metadata.fileSize,
+               cachedEntry.searchableText.count <= maximumCharacters {
+                entry = cachedEntry
+            } else {
+                entry = indexEntry(
+                    for: candidate.url,
+                    maximumCharacters: maximumCharacters,
+                    isRecent: isRecent,
+                    isExplicit: candidate.isExplicit
+                )
+            }
+            guard let entry else { continue }
             remainingCharacters -= entry.searchableText.count
             entries.append(entry)
         }
@@ -256,8 +282,7 @@ enum LocalLibraryIndexer {
         isRecent: Bool,
         isExplicit: Bool
     ) -> LibraryIndexEntry? {
-        guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey]),
-              let modifiedAt = values.contentModificationDate else { return nil }
+        guard let metadata = fileMetadata(for: url) else { return nil }
 
         let name = url.lastPathComponent
         let kind: DocumentKind
@@ -287,7 +312,8 @@ enum LocalLibraryIndexer {
                     folderPath: url.deletingLastPathComponent().path,
                     titleText: titleText,
                     searchableText: searchableText,
-                    modifiedAt: modifiedAt,
+                    modifiedAt: metadata.modifiedAt,
+                    fileSize: metadata.fileSize,
                     isRecent: isRecent,
                     isExplicit: isExplicit
                 )
@@ -306,10 +332,18 @@ enum LocalLibraryIndexer {
             folderPath: url.deletingLastPathComponent().path,
             titleText: titleText,
             searchableText: searchableText,
-            modifiedAt: modifiedAt,
+            modifiedAt: metadata.modifiedAt,
+            fileSize: metadata.fileSize,
             isRecent: isRecent,
             isExplicit: isExplicit
         )
+    }
+
+    private static func fileMetadata(for url: URL) -> (modifiedAt: Date, fileSize: Int64)? {
+        guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey]),
+              let modifiedAt = values.contentModificationDate,
+              let fileSize = values.fileSize else { return nil }
+        return (modifiedAt: modifiedAt, fileSize: Int64(fileSize))
     }
 
     private static func pdfSearchText(from document: PDFDocument, maximumCharacters: Int) -> String {

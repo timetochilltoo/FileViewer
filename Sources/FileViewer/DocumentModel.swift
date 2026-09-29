@@ -1881,11 +1881,13 @@ final class AppModel: ObservableObject {
         let roots = libraryFolders
         let recentURLs = recents.map(\.url)
         let indexedLibraryFiles = libraryFiles
+        let existingEntries = libraryEntries
         libraryIndexTask = Task { [weak self] in
             let entries = await LocalLibraryIndexer.build(
                 roots: roots,
                 recentURLs: recentURLs,
-                libraryFiles: indexedLibraryFiles
+                libraryFiles: indexedLibraryFiles,
+                existingEntries: existingEntries
             )
             guard !Task.isCancelled else { return }
             guard let self, generation == self.libraryIndexGeneration else { return }

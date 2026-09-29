@@ -356,7 +356,7 @@ This section records the boundary of the original viewer MVP. Some items, includ
 
 The original viewer MVP and later PDF annotation/form and AI milestones are implemented. The following plan items remain unfinished or partial:
 
-- Local library: incremental background refresh and a durable searchable index remain future work; tags and tag filtering are implemented. The current index is rebuilt on demand and keeps document text in memory only.
+- Local library: incremental background refresh, tags, and tag filtering are implemented. A durable searchable index remains future work; document text stays in memory only and is reused during the current session when files are unchanged.
 - Markdown preview: richer GitHub-Flavored Markdown tables, local image rendering, richer code presentation, copy-code actions, and heading-to-source navigation.
 - PDF workflow: fullscreen/presentation mode, two-page spread or selectable single-page mode, and page delete/reorder/extract/merge/insert.
 - PDF annotations: author and timestamp metadata.
@@ -369,7 +369,7 @@ The active build plan deliberately targets local, single-user Mac workflows. Clo
 
 ### Phase A — high-value Mac features
 
-1. **Local library and global search** — folder/file indexing, search, Add/Copy actions, tags, and tag filtering are implemented; add incremental refresh and durable index storage while keeping clear local-only controls.
+1. **Local library and global search** — folder/file indexing, search, Add/Copy actions, tags, tag filtering, and incremental refresh are implemented; durable index storage remains future work while clear local-only controls are preserved.
 2. **PDF page tools** — thumbnail multi-selection, reorder, duplicate, delete, extract/split, insert, and export, using the existing atomic-save and external-change protections.
 3. **Reading and presentation** — fullscreen reading, presentation mode, page-advance shortcuts, temporary cursor/laser focus, and optional two-page spread.
 4. **Markdown fidelity and templates** — local images, richer tables/task lists/code blocks, copy-code, heading navigation, and user-managed Markdown/PDF templates.

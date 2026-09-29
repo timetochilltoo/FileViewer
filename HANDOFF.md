@@ -1,10 +1,10 @@
 # FileViewer Handoff
 
-Last updated: 2026-09-26
+Last updated: 2026-09-29
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `codex/library-tags`
-Current committed baseline: `3ca4fd9` (`Show all indexed files in Library`).
+Current committed baseline: `3ca4fd9` (`Show all indexed files in Library`); the active worktree adds incremental Library refresh described below.
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
@@ -14,8 +14,8 @@ Current committed baseline: `3ca4fd9` (`Show all indexed files in Library`).
 - **Add Tag…** is a direct action in the File menu and Recent, Library, and open-document context menus; existing tags appear as direct remove actions. The Library toolbar can filter by a tag, and Search Library matches tag names. Copies inherit the source file's tags.
 - The tag feature is on `codex/library-tags`, based on commits `c7f78d3` and `282225f`. **Add Tag…** and each **Remove Tag: …** action are now flat actions in the File and document context menus, so there is no hidden Tags submenu. The earlier Debug `0.12` app passed `codesign --verify --deep --strict` and Info.plist checks; this follow-up delivers the `0.13` bundle below. Native context-menu presentation remains to be checked in the app.
 - The empty document view now offers **Open File** and **New Markdown** side by side. The Library view presents all indexed files in one consolidated **Library** section, with explicit Library files ordered ahead of folder-indexed and recent-only entries; the separate Recent sidebar mode remains available for a recency-focused list.
-- The current runnable delivery is version `0.13`; package metadata and the custom About fallback are synchronized with that version.
-- The next local-library steps are incremental background refresh and durable indexing. Keep the existing local-only boundary and do not persist extracted document text without an explicit product decision.
+- The current runnable delivery before this work is version `0.13`; this follow-up will deliver `0.14` after packaging. Package metadata and the custom About fallback are kept synchronized.
+- Library refresh now reuses unchanged in-memory entries by normalized path, modification date, and file size. New or changed files are indexed in the existing background task, and files no longer present in selected folders are dropped. A durable searchable index remains future work; document text is still never persisted.
 
 ## Previous implementation updates (2026-09-21)
 
@@ -74,7 +74,7 @@ The repo still contains an older React/Vite prototype (`src/`, `dist/`, `package
 - Packaged development app path:
 
 ```text
-/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.13.app
+/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.14.app
 ```
 
 Build commands:
@@ -88,7 +88,7 @@ bash scripts/package_app.sh debug
 `scripts/package_app.sh`:
 
 1. builds the requested native configuration (`debug` by default; `release` is accepted)
-2. creates `build/FileViewer 0.13.app`
+2. creates `build/FileViewer 0.14.app`
 3. generates `AppIcon.icns` from `Resources/fileviewer-light-marker-lines.webp` using Python/Pillow
 4. writes `Info.plist`
 5. ad-hoc signs the app with `codesign --force --deep --sign -`

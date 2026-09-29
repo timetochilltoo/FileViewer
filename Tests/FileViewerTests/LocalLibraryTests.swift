@@ -54,6 +54,38 @@ final class LocalLibraryTests: XCTestCase {
         )
     }
 
+    func testIndexerReusesUnchangedEntriesAndRefreshesChangedFiles() async throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FileViewerIncremental-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let markdownURL = folder.appendingPathComponent("incremental.md")
+        try "# Before\nOriginal content".write(to: markdownURL, atomically: true, encoding: .utf8)
+
+        let firstEntries = await LocalLibraryIndexer.build(roots: [folder], recentURLs: [])
+        let reusedEntries = await LocalLibraryIndexer.build(
+            roots: [folder],
+            recentURLs: [],
+            existingEntries: firstEntries
+        )
+        XCTAssertEqual(reusedEntries, firstEntries)
+
+        try "# After\nUpdated content with a different size".write(to: markdownURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSinceNow: 2)],
+            ofItemAtPath: markdownURL.path
+        )
+
+        let refreshedEntries = await LocalLibraryIndexer.build(
+            roots: [folder],
+            recentURLs: [],
+            existingEntries: firstEntries
+        )
+        XCTAssertEqual(refreshedEntries.first?.titleText, "After")
+        XCTAssertTrue(refreshedEntries.first?.searchableText.contains("Updated content") == true)
+    }
+
     func testLibrarySearchRanksFilenameBeforeBodyMatches() {
         let entries = [
             entry(path: "/tmp/meeting-notes.md", kind: .markdown, title: "Weekly meeting", text: "Discuss the security review."),
