@@ -865,6 +865,11 @@ final class AIAssistantManager: ObservableObject {
         ensureSession(for: tabID, hasSelection: hasSelection)
     }
 
+    func invalidatePDFContext(for tabID: DocumentTab.ID) {
+        stop(for: tabID)
+        pdfContextIndexes[tabID] = nil
+    }
+
     func stop(for tabID: DocumentTab.ID?) {
         guard let tabID else { return }
         generationTasks[tabID]?.cancel()
@@ -1030,7 +1035,7 @@ final class AIAssistantManager: ObservableObject {
         }
     }
 
-    private func contextIndex(
+    func contextIndex(
         for document: ViewerDocument,
         tabID: DocumentTab.ID,
         tab: DocumentTab
@@ -1044,8 +1049,12 @@ final class AIAssistantManager: ObservableObject {
                 return cached.index
             }
             let url = pdf.url
+            // Unsaved page edits change page order/count before the file changes.
+            // Capture the live document on the main actor, then extract off-thread.
+            let hasEdits = tab.pdfHasUnsavedAnnotations
+            let editedData = hasEdits ? pdf.document.dataRepresentation() : nil
             let index = await Task.detached(priority: .userInitiated) {
-                guard let data = try? Data(contentsOf: url, options: [.mappedIfSafe]) else {
+                guard let data = hasEdits ? editedData : (try? Data(contentsOf: url, options: [.mappedIfSafe])) else {
                     return AIContextBuilder.makeIndex(from: [])
                 }
                 return AIContextBuilder.makeIndex(from: AIContextBuilder.pdfChunks(from: data))
@@ -1060,7 +1069,7 @@ final class AIAssistantManager: ObservableObject {
         let normalizedURL = pdf.url.standardizedFileURL.resolvingSymlinksInPath().path
         let modification = tab.fileVersion?.modificationDate.timeIntervalSince1970 ?? -1
         let fileSize = tab.fileVersion?.fileSize ?? -1
-        return "\(normalizedURL)|\(modification)|\(fileSize)|\(pdf.document.pageCount)"
+        return "\(normalizedURL)|\(modification)|\(fileSize)|\(pdf.document.pageCount)|\(ObjectIdentifier(pdf.document))|\(tab.pdfHasUnsavedAnnotations)"
     }
 
     private func append(delta: String, to assistantID: UUID, tabID: DocumentTab.ID) {

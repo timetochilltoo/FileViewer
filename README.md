@@ -43,6 +43,7 @@ Current MVP build includes:
 - PDF first/last page controls.
 - PDF zoom controls.
 - PDF thumbnails.
+- PDF page tools from **PDF > Page Tools**, the toolbar's stacked-pages menu, or **Pages > Page Tools**: ⌘/Shift-click thumbnail selection, duplicate, delete, move to a page number/end, insert or merge PDFs, extract selected pages, split into individual PDFs, and PNG export. Page edits share chronological Undo/Redo with annotations and change the source file only on Save. At least one page must remain; temporary view rotation is excluded from saved/exported PDFs.
 - PDF outline/table-of-contents sidebar when the PDF provides one.
 - PDF search highlighting with current/total count and previous/next navigation.
 - Stable fixed-width sidebar with custom sidebar tabs. A single compact `sidebar.left` toggle sits at the leading edge of the document toolbar and remains available whether the sidebar is shown or hidden.
@@ -138,12 +139,12 @@ The suite verifies Markdown dirty-state behavior, file-version change detection,
 The current development app bundle is here:
 
 ```text
-build/FileViewer 0.15.app
+build/FileViewer 0.16.app
 ```
 
 It is built from the Swift executable and signed locally with an ad-hoc development signature. The package script defaults to a native Debug build; pass `release` when a Release bundle is needed.
 
-The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.15` and `By Patrick Shi`.
+The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.16` and `By Patrick Shi`.
 
 To rebuild the app bundle:
 

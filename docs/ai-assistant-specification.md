@@ -23,7 +23,7 @@ The current native implementation is on the `feature/ai-assistant` branch:
 - PDF pages and Markdown headings are used as context labels;
 - question, short-overview/key-points summary, translation, cancellation, errors, readable Markdown response rendering, and model selection are implemented;
 - compact model responses are normalized for display and single-response Markdown export so headings, labels, bullets, and formulas do not run together;
-- PDF page text extraction and the token-count retrieval index run in a background task after a request starts. The resulting index is cached per document tab and invalidated when its file version changes or the tab closes;
+- PDF page text extraction and the token-count retrieval index run in a background task after a request starts. The index is cached per tab and keyed by file version, document identity, page count, and edited state. Structural page edits and their Undo/Redo cancel generation and invalidate context; unsaved PDFs are serialized on the main actor and extracted from that snapshot so page labels follow the current page order. Historical answers retain their original source labels and are not regenerated after page edits;
 - the compact configuration row keeps the context scope visible and puts summary, translation, and language choices in an `Actions` menu;
 - the request transcript accurately names the selected scope, for example `Translate the selected text into Traditional Chinese` rather than implying the whole document is translated;
 - `Relevant Sections` is intended for question answering. If it is selected when Translate is pressed, the app changes the effective scope to Current Page/Section, because translation prompts have no meaningful search terms and must not retrieve unrelated pages;
@@ -359,11 +359,11 @@ The initial AI assistant must not receive tools capable of:
 
 ### 11.3 Chunk Cache
 
-Chunk text is currently extracted on demand and retained only for the active request. There is no document chunk cache yet. A future cache should be version-aware, memory-bounded, removable, and invalidated for Markdown edits, form changes, or annotation inclusion.
+Markdown chunks are rebuilt on demand. PDF chunks and token counts are cached in memory per tab, released on tab close, and invalidated for file/document changes and structural page edits. Form-aware extraction and annotation inclusion remain future work.
 
 ## 12. Responsiveness and Resource Limits
 
-- Network streaming is asynchronous and supports cancellation. Context extraction/retrieval currently happens synchronously while preparing a request, so very large PDFs can briefly stall the interface; moving it off the main actor is future work.
+- Network streaming supports cancellation. PDF text extraction and retrieval indexing run off the main actor; capturing an unsaved PDF snapshot still runs on the main actor and may briefly stall very large documents. Markdown chunking remains synchronous.
 - Requests must support cancellation.
 - Only one active generation per document tab is required for MVP.
 - Switching tabs should not cancel another tab's request unless the document closes.

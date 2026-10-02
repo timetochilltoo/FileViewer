@@ -257,6 +257,11 @@ struct FileViewerCommands: Commands {
         }
 
         CommandMenu("PDF") {
+            Menu("Page Tools") {
+                if let activeModel { PDFPageActions(model: activeModel) }
+            }
+            .disabled(activeModel?.isPDFDocument != true)
+            Divider()
             Menu("Page Rotation — Saved with PDF") {
                 Button("Rotate Current Page Left") { activeModel?.rotatePDFPagesPermanently(by: -90, allPages: false) }
                 Button("Rotate Current Page Right") { activeModel?.rotatePDFPagesPermanently(by: 90, allPages: false) }
@@ -368,13 +373,13 @@ struct FileViewerCommands: Commands {
 
             Divider()
 
-            Button("Undo PDF Annotation Change") {
+            Button("Undo PDF Change") {
                 activeModel?.undoPDFAnnotation()
             }
             .keyboardShortcut("z", modifiers: [.command, .option])
             .disabled(activeModel?.canUndoPDFAnnotation != true)
 
-            Button("Redo PDF Annotation Change") {
+            Button("Redo PDF Change") {
                 activeModel?.redoPDFAnnotation()
             }
             .keyboardShortcut("z", modifiers: [.command, .option, .shift])

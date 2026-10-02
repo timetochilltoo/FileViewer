@@ -156,6 +156,10 @@ final class FileViewerWindowRegistry {
         }
     }
 
+    func hasOpenDocument(at url: URL) -> Bool {
+        registeredModels.compactMap(\.value).contains { $0.containsOpenDocument(url: url) }
+    }
+
     private func openExternal(_ url: URL) {
         // A file must have one writable in-memory owner across all FileViewer
         // windows. Reusing the existing tab avoids two independent PDFDocument

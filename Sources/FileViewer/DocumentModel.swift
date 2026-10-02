@@ -306,6 +306,7 @@ private struct PDFAnnotationObjectUndoAction {
 private enum PDFAnnotationUndoAction {
     case addedObjects(PDFAnnotationObjectUndoAction)
     case snapshot(url: URL, data: Data)
+    case pages(PDFPageEditSnapshot)
 }
 
 enum ViewerDocument: Equatable {
@@ -354,6 +355,7 @@ struct DocumentTab: Identifiable, Equatable {
     var pdfViewRotation: Int
     var pdfSelectedText: String
     var pdfSelectedPage: Int
+    var pdfPageSelection: Set<Int> = []
     var pdfHasUnsavedAnnotations: Bool
     var pdfAnnotationUndoStack: [Data]
     var pdfAnnotationRedoStack: [Data]
@@ -503,7 +505,9 @@ struct PDFViewerDocument: Equatable {
 }
 
 extension PDFAnnotation {
-    private static let fileViewerUndoIDKey = PDFAnnotationKey(rawValue: "FileViewerUndoID")
+    // PDFKit drops custom keys during serialization. The standard annotation
+    // name (/NM) persists through page edits and full-document undo snapshots.
+    private static let fileViewerUndoIDKey = PDFAnnotationKey(rawValue: "/NM")
 
     var fileViewerUndoID: String? {
         value(forAnnotationKey: Self.fileViewerUndoIDKey) as? String
@@ -1206,7 +1210,7 @@ final class AppModel: ObservableObject {
     private func closeConfirmation(forPDFNamed name: String) -> CloseConfirmationAction {
         let alert = NSAlert()
         alert.messageText = "Save PDF changes to “\(name)” before closing?"
-        alert.informativeText = "If you don’t save, your PDF annotations or form edits will be lost."
+        alert.informativeText = "If you don’t save, your PDF page changes, annotations, or form edits will be lost."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Save")
         alert.addButton(withTitle: "Don’t Save")
@@ -1355,6 +1359,15 @@ final class AppModel: ObservableObject {
         objectWillChange.send()
         while let action = undoStack.popLast() {
             switch action {
+            case .pages(let snapshot):
+                guard let restored = PDFDocument(data: snapshot.data),
+                      let current = pageEditSnapshot(at: index) else { continue }
+                pdfAnnotationActionUndoStacks[tabID] = undoStack
+                pdfAnnotationActionRedoStacks[tabID, default: []].append(.pages(current))
+                installPageEdit(restored, selection: snapshot.selection, page: snapshot.page,
+                                viewRotation: snapshot.viewRotation, at: index)
+                statusMessage = "Undid PDF page change."
+                return
             case .addedObjects(let objectAction):
                 if removePDFAnnotationObjects(objectAction.items, from: pdf.document) {
                     pdfAnnotationActionUndoStacks[tabID] = undoStack
@@ -1399,6 +1412,16 @@ final class AppModel: ObservableObject {
         objectWillChange.send()
         while let action = redoStack.popLast() {
             switch action {
+            case .pages(let snapshot):
+                guard let restored = PDFDocument(data: snapshot.data),
+                      let current = pageEditSnapshot(at: index) else { continue }
+                pdfAnnotationActionRedoStacks[tabID] = redoStack
+                pdfAnnotationActionUndoStacks[tabID, default: []].append(.pages(current))
+                trimPDFAnnotationUndoStack(for: tabID)
+                installPageEdit(restored, selection: snapshot.selection, page: snapshot.page,
+                                viewRotation: snapshot.viewRotation, at: index)
+                statusMessage = "Redid PDF page change."
+                return
             case .addedObjects(let objectAction):
                 if addPDFAnnotationObjects(objectAction.items, to: pdf.document) {
                     pdfAnnotationActionRedoStacks[tabID] = redoStack
@@ -1478,10 +1501,10 @@ final class AppModel: ObservableObject {
         }
 
         let snapshotIndices = stack.indices.filter { index in
-            if case .snapshot = stack[index] {
-                return true
+            switch stack[index] {
+            case .snapshot, .pages: return true
+            case .addedObjects: return false
             }
-            return false
         }
         let excessSnapshotCount = snapshotIndices.count - maxSnapshots
         if excessSnapshotCount > 0 {
@@ -1496,6 +1519,206 @@ final class AppModel: ObservableObject {
     func savePDFAnnotations() {
         guard let index = selectedTabIndex else { return }
         _ = savePDFTab(at: index)
+    }
+
+    /// Zero-based page selection belongs to the selected document tab.
+    var selectedPDFPages: Set<Int> {
+        get {
+            guard case .pdf(let pdf) = document else { return [] }
+            let selected = (selectedTab?.pdfPageSelection ?? []).filter { (0..<pdf.document.pageCount).contains($0) }
+            if !selected.isEmpty { return selected }
+            return pdf.document.pageCount > 0 ? [min(max(0, pdfPage - 1), pdf.document.pageCount - 1)] : []
+        }
+        set {
+            guard let index = selectedTabIndex, case .pdf(let pdf) = document else { return }
+            tabs[index].pdfPageSelection = newValue.filter { (0..<pdf.document.pageCount).contains($0) }
+        }
+    }
+
+    func showPDFPages() {
+        guard isPDFDocument else { return }
+        sidebarMode = .pages
+        NotificationCenter.default.post(name: .showPDFPages, object: self)
+    }
+
+    private func pageEditSnapshot(at index: Int) -> PDFPageEditSnapshot? {
+        guard tabs.indices.contains(index), case .pdf(let pdf) = tabs[index].document,
+              let data = pdf.document.dataRepresentation() else { return nil }
+        return PDFPageEditSnapshot(data: data, selection: tabs[index].pdfPageSelection,
+                                   page: tabs[index].pdfPage, viewRotation: tabs[index].pdfViewRotation)
+    }
+
+    private func installPageEdit(_ document: PDFDocument, selection: Set<Int>, page: Int,
+                                 viewRotation: Int, at index: Int) {
+        guard tabs.indices.contains(index), case .pdf(let previous) = tabs[index].document else { return }
+        tabs[index].pdfPage = min(max(1, page), max(1, document.pageCount))
+        tabs[index].pdfPageCount = document.pageCount
+        tabs[index].pdfPageSelection = selection.filter { (0..<document.pageCount).contains($0) }
+        tabs[index].pdfViewRotation = viewRotation
+        tabs[index].pdfSelectedText = ""
+        tabs[index].pdfSelectedPage = tabs[index].pdfPage
+        tabs[index].searchMatchIndex = 0
+        tabs[index].searchMatchCount = 0
+        tabs[index].searchNavigationRequestID = UUID()
+        tabs[index].pdfHasUnsavedAnnotations = true
+        tabs[index].document = .pdf(PDFViewerDocument(url: previous.url, document: document))
+        pendingAISelections[tabs[index].id] = nil
+        aiAssistant.invalidatePDFContext(for: tabs[index].id)
+    }
+
+    @discardableResult
+    func editPDFPages(_ operation: PDFPageOperation) -> Bool {
+        postPDFCommand(.pdfSyncCurrentState)
+        guard let index = selectedTabIndex, case .pdf(let pdf) = document,
+              let snapshot = pageEditSnapshot(at: index),
+              let result = PDFPageTools.applying(operation, to: pdf.document,
+                    selection: selectedPDFPages, viewRotation: tabs[index].pdfViewRotation) else {
+            statusMessage = "Could not edit pages. Select valid pages and keep at least one page in the PDF."
+            return false
+        }
+        let id = tabs[index].id
+        pdfAnnotationActionUndoStacks[id, default: []].append(.pages(snapshot))
+        trimPDFAnnotationUndoStack(for: id)
+        pdfAnnotationActionRedoStacks[id] = []
+        tabs[index].pdfAnnotationRedoStack = []
+        installPageEdit(result.document, selection: result.selection,
+                        page: (result.selection.min() ?? 0) + 1,
+                        viewRotation: snapshot.viewRotation, at: index)
+        statusMessage = "PDF pages changed. Save to keep them; Undo PDF Change restores them."
+        return true
+    }
+
+    func deleteSelectedPDFPages() {
+        let tabID = selectedTabID
+        let selection = selectedPDFPages
+        guard !selectedPDFPages.isEmpty, selectedPDFPages.count < pdfPageCount else {
+            statusMessage = "Keep at least one page in the PDF."
+            return
+        }
+        let alert = NSAlert()
+        alert.messageText = "Delete \(selectedPDFPages.count) selected page(s)?"
+        alert.informativeText = "You can undo this change. The original file changes only when you save."
+        alert.addButton(withTitle: "Delete Pages")
+        alert.addButton(withTitle: "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn,
+           selectedTabID == tabID, selectedPDFPages == selection { _ = editPDFPages(.delete) }
+    }
+
+    func moveSelectedPDFPages() {
+        guard isPDFDocument else { return }
+        let tabID = selectedTabID
+        let field = NSTextField(string: String(pdfPage))
+        field.frame = NSRect(x: 0, y: 0, width: 160, height: 24)
+        let alert = NSAlert()
+        alert.messageText = "Move selected pages"
+        alert.informativeText = "Insert before page 1–\(pdfPageCount), or enter \(pdfPageCount + 1) to move to the end."
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Move")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn, selectedTabID == tabID else { return }
+        guard let page = Int(field.stringValue), (1...(pdfPageCount + 1)).contains(page) else {
+            statusMessage = "Enter a valid destination page number."
+            return
+        }
+        _ = editPDFPages(.move(to: page - 1))
+    }
+
+    func insertPDFPages() {
+        guard isPDFDocument else { return }
+        let tabID = selectedTabID
+        let panel = NSOpenPanel()
+        panel.title = "Insert PDFs After Selected Pages"
+        panel.allowedContentTypes = [.pdf]
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, selectedTabID == tabID else { return }
+        var documents: [PDFDocument] = []
+        for url in panel.urls {
+            guard url.isFileURL, let pdf = PDFDocument(url: url), !pdf.isLocked, pdf.pageCount > 0 else {
+                statusMessage = "Could not insert this PDF. No pages were changed."
+                return
+            }
+            documents.append(pdf)
+        }
+        _ = editPDFPages(.insert(documents: documents, at: (selectedPDFPages.max() ?? (pdfPage - 1)) + 1))
+    }
+
+    func exportSelectedPDFPages() {
+        guard case .pdf(let pdf) = document else { return }
+        let tabID = selectedTabID
+        postPDFCommand(.pdfSyncCurrentState)
+        let panel = NSSavePanel()
+        panel.title = "Extract Selected Pages"
+        panel.allowedContentTypes = [.pdf]
+        panel.nameFieldStringValue = pdf.url.deletingPathExtension().lastPathComponent + " selected pages.pdf"
+        guard panel.runModal() == .OK, selectedTabID == tabID, let url = panel.url else { return }
+        _ = exportSelectedPDFPages(to: url)
+    }
+
+    @discardableResult
+    func exportSelectedPDFPages(to url: URL) -> Bool {
+        guard url.isFileURL, case .pdf(let pdf) = document,
+              url.standardizedFileURL.resolvingSymlinksInPath() != pdf.url.standardizedFileURL.resolvingSymlinksInPath(),
+              !FileViewerWindowRegistry.shared.hasOpenDocument(at: url),
+              !containsOpenDocument(url: url),
+              let extracted = PDFPageTools.extract(from: pdf.document, selection: selectedPDFPages,
+                                                   viewRotation: selectedTab?.pdfViewRotation ?? 0),
+              writePDFAtomically(extracted, to: url) else {
+            statusMessage = "Could not export pages. Choose a destination that is not open in FileViewer."
+            return false
+        }
+        statusMessage = "Exported selected pages. The source PDF is unchanged."
+        return true
+    }
+
+    /// Separate PDFs provide a split workflow; PNGs provide page-image export.
+    func exportPDFPagesIndividually(asImages: Bool) {
+        guard isPDFDocument else { return }
+        let tabID = selectedTabID
+        postPDFCommand(.pdfSyncCurrentState)
+        let panel = NSOpenPanel()
+        panel.title = asImages ? "Export Pages as PNG Images" : "Split Selected Pages into PDFs"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.prompt = "Export Here"
+        guard panel.runModal() == .OK, selectedTabID == tabID,
+              let folder = panel.url, folder.isFileURL else { return }
+        _ = exportPDFPagesIndividually(to: folder, asImages: asImages)
+    }
+
+    @discardableResult
+    func exportPDFPagesIndividually(to folder: URL, asImages: Bool) -> Bool {
+        guard folder.isFileURL, case .pdf(let pdf) = document else { return false }
+        let pages = selectedPDFPages.sorted()
+        let base = pdf.url.deletingPathExtension().lastPathComponent
+        let destinations = pages.map { folder.appendingPathComponent("\(base) page \($0 + 1).\(asImages ? "png" : "pdf")") }
+        guard destinations.allSatisfy({ !FileManager.default.fileExists(atPath: $0.path) }) else {
+            statusMessage = "Export cancelled: a destination already exists. Choose an empty folder."
+            return false
+        }
+        for (index, url) in zip(pages, destinations) {
+            statusMessage = "Export stopped at page \(index + 1). Earlier exports are kept."
+            guard let extracted = PDFPageTools.extract(from: pdf.document, selection: [index],
+                                                       viewRotation: selectedTab?.pdfViewRotation ?? 0) else { return false }
+            if asImages {
+                guard let page = extracted.page(at: 0) else { return false }
+                let bounds = page.bounds(for: .mediaBox)
+                guard bounds.width.isFinite, bounds.height.isFinite,
+                      bounds.width > 0, bounds.height > 0 else { return false }
+                let factor = 1600 / max(bounds.width, bounds.height)
+                let size = NSSize(width: max(1, bounds.width * factor), height: max(1, bounds.height * factor))
+                guard let data = page.thumbnail(of: size, for: .mediaBox).tiffRepresentation,
+                      let bitmap = NSBitmapImageRep(data: data),
+                      let png = bitmap.representation(using: .png, properties: [:]) else { return false }
+                do { try png.write(to: url, options: .withoutOverwriting) }
+                catch { return false }
+            } else if !writePDFAtomically(extracted, to: url, allowOverwrite: false) {
+                return false
+            }
+        }
+        statusMessage = "Exported \(pages.count) page(s)."
+        return !pages.isEmpty
     }
 
     /// Rotates the displayed document only. The change is intentionally not
@@ -1728,17 +1951,19 @@ final class AppModel: ObservableObject {
         return true
     }
 
-    private func writePDFAtomically(_ document: PDFDocument, to url: URL) -> Bool {
+    private func writePDFAtomically(_ document: PDFDocument, to url: URL, allowOverwrite: Bool = true) -> Bool {
+        guard url.isFileURL, document.pageCount > 0 else { return false }
         let temporaryURL = url.deletingLastPathComponent()
             .appendingPathComponent(".FileViewer-\(UUID().uuidString)")
             .appendingPathExtension("pdf")
         defer { try? FileManager.default.removeItem(at: temporaryURL) }
 
-        guard document.write(to: temporaryURL), PDFDocument(url: temporaryURL) != nil else {
+        guard document.write(to: temporaryURL),
+              PDFDocument(url: temporaryURL)?.pageCount == document.pageCount else {
             return false
         }
         do {
-            if FileManager.default.fileExists(atPath: url.path) {
+            if allowOverwrite && FileManager.default.fileExists(atPath: url.path) {
                 _ = try FileManager.default.replaceItemAt(url, withItemAt: temporaryURL, backupItemName: nil, options: [])
             } else {
                 try FileManager.default.moveItem(at: temporaryURL, to: url)
@@ -1786,7 +2011,7 @@ final class AppModel: ObservableObject {
     private func showPDFSaveFailedAlert(for name: String) {
         let alert = NSAlert()
         alert.messageText = "Could not save “\(name)”"
-        alert.informativeText = "The PDF was not closed, so your unsaved annotations are still open."
+        alert.informativeText = "The PDF was not closed, so your unsaved page changes, annotations, and form edits are still open."
         alert.alertStyle = .critical
         alert.addButton(withTitle: "OK")
         alert.runModal()

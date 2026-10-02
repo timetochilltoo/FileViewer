@@ -3,12 +3,21 @@
 Last updated: 2026-10-03
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
-Current branch at time of writing: `codex/library-tags`
-Git is authoritative for the current commit. This session adds opt-in durable Library indexing on `codex/library-tags`.
+Current branch at time of writing: `codex/pdf-page-tools`
+Git is authoritative for the current commit. This session implements PDF page tools, based on the completed Library indexing branch.
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
 ## Resume summary (2026-10-03)
+
+- PDF page tools are implemented in the native app. Access **PDF > Page Tools**, the stacked-pages toolbar menu, or **Pages > Page Tools**. The thumbnail List supports per-tab multi-selection with ⌘/Shift-click; with no explicit selection, actions use the current page. Reorder through **Move Selected Pages…** (insert before a page number) or **Move Selected Pages to End**. Duplicate, confirmed deletion, insertion/merging of one or more local PDFs after the selection, extraction to one PDF, splitting to individual PDFs, and PNG export are available. At least one page must remain. Drag reordering and generated blank-page insertion are deferred.
+- `PDFPageTools.swift` edits detached copies, preserving the live document on invalid input/failure. `PDFPageToolsView.swift` supplies the shared menus and sidebar. `DocumentModel.swift` records page snapshots in the existing bounded chronological annotation undo stack, marks page edits dirty, restores selection/page/rotation on Undo/Redo, and uses existing verified atomic saving and external-file conflict checks. Modal actions verify their owning tab is still selected. Source files remain unchanged until Save. Extraction refuses destinations open in any registered window; split/image export refuses existing names, including a write-time race, and reports partial export failures while retaining completed outputs. PNGs have a maximum 1600-pixel dimension.
+- Annotation undo identifiers now use the standard PDF `/NM` key because PDFKit drops the former custom key during serialization. A regression covers object-level annotation Undo across page replacement; another covers full-document annotation snapshots interleaved with page edits. Temporary view rotation is removed from saved/extracted PDFs and applied consistently to inserted pages. Native document replacement respects the model's destination page rather than restoring a stale scroll origin after count/page changes.
+- Page edits and their Undo/Redo cancel active AI requests and invalidate per-tab retrieval. Unsaved PDF context uses the live serialized snapshot, with extraction/indexing off-thread, so page order matches current edits. Historical answers keep their original page labels. Provider opt-in and Keychain protections are unchanged.
+- Validation: `swift test --jobs 1` passed **49 tests**; focused page/safety/AI suites passed **32 tests**. Incremental build and Debug packaging succeeded. Native checks on a disposable four-page PDF confirmed menu/sidebar layout, selection count, navigation, duplication, Undo, all-pages delete protection, and close Save/Cancel/Don't Save behavior. Core tests cover insertion/order, rotation, deletion boundaries, split/PNG/extraction, source protection, per-tab selection, safe Save, and unsaved AI context without a live provider. Full manual coverage of insertion/export dialogs and large/complex PDFs remains limited.
+- Delivered `build/FileViewer 0.16.app` (Debug, ad-hoc signed, version/build 0.16/16). See README for build/run guidance. The next active roadmap slice is reading/presentation; retain the opt-in durable Library cache and existing save protections. This feature branch is committed/pushed separately; do not merge to main without authorization.
+
+## Previous Library indexing update (2026-10-03)
 
 - Durable Library indexing is available in Settings under **Library**, off by default. Enabling it saves bounded extracted document text and file metadata locally in `~/Library/Application Support/FileViewer/LibraryIndex-v1.json` (directory 0700, file 0600). File membership and tags retain their existing storage.
 - `LibraryIndexCache.swift` serializes load/save/clear across windows. Clearing invalidates pending writes; disabling removes the disk cache. Corrupt/incompatible data falls back to reindexing. Refresh enumerates currently selected readable files and validates modification date/size before reuse; stale or deleted entries are not exposed. Recent/explicit membership changes reuse text with refreshed flags.
@@ -81,7 +90,7 @@ The repo still contains an older React/Vite prototype (`src/`, `dist/`, `package
 - Packaged development app path:
 
 ```text
-/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.15.app
+/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.16.app
 ```
 
 Build commands:
@@ -95,7 +104,7 @@ bash scripts/package_app.sh debug
 `scripts/package_app.sh`:
 
 1. builds the requested native configuration (`debug` by default; `release` is accepted)
-2. creates `build/FileViewer 0.15.app`
+2. creates `build/FileViewer 0.16.app`
 3. generates `AppIcon.icns` from `Resources/fileviewer-light-marker-lines.webp` using Python/Pillow
 4. writes `Info.plist`
 5. ad-hoc signs the app with `codesign --force --deep --sign -`

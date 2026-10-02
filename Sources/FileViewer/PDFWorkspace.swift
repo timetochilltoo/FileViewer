@@ -171,9 +171,11 @@ struct PDFKitView: NSViewRepresentable {
     func updateNSView(_ view: PDFView, context: Context) {
         context.coordinator.parent = self
         if view.document !== document {
-            let requestedPage = max(1, min(context.coordinator.currentVisiblePage() ?? page, max(document.pageCount, 1)))
+            let previousPage = context.coordinator.currentVisiblePage()
+            let preserveOrigin = view.document?.pageCount == document.pageCount && previousPage == page
+            let requestedPage = max(1, min(page, max(document.pageCount, 1)))
             let requestedScale = max(0.1, view.scaleFactor)
-            let visibleOrigin = context.coordinator.currentVisibleOrigin()
+            let visibleOrigin = preserveOrigin ? context.coordinator.currentVisibleOrigin() : nil
             context.coordinator.isReplacingDocument = true
             view.setCurrentSelection(nil, animate: false)
             view.highlightedSelections = []

@@ -368,9 +368,7 @@ struct SidebarView: View {
     @ViewBuilder
     private var pdfPages: some View {
         if case .pdf(let viewerDocument) = model.document {
-            PDFThumbnailSidebar(document: viewerDocument.document) { page in
-                model.postPDFCommand(.pdfGoToPage, object: page)
-            }
+            PDFPagesSidebar(model: model, document: viewerDocument.document)
         } else {
             ContentUnavailableView("No PDF Open", systemImage: "doc.richtext")
         }

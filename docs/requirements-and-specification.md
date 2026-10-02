@@ -2,7 +2,7 @@
 
 ## 1. Product Overview
 
-FileViewer is a local-first native macOS document viewing application focused on Markdown and PDF files. It lets users open, read, edit Markdown, search, navigate, organize documents, annotate PDFs, complete supported PDF forms, and optionally ask a configured AI provider questions about explicitly selected document context. Full PDF content editing and page operations remain future work.
+FileViewer is a local-first native macOS document viewing application focused on Markdown and PDF files. It lets users open, read, edit Markdown, search, navigate, organize documents, annotate PDFs, arrange PDF pages, complete supported PDF forms, and optionally ask a configured AI provider questions about explicitly selected document context. Full PDF content editing remains future work.
 
 The app targets macOS Tahoe 26.5.1 and newer within the macOS 26 generation. Compatibility with lower macOS versions is not required.
 
@@ -278,9 +278,12 @@ Implemented:
 - Rotate the reading view left, right, or 180° without saving it.
 - Permanently rotate the current page or every page left, right, or 180° through an explicit page-rotation command, then Save or Save As.
 
-Still deferred:
+- Select multiple thumbnails with ⌘/Shift-click in Pages; use **PDF > Page Tools** or the toolbar/sidebar menu.
+- Duplicate, delete (with confirmation, retaining at least one page), reorder through a destination-page dialog or move-to-end action, and insert/merge local PDFs after the selected pages.
+- Extract selected pages into one PDF, split selected pages into individual PDFs, and export selected pages as PNG images with a maximum 1600-pixel dimension. Split/image exports refuse existing filenames; an export failure keeps completed outputs and reports the stopping page.
+- Page edits remain in memory until Save and share chronological Undo/Redo with annotations. Safe saving and external-file conflict checks apply. Selection belongs to each tab; structural changes cancel active AI generation and invalidate the PDF retrieval cache. Saved/exported PDFs exclude temporary view rotation.
 
-- Delete, reorder, extract, merge, or insert pages.
+Still deferred: drag reordering, blank-page insertion, and PDF compression/watermarks.
 
 Recommended:
 
@@ -405,8 +408,8 @@ The MVP should not include:
 ### Version 0.4: PDF Page Tools
 
 - Reading-only view rotation and permanent current-page/all-page rotation are implemented.
-- Delete and reorder pages remain deferred.
-- Extract pages, merge PDFs, and insert blank pages remain deferred.
+- Multi-page selection, duplicate, delete, reorder, extract/split, insert/merge PDFs, and PNG export are implemented.
+- Drag reordering and insertion of generated blank pages remain deferred.
 
 ### Version 0.5: Export and Advanced Markdown
 
@@ -440,7 +443,7 @@ Recommended libraries:
 Recommended libraries:
 
 - `PDFKit` for native PDF rendering, navigation, search, thumbnails, and selection.
-- PDF page operations can be added later with PDFKit and lower-level PDF document APIs.
+- PDF page operations use PDFKit detached copies, chronological undo snapshots, and verified atomic saving.
 - Annotation support should use PDFKit annotations where possible.
 
 Important note:

@@ -114,6 +114,12 @@ struct ContentView: View {
                 model.ensureLibraryIndex()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .showPDFPages)) { notification in
+            if let requestedModel = notification.object as? AppModel, requestedModel === model {
+                sidebarVisible = true
+                SidebarPreferences.remember(true)
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: LibraryCachePreferences.changed)) { _ in
             model.refreshLibraryIndex()
         }
@@ -541,11 +547,20 @@ struct PDFToolbar: View {
             .help("PDF annotation tools")
             .menuStyle(.borderlessButton)
 
-            toolbarButton("arrow.uturn.backward", help: "Undo PDF Annotation Change", disabled: !model.canUndoPDFAnnotation) {
+            Menu {
+                PDFPageActions(model: model)
+            } label: {
+                Image(systemName: "rectangle.stack").frame(width: 32, height: 28)
+            }
+            .menuStyle(.borderlessButton)
+            .help("PDF page tools")
+            .accessibilityLabel("PDF page tools")
+
+            toolbarButton("arrow.uturn.backward", help: "Undo PDF Change", disabled: !model.canUndoPDFAnnotation) {
                 model.undoPDFAnnotation()
             }
 
-            toolbarButton("arrow.uturn.forward", help: "Redo PDF Annotation Change", disabled: !model.canRedoPDFAnnotation) {
+            toolbarButton("arrow.uturn.forward", help: "Redo PDF Change", disabled: !model.canRedoPDFAnnotation) {
                 model.redoPDFAnnotation()
             }
         }
@@ -734,6 +749,7 @@ extension Notification.Name {
     static let markdownSyncCurrentState = Notification.Name("FileViewer.markdownSyncCurrentState")
     static let toggleSidebar = Notification.Name("FileViewer.toggleSidebar")
     static let showLibrary = Notification.Name("FileViewer.showLibrary")
+    static let showPDFPages = Notification.Name("FileViewer.showPDFPages")
 }
 
 enum PDFNotificationUserInfo {

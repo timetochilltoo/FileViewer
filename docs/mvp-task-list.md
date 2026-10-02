@@ -360,9 +360,9 @@ The original viewer MVP and later PDF annotation/form and AI milestones are impl
 
 - Local library: incremental refresh, tags, tag filtering, and optional durable indexing are implemented. Disk caching is off by default and controlled from Settings, with clearing and file revalidation. Automatic filesystem watching remains future work.
 - Markdown preview: richer GitHub-Flavored Markdown tables, local image rendering, richer code presentation, copy-code actions, and heading-to-source navigation.
-- PDF workflow: fullscreen/presentation mode, two-page spread or selectable single-page mode, and page delete/reorder/extract/merge/insert.
+- PDF workflow: fullscreen/presentation mode and two-page spread or selectable single-page mode remain future work. Page duplicate/delete/reorder/extract/split/merge/insert are implemented.
 - PDF annotations: author and timestamp metadata.
-- Export: Markdown-to-PDF/HTML, PDF page/image export, and advanced PDF operations.
+- Export: Markdown-to-PDF/HTML and advanced PDF operations remain future work. Selected-page PDF extraction, individual-page splitting, and PNG export are implemented.
 - Advanced Markdown: Mermaid and math rendering.
 - AI: richer retrieval/embedding search, complete-document hierarchical summaries, conversation persistence, clickable citations, and broader cache invalidation. Selection actions and the PDF per-tab extraction/index cache are implemented.
 - Verification: focused UI/sample-file tests for PDF outline/search/annotation/forms, multi-window restoration, and live AI streaming/error states.
@@ -372,10 +372,10 @@ The active build plan deliberately targets local, single-user Mac workflows. Clo
 ### Phase A — high-value Mac features
 
 1. **Local library and global search** — folder/file indexing, search, Add/Copy actions, tags, tag filtering, incremental refresh, and opt-in local index storage are implemented. Automatic filesystem watching remains a possible follow-up.
-2. **PDF page tools** — thumbnail multi-selection, reorder, duplicate, delete, extract/split, insert, and export, using the existing atomic-save and external-change protections.
+2. **PDF page tools — implemented** — thumbnail multi-selection, reorder through a destination-page dialog/end action, duplicate, confirmed delete, extract/split, insert/merge PDFs, and PNG export. Structural edits share chronological Undo/Redo with annotations and use the existing atomic-save and external-change protections. Drag reordering and blank-page templates remain possible follow-ups.
 3. **Reading and presentation** — fullscreen reading, presentation mode, page-advance shortcuts, temporary cursor/laser focus, and optional two-page spread.
 4. **Markdown fidelity and templates** — local images, richer tables/task lists/code blocks, copy-code, heading navigation, and user-managed Markdown/PDF templates.
-5. **Export workflow** — export selected/current PDF pages as PDF/image and Markdown as PDF/HTML where the result can be verified.
+5. **Export workflow** — selected/current PDF page extraction/splitting and PNG export are implemented; Markdown as PDF/HTML remains future work.
 
 ### Phase B — medium-effort features with optional hardware
 
