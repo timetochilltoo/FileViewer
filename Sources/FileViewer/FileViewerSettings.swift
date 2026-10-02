@@ -52,9 +52,22 @@ enum MarkdownPreferences {
 struct FileViewerSettingsView: View {
     @AppStorage(SidebarPreferences.launchModeKey) private var sidebarMode = SidebarLaunchMode.show.rawValue
     @AppStorage(MarkdownPreferences.defaultModeKey) private var markdownDefaultMode = MarkdownMode.split.rawValue
+    @AppStorage(LibraryCachePreferences.enabledKey) private var libraryCacheEnabled = false
+    @State private var cacheStatus = ""
 
     var body: some View {
         Form {
+            Section("Library") {
+                Toggle("Keep a local search index between launches", isOn: $libraryCacheEnabled)
+                Text("Stores extracted document text on this Mac to speed up Library search after restarting. Off by default.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                Button("Clear Cached Index and Turn Off Caching") {
+                    libraryCacheEnabled = false
+                    clearLibraryCache()
+                }
+                if !cacheStatus.isEmpty { Text(cacheStatus).font(.caption) }
+            }
             Section("Sidebar") {
                 Picker("When opening a window", selection: $sidebarMode) {
                     ForEach(SidebarLaunchMode.allCases, id: \.rawValue) { mode in
@@ -78,6 +91,25 @@ struct FileViewerSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 320)
+        .frame(width: 460, height: 520)
+        .onChange(of: libraryCacheEnabled) { _, enabled in
+            if enabled {
+                NotificationCenter.default.post(name: LibraryCachePreferences.changed, object: nil)
+                cacheStatus = "The index will be saved after Library refresh."
+            } else {
+                clearLibraryCache()
+            }
+        }
+    }
+
+    private func clearLibraryCache() {
+        Task {
+            do {
+                try await LibraryIndexCache.shared.clear()
+                cacheStatus = "Cached index cleared. Library files and tags are kept."
+            } catch {
+                cacheStatus = "Could not clear the cached index. Please try again."
+            }
+        }
     }
 }

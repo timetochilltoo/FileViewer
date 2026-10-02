@@ -73,6 +73,10 @@ Expected behavior:
 
 Sidebar launch behavior is configurable in **FileViewer > Settings…**. The user can choose Show Sidebar, Hide Sidebar, or Remember Last State. The choice applies when the app launches and when a new document window is created; an existing window keeps its current visibility until toggled.
 
+### 5.1.1 Library Index Cache
+
+Library search optionally retains a local index between launches, controlled by **Settings > Library > Keep a local search index between launches**. This is off by default. Enabling it stores extracted Markdown/PDF text and file metadata in `~/Library/Application Support/FileViewer/LibraryIndex-v1.json`, with owner-only filesystem access. Cached entries are revalidated against currently readable selected files before search results are exposed. Corrupt or incompatible caches fall back to rebuilding. Turning caching off or using **Clear Cached Index and Turn Off Caching** deletes the cache and prevents pending refreshes from recreating it; Library file membership, tags, and original documents are preserved.
+
 ### 5.2 Read and Edit a Markdown File
 
 The user opens a Markdown file and can view either the rendered preview, the original source text, or both side by side. The user can edit the Markdown source and save changes back to the file.

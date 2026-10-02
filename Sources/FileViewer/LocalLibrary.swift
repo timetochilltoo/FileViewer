@@ -2,9 +2,8 @@ import Foundation
 import PDFKit
 
 /// A local-only entry built from a readable Markdown or PDF file. The full
-/// searchable text stays in memory for the current app session; normalized
-/// folder/file paths and user tags are the only Library data persisted by AppModel.
-struct LibraryIndexEntry: Identifiable, Equatable, Sendable {
+/// Searchable text may be cached locally only when Library caching is enabled.
+struct LibraryIndexEntry: Identifiable, Equatable, Codable, Sendable {
     let id: String
     let url: URL
     let name: String
@@ -59,8 +58,8 @@ struct LibrarySearchResult: Identifiable, Equatable, Sendable {
 }
 
 /// Builds a bounded in-memory index from explicitly added files, recent files,
-/// and selected local folders. It never follows network URLs and never writes
-/// document text to preferences or a cache file.
+/// and selected local folders. It never follows network URLs. Optional disk
+/// caching is handled separately by LibraryIndexCache after explicit opt-in.
 enum LocalLibraryIndexer {
     static let maximumFiles = 2_000
     static let maximumSearchableCharactersPerFile = 200_000
@@ -254,13 +253,16 @@ enum LocalLibraryIndexer {
             let cachedEntry = existingByPath[candidate.url.path]
             let entry: LibraryIndexEntry?
             if let cachedEntry,
-               cachedEntry.isRecent == isRecent,
-               cachedEntry.isExplicit == candidate.isExplicit,
                let metadata = fileMetadata(for: candidate.url),
                cachedEntry.modifiedAt == metadata.modifiedAt,
                cachedEntry.fileSize == metadata.fileSize,
                cachedEntry.searchableText.count <= maximumCharacters {
-                entry = cachedEntry
+                entry = LibraryIndexEntry(
+                    url: candidate.url, name: cachedEntry.name, kind: cachedEntry.kind,
+                    folderPath: cachedEntry.folderPath, titleText: cachedEntry.titleText,
+                    searchableText: cachedEntry.searchableText, modifiedAt: cachedEntry.modifiedAt,
+                    fileSize: cachedEntry.fileSize, isRecent: isRecent, isExplicit: candidate.isExplicit
+                )
             } else {
                 entry = indexEntry(
                     for: candidate.url,

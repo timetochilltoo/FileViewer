@@ -1,14 +1,21 @@
 # FileViewer Handoff
 
-Last updated: 2026-09-29
+Last updated: 2026-10-03
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
 Current branch at time of writing: `codex/library-tags`
-Current committed baseline: `03a4ce7` (`Refresh library index incrementally`).
+Git is authoritative for the current commit. This session adds opt-in durable Library indexing on `codex/library-tags`.
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
-## Current implementation updates (2026-09-26)
+## Resume summary (2026-10-03)
+
+- Durable Library indexing is available in Settings under **Library**, off by default. Enabling it saves bounded extracted document text and file metadata locally in `~/Library/Application Support/FileViewer/LibraryIndex-v1.json` (directory 0700, file 0600). File membership and tags retain their existing storage.
+- `LibraryIndexCache.swift` serializes load/save/clear across windows. Clearing invalidates pending writes; disabling removes the disk cache. Corrupt/incompatible data falls back to reindexing. Refresh enumerates currently selected readable files and validates modification date/size before reuse; stale or deleted entries are not exposed. Recent/explicit membership changes reuse text with refreshed flags.
+- Relevant integration is in `DocumentModel.swift`, `FileViewerSettings.swift`, and `ContentView.swift`. Two cache tests cover restart loading, opt-out, file changes/deletions, permissions, corrupt recovery, and clear-versus-write behavior. Full suite passed 43 tests; focused cache tests passed again after tightening directory permissions.
+- Delivered Debug `build/FileViewer 0.15.app`; build/package, signature verification, Info.plist version/build 0.15/15, and diff checks passed. Native Settings layout and the default-off toggle were checked in the running app; persistence and clearing were exercised with isolated test files rather than personal Library data. Automatic filesystem watching is not implemented. Next roadmap slice is PDF page tools. Keep durable indexing opt-in and preserve existing document save/conflict protections.
+
+## Previous implementation updates (2026-09-29)
 
 - The Library supports up to 10 short, case-insensitively unique tags per local Markdown/PDF file. Tags are stored locally by normalized file path; indexed document text remains memory-only. Tagging a recent or folder-indexed file also pins its path into the Library so it remains available after it leaves Recents or its containing folder is removed.
 - **Add Tag…** is a direct action in the File menu and Recent, Library, and open-document context menus; existing tags appear as direct remove actions. The Library toolbar can filter by a tag, and Search Library matches tag names. Copies inherit the source file's tags.
@@ -74,7 +81,7 @@ The repo still contains an older React/Vite prototype (`src/`, `dist/`, `package
 - Packaged development app path:
 
 ```text
-/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.14.app
+/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.15.app
 ```
 
 Build commands:
@@ -88,7 +95,7 @@ bash scripts/package_app.sh debug
 `scripts/package_app.sh`:
 
 1. builds the requested native configuration (`debug` by default; `release` is accepted)
-2. creates `build/FileViewer 0.14.app`
+2. creates `build/FileViewer 0.15.app`
 3. generates `AppIcon.icns` from `Resources/fileviewer-light-marker-lines.webp` using Python/Pillow
 4. writes `Info.plist`
 5. ad-hoc signs the app with `codesign --force --deep --sign -`

@@ -1883,11 +1883,14 @@ final class AppModel: ObservableObject {
         let indexedLibraryFiles = libraryFiles
         let existingEntries = libraryEntries
         libraryIndexTask = Task { [weak self] in
+            let cached = await LibraryIndexCache.shared.load(
+                enabled: UserDefaults.standard.bool(forKey: LibraryCachePreferences.enabledKey)
+            )
             let entries = await LocalLibraryIndexer.build(
                 roots: roots,
                 recentURLs: recentURLs,
                 libraryFiles: indexedLibraryFiles,
-                existingEntries: existingEntries
+                existingEntries: existingEntries.isEmpty ? cached.entries : existingEntries
             )
             guard !Task.isCancelled else { return }
             guard let self, generation == self.libraryIndexGeneration else { return }
@@ -1897,6 +1900,14 @@ final class AppModel: ObservableObject {
             self.hasBuiltLibraryIndex = true
             self.libraryIndexTask = nil
             self.updateLibraryResults()
+            do {
+                try await LibraryIndexCache.shared.save(
+                    entries, revision: cached.revision,
+                    enabled: UserDefaults.standard.bool(forKey: LibraryCachePreferences.enabledKey)
+                )
+            } catch {
+                self.statusMessage = "Library search is ready, but its local cache could not be saved."
+            }
         }
     }
 

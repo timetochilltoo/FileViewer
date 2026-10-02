@@ -114,6 +114,9 @@ struct ContentView: View {
                 model.ensureLibraryIndex()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: LibraryCachePreferences.changed)) { _ in
+            model.refreshLibraryIndex()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .pdfAnnotationDidChange)) { notification in
             guard let url = notification.object as? URL else { return }
             model.markPDFAnnotationsChanged(for: url)

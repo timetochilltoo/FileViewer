@@ -10,11 +10,12 @@
 
 - Use Swift tools 6.2 on macOS 26+. From the repository root, use `swift build` for an incremental compile and `swift test --jobs 1` for the full suite. Focused suites include `--filter DocumentSafetyTests` and `--filter AIAssistantTests`.
 - Tests are in `Tests/FileViewerTests`; they avoid live AI providers. PDFKit rendering/forms, native dialogs, window behavior, menu composition, toolbar layout, and About/icon presentation require manual checks when changed.
-- Package only when a bundle is needed: `bash scripts/package_app.sh` (Debug default) or `bash scripts/package_app.sh release`. The current app version is set in `scripts/package_app.sh`; it creates and ad-hoc signs `build/FileViewer 0.14.app`. Python 3 with Pillow is required.
+- Package only when a bundle is needed: `bash scripts/package_app.sh` (Debug default) or `bash scripts/package_app.sh release`. The current app version is set in `scripts/package_app.sh`; it creates and ad-hoc signs `build/FileViewer 0.15.app`. Python 3 with Pillow is required.
 - Before handoff, run the relevant tests/build, `git diff --check`, and package/signature checks when packaging changed. Record concise results in `HANDOFF.md`.
 
 ## Safety constraints
 
+- Persist extracted Library text only with the cache setting enabled; disabling/clearing must invalidate pending cache writes. Revalidate cached entries against readable files before use.
 - Preserve one `AppModel` per window and document/search/reading state per tab. Route external opens through `FileViewerWindowRegistry` and keep one writable instance per file.
 - Accept local file URLs only; the packaged app and open panel support PDF and Markdown, and non-file URLs must be rejected before reading.
 - Keep recent-file metadata local, file-backed, and pruned when a path becomes unreadable.

@@ -90,6 +90,7 @@ Current MVP build includes:
 - Recent files.
 - Local Library sidebar with a local-only in-memory index of recent files, explicitly added files, and user-selected folders. The Library view keeps all indexed files in one consolidated list and prioritizes explicitly added files; the Recent view remains available for recency-focused browsing. Background refresh reuses unchanged file entries and reindexes only new or modified files. Search filenames, tags, Markdown headings, PDF/Markdown text, and PDF annotation summaries. Add and remove per-file tags directly from the File menu or a file's context menu, and filter tags from the Library toolbar. Use **Search Library…** / Command-Option-F to reveal it, **Add to Library** to keep an individual file indexed, or **Copy to Library Folder…** to make a managed copy.
 - The empty document view offers **Open File** and **New Markdown** actions side by side.
+- **Settings > Library** offers an optional local index cache between launches. Off by default; enabling saves extracted text locally with owner-only access. Turning it off or clearing the cache deletes the saved index. File changes and deletions are revalidated during refresh before cached text is used.
 - Light and dark theme.
 - Local AI assistant:
   - resizable right-side panel with per-document conversations
@@ -137,12 +138,12 @@ The suite verifies Markdown dirty-state behavior, file-version change detection,
 The current development app bundle is here:
 
 ```text
-build/FileViewer 0.14.app
+build/FileViewer 0.15.app
 ```
 
 It is built from the Swift executable and signed locally with an ad-hoc development signature. The package script defaults to a native Debug build; pass `release` when a Release bundle is needed.
 
-The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.14` and `By Patrick Shi`.
+The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.15` and `By Patrick Shi`.
 
 To rebuild the app bundle:
 

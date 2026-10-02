@@ -354,9 +354,11 @@ This section records the boundary of the original viewer MVP. Some items, includ
 
 ## 22. Build-plan audit and Mac-first post-MVP plan (2026-09-19)
 
+Update (2026-10-03): extracted Library text can now be persisted only through the opt-in local cache setting; the earlier memory-only description in section 21 records the previous milestone.
+
 The original viewer MVP and later PDF annotation/form and AI milestones are implemented. The following plan items remain unfinished or partial:
 
-- Local library: incremental background refresh, tags, and tag filtering are implemented. A durable searchable index remains future work; document text stays in memory only and is reused during the current session when files are unchanged.
+- Local library: incremental refresh, tags, tag filtering, and optional durable indexing are implemented. Disk caching is off by default and controlled from Settings, with clearing and file revalidation. Automatic filesystem watching remains future work.
 - Markdown preview: richer GitHub-Flavored Markdown tables, local image rendering, richer code presentation, copy-code actions, and heading-to-source navigation.
 - PDF workflow: fullscreen/presentation mode, two-page spread or selectable single-page mode, and page delete/reorder/extract/merge/insert.
 - PDF annotations: author and timestamp metadata.
@@ -369,7 +371,7 @@ The active build plan deliberately targets local, single-user Mac workflows. Clo
 
 ### Phase A — high-value Mac features
 
-1. **Local library and global search** — folder/file indexing, search, Add/Copy actions, tags, tag filtering, and incremental refresh are implemented; durable index storage remains future work while clear local-only controls are preserved.
+1. **Local library and global search** — folder/file indexing, search, Add/Copy actions, tags, tag filtering, incremental refresh, and opt-in local index storage are implemented. Automatic filesystem watching remains a possible follow-up.
 2. **PDF page tools** — thumbnail multi-selection, reorder, duplicate, delete, extract/split, insert, and export, using the existing atomic-save and external-change protections.
 3. **Reading and presentation** — fullscreen reading, presentation mode, page-advance shortcuts, temporary cursor/laser focus, and optional two-page spread.
 4. **Markdown fidelity and templates** — local images, richer tables/task lists/code blocks, copy-code, heading navigation, and user-managed Markdown/PDF templates.
