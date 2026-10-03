@@ -103,6 +103,11 @@ struct FileViewerCommands: Commands {
         FileViewerRemovedCommands()
 
         CommandMenu("Display") {
+            Menu("PDF Reading Layout") {
+                if let activeModel { PDFReadingActions(model: activeModel) }
+            }
+            .disabled(activeModel?.isPDFDocument != true)
+            Divider()
             Button("Toggle Sidebar") {
                 if let activeModel {
                     NotificationCenter.default.post(name: .toggleSidebar, object: activeModel)

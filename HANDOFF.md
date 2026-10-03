@@ -3,12 +3,20 @@
 Last updated: 2026-10-03
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
-Current branch at time of writing: `codex/pdf-page-tools`
-Git is authoritative for the current commit. This session implements PDF page tools, based on the completed Library indexing branch.
+Current branch at time of writing: `codex/pdf-reading-presentation`
+Git is authoritative for the current commit. This session implements PDF reading layouts and fullscreen presentation, based on the completed page-tools branch.
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
 ## Resume summary (2026-10-03)
+
+- The reading/presentation roadmap slice is implemented. **Display > PDF Reading Layout** offers Continuous Pages (default), Single Page, Two-Page Spread, and **Start Fullscreen Presentation…**. These actions also appear in the toolbar Page Tools menu under **Reading Layout & Presentation**. Layout is per tab and remembered per local PDF through the existing reading/session metadata. Older saved state without a layout field decodes with the continuous default; changing layout does not dirty or write the PDF. Spreads pair pages 1–2, 3–4; book-style cover pairing remains deferred.
+- `PDFReading.swift` supplies the layout enum/menu and an independent AppKit presentation controller. Presentation serializes the live PDF into a detached read-only snapshot, including unsaved page/annotation/form changes and the current displayed rotation, then opens it at the source's current page in native fullscreen. It has Previous/Next, a page counter, laser-pointer toggle, and Exit controls. Arrows, Page Up/Down, Space/Shift-Space, and Home/End navigate; P toggles the laser and Escape closes the presentation. Navigation clamps at the document boundaries. There is one active presentation per source tab; invoking Start again raises that existing snapshot. Close/reopen to refresh after later source edits.
+- The presentation PDF view intercepts mouse editing/link actions and does not expose writable forms or annotation tools. Its navigation and pointer are independent of the source's reading position, selection, undo history, and unsaved state. Window-scoped keyboard monitors do not consume events from another window and are removed on close with the page observer. Teardown removes sharing/window-menu access, clears the PDF and content view, and drops the retained controller. The laser is drawn by a sibling overlay outside PDFKit because PDFKit repositions its internal subviews during fullscreen layout.
+- `DocumentModel.swift` handles layout persistence and launch; `PDFWorkspace.swift` applies native PDFKit display modes while preserving the requested page. `PDFReadingTests` covers legacy decoding, per-tab/reopen/session layout, unchanged source bytes/dirty state, detached presentation data including a form, navigation bounds, duplicate-launch reuse, and retired-window cleanup. `swift test --jobs 1` passed **52 tests**; focused `--filter PDFReadingTests` passed **3 tests** again after the overlay correction. Incremental build/Debug packaging, strict signature validation, version/build 0.17/17, and diff checks passed.
+- Native checks with the disposable `build/Page Tools Sample.pdf` confirmed two-page/single-page rendering, layout restored on reopen, fullscreen layout, Home/Right/P navigation, cursor-aligned laser, and Escape returning to the unchanged source page. Multi-monitor presentation, complex PDFs, and remote screen-share picker behavior were not exhaustively checked. Delivered and launched Debug `build/FileViewer 0.17.app`; see README for build/run guidance. Next roadmap slice: Markdown fidelity/templates. This milestone is committed/pushed on its feature branch; main is not merged.
+
+## Previous PDF page-tools update (2026-10-03)
 
 - PDF page tools are implemented in the native app. Access **PDF > Page Tools**, the stacked-pages toolbar menu, or **Pages > Page Tools**. The thumbnail List supports per-tab multi-selection with ⌘/Shift-click; with no explicit selection, actions use the current page. Reorder through **Move Selected Pages…** (insert before a page number) or **Move Selected Pages to End**. Duplicate, confirmed deletion, insertion/merging of one or more local PDFs after the selection, extraction to one PDF, splitting to individual PDFs, and PNG export are available. At least one page must remain. Drag reordering and generated blank-page insertion are deferred.
 - `PDFPageTools.swift` edits detached copies, preserving the live document on invalid input/failure. `PDFPageToolsView.swift` supplies the shared menus and sidebar. `DocumentModel.swift` records page snapshots in the existing bounded chronological annotation undo stack, marks page edits dirty, restores selection/page/rotation on Undo/Redo, and uses existing verified atomic saving and external-file conflict checks. Modal actions verify their owning tab is still selected. Source files remain unchanged until Save. Extraction refuses destinations open in any registered window; split/image export refuses existing names, including a write-time race, and reports partial export failures while retaining completed outputs. PNGs have a maximum 1600-pixel dimension.
@@ -90,7 +98,7 @@ The repo still contains an older React/Vite prototype (`src/`, `dist/`, `package
 - Packaged development app path:
 
 ```text
-/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.16.app
+/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.17.app
 ```
 
 Build commands:
@@ -104,7 +112,7 @@ bash scripts/package_app.sh debug
 `scripts/package_app.sh`:
 
 1. builds the requested native configuration (`debug` by default; `release` is accepted)
-2. creates `build/FileViewer 0.16.app`
+2. creates `build/FileViewer 0.17.app`
 3. generates `AppIcon.icns` from `Resources/fileviewer-light-marker-lines.webp` using Python/Pillow
 4. writes `Info.plist`
 5. ad-hoc signs the app with `codesign --force --deep --sign -`

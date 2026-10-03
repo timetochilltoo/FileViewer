@@ -222,7 +222,8 @@ Recommended:
 - Fullscreen reading mode.
 - Presentation mode.
 - Two-page spread mode.
-- Continuous scroll and single-page modes.
+- Continuous scroll, single-page, and two-page spread layouts, remembered per PDF. Two-page spreads pair pages 1–2, 3–4, etc.; cover-page/book pairing is not enabled.
+- **Display > PDF Reading Layout > Start Fullscreen Presentation…** opens a detached read-only snapshot at the current page. It supports Previous/Next buttons, arrows, Page Up/Down, Space/Shift-Space, Home/End, Escape exit, and a temporary laser pointer toggled with P or its button. Source annotations/forms cannot be edited in the snapshot. Closing it preserves the document window's state and retires its sharing/window-menu entry. Unsaved PDF edits are included in the snapshot; later source edits require closing and reopening presentation to refresh it.
 - Remember last page and zoom per file.
 - Password-protected PDF support is outside the current product scope.
 

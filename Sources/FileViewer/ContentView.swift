@@ -549,6 +549,8 @@ struct PDFToolbar: View {
 
             Menu {
                 PDFPageActions(model: model)
+                Divider()
+                Menu("Reading Layout & Presentation") { PDFReadingActions(model: model) }
             } label: {
                 Image(systemName: "rectangle.stack").frame(width: 32, height: 28)
             }

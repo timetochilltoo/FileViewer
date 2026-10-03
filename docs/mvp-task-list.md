@@ -153,7 +153,7 @@ Acceptance criteria:
 - Add next page and previous page controls.
 - Add page number input.
 - Add first page and last page actions.
-- Use continuous scroll mode for MVP. The native viewer currently uses continuous scrolling by default; user-selectable single-page and two-page modes remain future work.
+- Continuous scrolling is the default. User-selectable single-page and two-page reading modes are implemented and remembered per PDF.
 - Track current page while scrolling.
 - Remember last page per file.
 
@@ -360,7 +360,7 @@ The original viewer MVP and later PDF annotation/form and AI milestones are impl
 
 - Local library: incremental refresh, tags, tag filtering, and optional durable indexing are implemented. Disk caching is off by default and controlled from Settings, with clearing and file revalidation. Automatic filesystem watching remains future work.
 - Markdown preview: richer GitHub-Flavored Markdown tables, local image rendering, richer code presentation, copy-code actions, and heading-to-source navigation.
-- PDF workflow: fullscreen/presentation mode and two-page spread or selectable single-page mode remain future work. Page duplicate/delete/reorder/extract/split/merge/insert are implemented.
+- PDF workflow: fullscreen presentation with keyboard navigation and a laser pointer, selectable single-page/two-page reading layouts, and page duplicate/delete/reorder/extract/split/merge/insert are implemented. Extended presentation features such as a presenter display and automatic timing remain future work.
 - PDF annotations: author and timestamp metadata.
 - Export: Markdown-to-PDF/HTML and advanced PDF operations remain future work. Selected-page PDF extraction, individual-page splitting, and PNG export are implemented.
 - Advanced Markdown: Mermaid and math rendering.
@@ -373,7 +373,7 @@ The active build plan deliberately targets local, single-user Mac workflows. Clo
 
 1. **Local library and global search** — folder/file indexing, search, Add/Copy actions, tags, tag filtering, incremental refresh, and opt-in local index storage are implemented. Automatic filesystem watching remains a possible follow-up.
 2. **PDF page tools — implemented** — thumbnail multi-selection, reorder through a destination-page dialog/end action, duplicate, confirmed delete, extract/split, insert/merge PDFs, and PNG export. Structural edits share chronological Undo/Redo with annotations and use the existing atomic-save and external-change protections. Drag reordering and blank-page templates remain possible follow-ups.
-3. **Reading and presentation** — fullscreen reading, presentation mode, page-advance shortcuts, temporary cursor/laser focus, and optional two-page spread.
+3. **Reading and presentation — implemented** — native fullscreen read-only presentation with page controls, arrow/Space/Page Up/Down/Home/End navigation, Escape exit, and a temporary laser pointer. Continuous, single-page, and two-page reading layouts are tab-local and remembered per file. The presentation snapshot preserves unsaved edits and never changes the writable document or its reading position. Presenter displays, auto-advance timing, and book-style cover-page pairing remain possible follow-ups.
 4. **Markdown fidelity and templates** — local images, richer tables/task lists/code blocks, copy-code, heading navigation, and user-managed Markdown/PDF templates.
 5. **Export workflow** — selected/current PDF page extraction/splitting and PNG export are implemented; Markdown as PDF/HTML remains future work.
 

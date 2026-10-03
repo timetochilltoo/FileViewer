@@ -10,6 +10,7 @@ struct PDFWorkspace: View {
             tabID: model.selectedTabID ?? UUID(),
             documentURL: viewerDocument.url,
             document: viewerDocument.document,
+            readingLayout: model.pdfReadingLayout,
             searchText: model.searchText,
             searchNavigationRequestID: model.searchNavigationRequestID,
             page: Binding(
@@ -100,6 +101,7 @@ struct PDFKitView: NSViewRepresentable {
     let tabID: UUID
     let documentURL: URL
     let document: PDFDocument
+    let readingLayout: PDFReadingLayout
     let searchText: String
     let searchNavigationRequestID: UUID
     @Binding var page: Int
@@ -126,7 +128,8 @@ struct PDFKitView: NSViewRepresentable {
         let view = MovableAnnotationPDFView()
         view.document = document
         view.autoScales = true
-        view.displayMode = .singlePageContinuous
+        view.displayMode = readingLayout.displayMode
+        view.displaysAsBook = false
         view.displayDirection = .vertical
         view.backgroundColor = .underPageBackgroundColor
         view.onAnnotationWillChange = { [weak coordinator = context.coordinator] in
@@ -170,6 +173,12 @@ struct PDFKitView: NSViewRepresentable {
 
     func updateNSView(_ view: PDFView, context: Context) {
         context.coordinator.parent = self
+        if view.displayMode != readingLayout.displayMode {
+            view.displayMode = readingLayout.displayMode
+            view.displaysAsBook = false
+            view.autoScales = true
+            context.coordinator.applyPageAndScale(page: page, scale: view.scaleFactor)
+        }
         if view.document !== document {
             let previousPage = context.coordinator.currentVisiblePage()
             let preserveOrigin = view.document?.pageCount == document.pageCount && previousPage == page

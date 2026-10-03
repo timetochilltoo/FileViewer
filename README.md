@@ -40,6 +40,7 @@ Current MVP build includes:
 - Compact New Markdown button between the sidebar toggle and Open button, with the same action also available from **FileViewer > New Markdown Document** / Command-N.
 - PDF rendering.
 - PDF page navigation.
+- PDF reading layouts under **Display > PDF Reading Layout** (also in the toolbar Page Tools menu): Continuous Pages, Single Page, and Two-Page Spread, remembered per file. **Start Fullscreen Presentation…** opens a read-only snapshot at the current page with Previous/Next controls. Use arrows, Page Up/Down, Space (Shift-Space for previous), Home/End, P for the laser pointer, and Escape to exit. Presentation does not change the source document, reading position, or unsaved state.
 - PDF first/last page controls.
 - PDF zoom controls.
 - PDF thumbnails.
@@ -139,12 +140,12 @@ The suite verifies Markdown dirty-state behavior, file-version change detection,
 The current development app bundle is here:
 
 ```text
-build/FileViewer 0.16.app
+build/FileViewer 0.17.app
 ```
 
 It is built from the Swift executable and signed locally with an ad-hoc development signature. The package script defaults to a native Debug build; pass `release` when a Release bundle is needed.
 
-The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.16` and `By Patrick Shi`.
+The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.17` and `By Patrick Shi`.
 
 To rebuild the app bundle:
 

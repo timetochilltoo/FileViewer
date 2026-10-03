@@ -349,6 +349,7 @@ struct DocumentTab: Identifiable, Equatable {
     var pdfPage: Int
     var pdfPageCount: Int
     var pdfScale: CGFloat
+    var pdfReadingLayout: PDFReadingLayout = .continuous
     /// A temporary, whole-document rotation used only for reading. The pages in
     /// the in-memory PDF are adjusted so PDFKit can render them correctly, but
     /// this value is removed from a serialization copy before Save / Save As.
@@ -391,8 +392,9 @@ struct DocumentTab: Identifiable, Equatable {
         fileVersion = document.url.flatMap(FileVersion.current)
     }
 
-    init(document: ViewerDocument, pdfPage: Int, pdfScale: CGFloat) {
+    init(document: ViewerDocument, pdfPage: Int, pdfScale: CGFloat, readingLayout: PDFReadingLayout = .continuous) {
         self.init(document: document)
+        self.pdfReadingLayout = readingLayout
         self.pdfPage = max(1, pdfPage)
         self.pdfScale = max(0.1, pdfScale)
     }
@@ -464,12 +466,14 @@ struct SavedSessionTab: Codable, Equatable {
     var markdownPreviewVisibleLocation: Int?
     var pdfPage: Int
     var pdfScale: Double
+    var pdfReadingLayout: PDFReadingLayout? = nil
 }
 
 struct SavedPDFState: Codable, Equatable {
     var path: String
     var pdfPage: Int
     var pdfScale: Double
+    var pdfReadingLayout: PDFReadingLayout? = nil
 }
 
 struct SavedMarkdownState: Codable, Equatable {
@@ -1038,7 +1042,8 @@ final class AppModel: ObservableObject {
                 appendTab(DocumentTab(
                     document: .pdf(PDFViewerDocument(url: url, document: pdf)),
                     pdfPage: savedState?.pdfPage ?? 1,
-                    pdfScale: CGFloat(savedState?.pdfScale ?? 1.0)
+                    pdfScale: CGFloat(savedState?.pdfScale ?? 1.0),
+                    readingLayout: savedState?.pdfReadingLayout ?? .continuous
                 ))
                 sidebarMode = .pages
                 addRecent(name: url.lastPathComponent, kind: .pdf, url: url)
@@ -1519,6 +1524,24 @@ final class AppModel: ObservableObject {
     func savePDFAnnotations() {
         guard let index = selectedTabIndex else { return }
         _ = savePDFTab(at: index)
+    }
+
+    var pdfReadingLayout: PDFReadingLayout {
+        get { selectedTab?.pdfReadingLayout ?? .continuous }
+        set {
+            guard let index = selectedTabIndex, isPDFDocument else { return }
+            postPDFCommand(.pdfSyncCurrentState)
+            tabs[index].pdfReadingLayout = newValue
+            savePDFStateIfNeeded(for: tabs[index])
+        }
+    }
+
+    func startPDFPresentation() {
+        postPDFCommand(.pdfSyncCurrentState)
+        guard let id = selectedTabID, case .pdf(let pdf) = document else { return }
+        if PDFPresentationController.present(tabID: id, document: pdf.document, name: pdf.url.lastPathComponent, page: pdfPage) == nil {
+            statusMessage = "Could not start presentation. The PDF remains open."
+        }
     }
 
     /// Zero-based page selection belongs to the selected document tab.
@@ -3307,7 +3330,8 @@ final class AppModel: ObservableObject {
         states.insert(SavedPDFState(
             path: pdf.url.path,
             pdfPage: tab.pdfPage,
-            pdfScale: Double(tab.pdfScale)
+            pdfScale: Double(tab.pdfScale),
+            pdfReadingLayout: tab.pdfReadingLayout
         ), at: 0)
         Self.savePDFStates(states)
     }
@@ -3351,7 +3375,8 @@ final class AppModel: ObservableObject {
                 markdownSourceVisibleLocation: tab.markdownSourceVisibleLocation,
                 markdownPreviewVisibleLocation: tab.markdownPreviewVisibleLocation,
                 pdfPage: tab.pdfPage,
-                pdfScale: Double(tab.pdfScale)
+                pdfScale: Double(tab.pdfScale),
+                pdfReadingLayout: tab.pdfReadingLayout
             )
         }
         guard !restorableTabs.isEmpty else { return nil }
@@ -3428,7 +3453,8 @@ final class AppModel: ObservableObject {
                     appendTab(DocumentTab(
                         document: .pdf(PDFViewerDocument(url: url, document: pdf)),
                         pdfPage: savedState?.pdfPage ?? savedTab.pdfPage,
-                        pdfScale: CGFloat(savedState?.pdfScale ?? savedTab.pdfScale)
+                        pdfScale: CGFloat(savedState?.pdfScale ?? savedTab.pdfScale),
+                        readingLayout: savedState?.pdfReadingLayout ?? savedTab.pdfReadingLayout ?? .continuous
                     ))
                 }
             } catch {
