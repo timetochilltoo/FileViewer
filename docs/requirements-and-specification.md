@@ -84,7 +84,7 @@ The user opens a Markdown file and can view either the rendered preview, the ori
 Expected behavior:
 
 - Headings, basic lists, links, code blocks, blockquotes, basic tables, task lists, and underline convenience render in the native preview.
-- Tables and task lists render in a basic readable form. Richer table styling and more polished checkbox visuals remain preview-fidelity improvement areas. Standalone local raster images are implemented.
+- Tables render as native bordered cells with wrapped text, shaded headers, and left/center/right alignment. Task lists have readable checkbox glyphs; interactive checkbox polish remains future work. Standalone local raster images are implemented.
 - The user can switch between preview only, source only, and split view.
 - The user can choose the default Markdown view (Preview, Source, or Split) from **FileViewer > Settings…**.
 - The source view shows the original Markdown text.
@@ -182,6 +182,8 @@ Required:
 - Render standalone `![Alt text](images/picture.png)` lines in Preview/Split, with an alt-text caption and aspect-preserving scaling to the available pane width (at most 640 points wide/480 points tall). Angle-bracket paths support spaces; encoded paths, balanced parentheses, and optional titles are accepted.
 - Resolve image paths from the saved Markdown document folder; accept only contained local regular files and reject symlinks, outside-folder paths, remote/data/network URLs, query strings, and fragments. Missing/blocked files show readable placeholders; unsaved documents ask the user to save before loading images.
 - Decode only PNG/JPEG/GIF/TIFF/HEIC/WebP/BMP raster data, first frame only. Bound each input to 20 MiB/40 million source pixels, thumbnails to 1200 pixels, and each render to 20 images/40 MiB input. HTML/SVG, reference-style images, inline images within paragraphs, and automatic watching of changed image files are outside this slice. Switch view modes or reopen to reload external image changes.
+- Tables use equal-width native text cells, subtle borders/padding, a shaded header, and wrapped basic inline formatting (bold, italic, code, underline). `:---`, `:---:`, and `---:` set column alignment; at least three hyphens are required. Header/separator cell counts must agree.
+- Optional outer pipes, escaped literal pipes, matched code spans containing pipes, empty cells, and pipe-delimited single-column tables are supported. Short body rows are padded; extra cells are truncated to the header width. Blank lines/new blocks/non-pipe rows end the table. Full GFM/CommonMark compatibility, HTML/multiline cells, merged cells, per-column resizing, and rich links/images inside cells remain future work.
 - Generate a heading list from Markdown headings in the sidebar.
 - Search within rendered content.
 - Help menu syntax guide for Markdown beginners.
@@ -193,7 +195,7 @@ Required:
 Recommended:
 
 - A richer text-editor bridge that can preserve cursor/selection state more predictably across SwiftUI refreshes.
-- A richer Markdown renderer for polished tables and more GitHub-Flavored-Markdown-compatible output. Native `AttributedString(markdown:)` parses many constructs but flattens tables/task lists, so the app currently uses its own lightweight parser for basic table and task-list preview support.
+- Further GitHub-Flavored Markdown compatibility. The native lightweight parser now renders tables using TextKit table blocks and task lists using checkbox glyphs.
 - Fenced code blocks support backtick and tilde markers (three or more), matching closing markers at least as long as the opening fence, and an optional language label. Shorter/different markers inside a block remain literal code.
 - Copy Code in each preview block copies only its content, preserving indentation, blank lines, and Unicode; it does not edit the source or execute the code. The renderer-generated action is handled locally, not opened as an external URL. Language labels are plain text, without syntax coloring.
 - Export Markdown to PDF.

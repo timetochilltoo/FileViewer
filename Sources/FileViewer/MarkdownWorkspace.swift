@@ -222,9 +222,9 @@ struct MarkdownWorkspace: View {
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
-        case .table(let rows):
+        case .table(let table):
             VStack(alignment: .leading, spacing: 4) {
-                ForEach(Array(rows.enumerated()), id: \.offset) { rowIndex, row in
+                ForEach(Array(table.rows.enumerated()), id: \.offset) { rowIndex, row in
                     HStack(spacing: 12) {
                         ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
                             Text(inlineAttributed(cell))
@@ -311,7 +311,7 @@ struct MarkdownPreviewBlock: Identifiable {
         case task(checked: Bool, text: String)
         case quote(String)
         case code(Code)
-        case table(rows: [[String]])
+        case table(MarkdownTable)
     }
 
     let id = UUID()
@@ -347,8 +347,8 @@ struct MarkdownPreviewBlock: Identifiable {
                 continue
             }
 
-            if let table = tableRows(startingAt: lineIndex, in: lines) {
-                blocks.append(.init(kind: .table(rows: table.rows)))
+            if let table = MarkdownTable.parse(startingAt: lineIndex, in: lines) {
+                blocks.append(.init(kind: .table(table.table)))
                 lineIndex = table.nextIndex
             } else if trimmed.isEmpty {
                 blocks.append(.init(kind: .blank))
@@ -424,36 +424,7 @@ struct MarkdownPreviewBlock: Identifiable {
         return (number, line[line.index(after: dotIndex)...].trimmingCharacters(in: .whitespaces))
     }
 
-    private static func tableRows(startingAt index: Int, in lines: [String]) -> (rows: [[String]], nextIndex: Int)? {
-        guard index + 1 < lines.count else { return nil }
-        let header = tableCells(from: lines[index])
-        let separator = tableCells(from: lines[index + 1])
-        guard header.count >= 2,
-              separator.count == header.count,
-              separator.allSatisfy({ $0.replacingOccurrences(of: ":", with: "").allSatisfy { $0 == "-" } }) else {
-            return nil
-        }
 
-        var rows = [header]
-        var nextIndex = index + 2
-        while nextIndex < lines.count {
-            let cells = tableCells(from: lines[nextIndex])
-            guard cells.count >= 2 else { break }
-            rows.append(cells)
-            nextIndex += 1
-        }
-        return (rows, nextIndex)
-    }
-
-    private static func tableCells(from line: String) -> [String] {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        guard trimmed.contains("|") else { return [] }
-        let withoutOuterPipes = trimmed
-            .trimmingCharacters(in: CharacterSet(charactersIn: "|"))
-        return withoutOuterPipes
-            .split(separator: "|", omittingEmptySubsequences: false)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-    }
 }
 
 struct MarkdownPreviewTextView: NSViewRepresentable {
@@ -876,9 +847,9 @@ struct MarkdownPreviewTextView: NSViewRepresentable {
                         .paragraphStyle: codeStyle
                     ]
                 ))
-            case .table(let rows):
+            case .table(let table):
                 appendTable(
-                    rows,
+                    table,
                     to: output,
                     bodyFont: bodyFont,
                     paragraphStyle: paragraphStyle
@@ -891,53 +862,45 @@ struct MarkdownPreviewTextView: NSViewRepresentable {
     }
 
     private static func appendTable(
-        _ rows: [[String]],
+        _ markdownTable: MarkdownTable,
         to output: NSMutableAttributedString,
         bodyFont: NSFont,
         paragraphStyle: NSParagraphStyle
     ) {
-        guard !rows.isEmpty else { return }
-        let columnCount = rows.map(\.count).max() ?? 0
-        let paddedRows = rows.map { row in
-            row + Array(repeating: "", count: max(0, columnCount - row.count))
-        }
-        let widths = (0..<columnCount).map { column in
-            paddedRows.map { $0[column].count }.max() ?? 0
-        }
-        let tableFont = NSFont.monospacedSystemFont(ofSize: bodyFont.pointSize, weight: .regular)
-        let headerFont = NSFont.monospacedSystemFont(ofSize: bodyFont.pointSize, weight: .semibold)
-
-        for (rowIndex, row) in paddedRows.enumerated() {
-            let line = row.enumerated()
-                .map { column, cell in
-                    cell.padding(toLength: widths[column], withPad: " ", startingAt: 0)
+        let columns = markdownTable.alignments.count
+        guard columns > 0 else { return }
+        let table = NSTextTable()
+        table.numberOfColumns = columns
+        table.layoutAlgorithm = .fixedLayoutAlgorithm
+        table.collapsesBorders = true
+        table.setValue(100, type: .percentageValueType, for: .width)
+        for (rowIndex, row) in markdownTable.rows.enumerated() {
+            for (column, text) in row.enumerated() {
+                let block = NSTextTableBlock(table: table, startingRow: rowIndex, rowSpan: 1, startingColumn: column, columnSpan: 1)
+                block.setValue(100 / CGFloat(columns), type: .percentageValueType, for: .width)
+                block.setWidth(8, type: .absoluteValueType, for: .padding)
+                block.setWidth(0.5, type: .absoluteValueType, for: .border)
+                block.setBorderColor(.separatorColor)
+                block.backgroundColor = rowIndex == 0 ? NSColor.labelColor.withAlphaComponent(0.06) : .textBackgroundColor
+                block.verticalAlignment = .top
+                let style = paragraphStyle.mutableCopy() as! NSMutableParagraphStyle
+                style.textBlocks = [block]
+                style.paragraphSpacing = 0
+                style.lineSpacing = 2
+                switch markdownTable.alignments[column] {
+                case .left: style.alignment = .left
+                case .center: style.alignment = .center
+                case .right: style.alignment = .right
                 }
-                .joined(separator: "   ")
-            output.append(NSAttributedString(
-                string: line + "\n",
-                attributes: baseAttributes(
-                    font: rowIndex == 0 ? headerFont : tableFont,
-                    color: .labelColor,
-                    paragraphStyle: paragraphStyle
-                )
-            ))
-
-            if rowIndex == 0 {
-                let divider = widths
-                    .map { String(repeating: "─", count: max($0, 3)) }
-                    .joined(separator: "   ")
-                output.append(NSAttributedString(
-                    string: divider + "\n",
-                    attributes: baseAttributes(
-                        font: tableFont,
-                        color: .secondaryLabelColor,
-                        paragraphStyle: paragraphStyle
-                    )
-                ))
+                let start = output.length
+                let font = rowIndex == 0 ? NSFont.systemFont(ofSize: bodyFont.pointSize, weight: .semibold) : bodyFont
+                appendInline(text, to: output, baseFont: font, color: .labelColor, paragraphStyle: style)
+                output.append(NSAttributedString(string: "\n", attributes: baseAttributes(font: font, color: .labelColor, paragraphStyle: style)))
+                // Include empty cells and every inline run in the same native table block.
+                output.addAttribute(.paragraphStyle, value: style, range: NSRange(location: start, length: output.length - start))
             }
         }
-
-        output.append(NSAttributedString(string: "\n"))
+        output.append(NSAttributedString(string: "\n", attributes: baseAttributes(font: bodyFont, color: .labelColor, paragraphStyle: paragraphStyle)))
     }
 
     private static func headingFont(_ level: Int) -> NSFont {

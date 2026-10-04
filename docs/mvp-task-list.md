@@ -89,7 +89,7 @@ Acceptance criteria:
 - Render Markdown preview using native AppKit/SwiftUI components.
 - Preserve Markdown block structure instead of flattening content into one paragraph.
 - Support headings, paragraphs, basic lists, links, blockquotes, code blocks, basic tables, task lists, bold, italic, inline code, and underline convenience.
-- Standalone local raster images are implemented; richer table styling and syntax coloring remain future preview-fidelity improvements. Code language labels, Copy Code actions, and robust backtick/tilde fences are implemented.
+- Standalone local raster images and bordered, aligned tables with wrapped cells are implemented; syntax coloring remains a future preview-fidelity improvement. Code language labels, Copy Code actions, and robust backtick/tilde fences are implemented.
 - Generate a heading list from Markdown headings.
 - Add preview-only view mode.
 - Allow selected preview text to be formatted back into the Markdown source.
@@ -359,7 +359,7 @@ Update (2026-10-03): extracted Library text can now be persisted only through th
 The original viewer MVP and later PDF annotation/form and AI milestones are implemented. The following plan items remain unfinished or partial:
 
 - Local library: incremental refresh, tags, tag filtering, and optional durable indexing are implemented. Disk caching is off by default and controlled from Settings, with clearing and file revalidation. Automatic filesystem watching remains future work.
-- Markdown preview: local raster images, language labels, Copy Code, and backtick/tilde fence handling are implemented. Richer GitHub-Flavored Markdown tables, syntax coloring, and heading-to-source navigation remain planned.
+- Markdown preview: local raster images, bordered/aligned tables with escaped-pipe handling, language labels, Copy Code, and backtick/tilde fence handling are implemented. Syntax coloring and heading-to-source navigation remain planned.
 - PDF workflow: fullscreen presentation with keyboard navigation and a laser pointer, selectable single-page/two-page reading layouts, and page duplicate/delete/reorder/extract/split/merge/insert are implemented. Extended presentation features such as a presenter display and automatic timing remain future work.
 - PDF annotations: author and timestamp metadata.
 - Export: Markdown-to-PDF/HTML and advanced PDF operations remain future work. Selected-page PDF extraction, individual-page splitting, and PNG export are implemented.
@@ -374,7 +374,7 @@ The active build plan deliberately targets local, single-user Mac workflows. Clo
 1. **Local library and global search** — folder/file indexing, search, Add/Copy actions, tags, tag filtering, incremental refresh, and opt-in local index storage are implemented. Automatic filesystem watching remains a possible follow-up.
 2. **PDF page tools — implemented** — thumbnail multi-selection, reorder through a destination-page dialog/end action, duplicate, confirmed delete, extract/split, insert/merge PDFs, and PNG export. Structural edits share chronological Undo/Redo with annotations and use the existing atomic-save and external-change protections. Drag reordering and blank-page templates remain possible follow-ups.
 3. **Reading and presentation — implemented** — native fullscreen read-only presentation with page controls, arrow/Space/Page Up/Down/Home/End navigation, Escape exit, and a temporary laser pointer. Continuous, single-page, and two-page reading layouts are tab-local and remembered per file. The presentation snapshot preserves unsaved edits and never changes the writable document or its reading position. Presenter displays, auto-advance timing, and book-style cover-page pairing remain possible follow-ups.
-4. **Markdown fidelity and templates — in progress** — local raster images, code language labels, Copy Code, and robust fenced blocks are implemented. Next: richer tables/task lists, heading navigation, and user-managed Markdown/PDF templates; syntax coloring remains optional.
+4. **Markdown fidelity and templates — in progress** — local raster images, bordered/aligned tables, code language labels, Copy Code, and robust fenced blocks are implemented. Next: heading navigation and user-managed Markdown/PDF templates; interactive task-list polish and syntax coloring remain optional.
 5. **Export workflow** — selected/current PDF page extraction/splitting and PNG export are implemented; Markdown as PDF/HTML remains future work.
 
 ### Phase B — medium-effort features with optional hardware

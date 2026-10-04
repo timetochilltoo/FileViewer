@@ -3,12 +3,20 @@
 Last updated: 2026-10-04
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
-Current branch at time of writing: `codex/markdown-local-images`
-Git is authoritative for the current commit. This session implements local Markdown images, based on the completed code-preview branch.
+Current branch at time of writing: `codex/markdown-tables`
+Git is authoritative for the current commit. This session implements richer native Markdown tables, based on the completed local-image branch.
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
-## Resume summary (2026-10-04, local images)
+## Resume summary (2026-10-04, tables)
+
+- Markdown tables now render using native TextKit `NSTextTable`/`NSTextTableBlock` cells instead of space-padded monospaced lines. They have equal-width columns, subtle borders and padding, shaded semibold headers, top-aligned wrapped text, and per-column left/center/right alignment from delimiter colons. Existing basic inline bold/italic/code/underline rendering applies within cells. Text remains in the selectable/searchable NSTextView, rather than a raster image or separate web view. Table viewing never changes the source or dirty state.
+- `MarkdownTable.swift` supplies the parser and alignment model. Header and separator cell counts must agree, and each separator must contain at least three hyphens with optional boundary colons; the previous parser incorrectly accepted empty separator cells. Optional outer pipes, escaped pipes, empty cells, and pipe-delimited single-column tables are supported. Matched inline code spans keep their literal pipes in this renderer. Body rows normalize to the header width: missing cells become empty, excess cells are ignored. Blank lines, common block starts, and non-pipe lines terminate tables. Table syntax inside fenced code remains literal.
+- `MarkdownWorkspace.swift` integrates the model/parser and constructs one native table shared by its cells. Each cell paragraph has its own text block and alignment; even empty cells retain paragraph attributes. Search highlighting still applies to the rendered text. The existing per-view selection signature correction, render invalidation, native editor Undo, per-tab document URL/image confinement, and code-copy action are preserved. No dependencies or network behavior were added. Cells currently have equal widths; wide many-column documents may need further UX work.
+- `MarkdownTableTests` adds four tests for alignments, ragged/single-column tables, escaped pipes/code spans/empty cells, invalid delimiters, block termination, literal fenced code, native text-block structure, shared table ownership, basic formatting, and searchable/highlighted text. `swift test --jobs 1` passed 65 tests. Focused `--filter MarkdownTableTests` passed four tests again after improving header contrast. Incremental Debug packaging, strict signature, metadata 0.20/20, and diff checks passed. Native checks with disposable `build/Table Preview Sample.md` confirmed bordered/aligned cells, wrapped long text, Unicode, empty cells, literal pipes, Preview/Split layouts, and table search with matching Source/Preview highlights. Final header shading was also checked. No personal documents were changed.
+- Delivered/launched Debug `build/FileViewer 0.20.app`; build/run guidance is in README. The milestone is committed/pushed on its feature branch; main remains unmerged. Next: heading-to-source navigation, then user-managed templates. Optional task-list interaction/syntax coloring remains future work. Full CommonMark/GFM conformance, multiline/HTML cells, merged cells, resizing columns, and rich links/images inside cells are not implemented. Preserve all current PDF/Library/AI and local-image protections.
+
+## Previous local-image update (2026-10-04)
 
 - Local raster images render in the native Markdown Preview/Split workspace. Standalone `![Alt](images/picture.png)` lines produce a selectable text attachment with a readable alt-text caption. Relative paths resolve from the saved document folder; angle-bracket destinations support spaces, percent-encoded paths and balanced parentheses work, and optional titles are accepted. Images fit the pane width with preserved aspect ratio, capped at 640 points wide/480 points tall. Missing/blocked images show placeholders; unsaved Markdown prompts saving before loading images. Image syntax inside fenced code remains literal.
 - `MarkdownLocalImage.swift` contains parsing, confined URL resolution, bounded raster decoding, and a resizing TextKit attachment cell. Remote/data/network URLs, embedded credentials, query strings, fragments, paths outside the document folder, and symlinks are rejected. Descriptor-relative `openat` walks with `O_NOFOLLOW` prevent traversal through symlink directories or files; `fstat` requires regular files, and nonblocking open avoids waiting on special files. No remote request or NSImage URL loader is used. PNG/JPEG/GIF/TIFF/HEIC/WebP/BMP data is allowed, first frame only; SVG/HTML and PDF are excluded.
@@ -114,7 +122,7 @@ The repo still contains an older React/Vite prototype (`src/`, `dist/`, `package
 - Packaged development app path:
 
 ```text
-/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.19.app
+/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.20.app
 ```
 
 Build commands:
@@ -128,7 +136,7 @@ bash scripts/package_app.sh debug
 `scripts/package_app.sh`:
 
 1. builds the requested native configuration (`debug` by default; `release` is accepted)
-2. creates `build/FileViewer 0.19.app`
+2. creates `build/FileViewer 0.20.app`
 3. generates `AppIcon.icns` from `Resources/fileviewer-light-marker-lines.webp` using Python/Pillow
 4. writes `Info.plist`
 5. ad-hoc signs the app with `codesign --force --deep --sign -`

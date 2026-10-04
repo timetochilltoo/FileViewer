@@ -15,9 +15,10 @@ Current MVP build includes:
 - Drag-and-drop file opening, including multiple dropped files.
 - macOS Open With / external file-open handling for PDF and Markdown files. Finder-opened documents use separate windows so existing windows do not all switch to the newest document; plain-text support remains future work.
 - Markdown source view.
+- Markdown tables support `:---`, `:---:`, and `---:` alignment, escaped pipes (`\|`), empty cells, single-column tables, and basic inline formatting. Short rows are padded; extra cells beyond the header are ignored.
 - Markdown rendered preview. Standalone local images such as `![Diagram](images/diagram.png)` render in Preview/Split with captions and automatic scaling. Keep images in the saved Markdown file’s folder or subfolders; use angle brackets for paths containing spaces: `![Diagram](<images/my diagram.png>)`. Remote URLs, symlinks, and files outside that folder are blocked. PNG/JPEG/GIF/TIFF/HEIC/WebP/BMP raster files are supported (first frame only).
 - Select text in Markdown preview and use formatting buttons to update the Markdown source.
-- Structured Markdown preview for headings, lists, quotes, code blocks, basic tables, task lists, and underline convenience. Fenced code blocks show a language label and Copy Code action; backtick/tilde fences and nested shorter fences are supported. Copying preserves the code indentation and Unicode without the label or surrounding fences.
+- Structured Markdown preview for headings, lists, quotes, code blocks, bordered tables with wrapped cells and column alignment, task lists, and underline convenience. Fenced code blocks show a language label and Copy Code action; backtick/tilde fences and nested shorter fences are supported. Copying preserves the code indentation and Unicode without the label or surrounding fences.
 - Markdown split view.
 - Choose the default Markdown Preview, Source, or Split view from **FileViewer > Settings…**.
 - Markdown editing.
@@ -140,12 +141,12 @@ The suite verifies Markdown dirty-state behavior, file-version change detection,
 The current development app bundle is here:
 
 ```text
-build/FileViewer 0.19.app
+build/FileViewer 0.20.app
 ```
 
 It is built from the Swift executable and signed locally with an ad-hoc development signature. The package script defaults to a native Debug build; pass `release` when a Release bundle is needed.
 
-The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.19` and `By Patrick Shi`.
+The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.20` and `By Patrick Shi`.
 
 To rebuild the app bundle:
 
