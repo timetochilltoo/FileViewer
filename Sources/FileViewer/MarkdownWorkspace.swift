@@ -316,6 +316,7 @@ struct MarkdownPreviewBlock: Identifiable {
 
     let id = UUID()
     let kind: Kind
+    var sourceLocation = 0
 
     static func parse(_ markdown: String) -> [MarkdownPreviewBlock] {
         var blocks: [MarkdownPreviewBlock] = []
@@ -324,6 +325,9 @@ struct MarkdownPreviewBlock: Identifiable {
 
         let lines = markdown.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         var lineIndex = 0
+        var offsets: [Int] = []
+        var offset = 0
+        for line in lines { offsets.append(offset); offset += (line as NSString).length + 1 }
 
         while lineIndex < lines.count {
             let rawLine = lines[lineIndex]
@@ -357,7 +361,7 @@ struct MarkdownPreviewBlock: Identifiable {
                 blocks.append(.init(kind: .image(image)))
                 lineIndex += 1
             } else if let heading = heading(from: trimmed) {
-                blocks.append(.init(kind: .heading(level: heading.level, text: heading.text)))
+                blocks.append(.init(kind: .heading(level: heading.level, text: heading.text), sourceLocation: offsets[lineIndex]))
                 lineIndex += 1
             } else if let task = taskListText(from: trimmed) {
                 blocks.append(.init(kind: .task(checked: task.checked, text: task.text)))
@@ -500,7 +504,9 @@ struct MarkdownPreviewTextView: NSViewRepresentable {
         guard let textView = scrollView.documentView as? NSTextView else { return }
         context.coordinator.onTextViewReady = onTextViewReady
         context.coordinator.onViewportChanged = onViewportChanged
-        if context.coordinator.shouldRender(markdown: markdown, searchText: searchText, searchMatchIndex: searchMatchIndex, documentURL: documentURL) {
+        onTextViewReady(textView)
+        let rendered = context.coordinator.shouldRender(markdown: markdown, searchText: searchText, searchMatchIndex: searchMatchIndex, documentURL: documentURL)
+        if rendered {
             let selectedRange = textView.selectedRange()
             context.coordinator.isRendering = true
             textView.textStorage?.setAttributedString(Self.attributedPreview(
@@ -518,7 +524,7 @@ struct MarkdownPreviewTextView: NSViewRepresentable {
         DispatchQueue.main.async {
             if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 context.coordinator.restoreInitialScrollIfNeeded()
-            } else {
+            } else if rendered {
                 Self.scrollToSearchMatch(in: textView, searchText: searchText, searchMatchIndex: searchMatchIndex)
             }
         }
@@ -737,6 +743,7 @@ struct MarkdownPreviewTextView: NSViewRepresentable {
             case .blank:
                 output.append(NSAttributedString(string: "\n"))
             case .heading(let level, let text):
+                let headingStart = output.length
                 appendInline(
                     text,
                     to: output,
@@ -745,6 +752,7 @@ struct MarkdownPreviewTextView: NSViewRepresentable {
                     paragraphStyle: paragraphStyle
                 )
                 output.append(NSAttributedString(string: "\n\n"))
+                output.addAttribute(.fileViewerHeadingLocation, value: block.sourceLocation, range: NSRange(location: headingStart, length: output.length - headingStart))
             case .paragraph(let text):
                 appendInline(
                     text,

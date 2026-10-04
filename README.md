@@ -141,12 +141,12 @@ The suite verifies Markdown dirty-state behavior, file-version change detection,
 The current development app bundle is here:
 
 ```text
-build/FileViewer 0.20.app
+build/FileViewer 0.21.app
 ```
 
 It is built from the Swift executable and signed locally with an ad-hoc development signature. The package script defaults to a native Debug build; pass `release` when a Release bundle is needed.
 
-The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.20` and `By Patrick Shi`.
+The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.21` and `By Patrick Shi`.
 
 To rebuild the app bundle:
 
@@ -154,6 +154,8 @@ To rebuild the app bundle:
 bash scripts/package_app.sh
 # or: bash scripts/package_app.sh release
 ```
+
+The Markdown Contents sidebar jumps to headings in Source, Preview, or both Split panes. Repeated headings have separate destinations; fenced code is excluded. Navigation preserves text and selection.
 
 ## Documentation
 

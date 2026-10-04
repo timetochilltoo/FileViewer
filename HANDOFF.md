@@ -3,12 +3,21 @@
 Last updated: 2026-10-04
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
-Current branch at time of writing: `codex/markdown-tables`
-Git is authoritative for the current commit. This session implements richer native Markdown tables, based on the completed local-image branch.
+Current branch at time of writing: `codex/markdown-heading-navigation`
+Git is authoritative for the current commit. This session implements Markdown Contents navigation, based on the completed native-table branch.
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
-## Resume summary (2026-10-04, tables)
+## Resume summary (2026-10-04, heading navigation)
+
+- The Markdown Contents sidebar now has clickable full-width heading rows. Clicking a heading scrolls Source or Preview, and both visible panes in Split. Navigation preserves text, the current text selection, undo history, and dirty state. It does not switch view modes or move the editing caret. The current parser supports ATX headings; Setext headings and complete CommonMark parsing remain deferred. Sidebar titles retain their source inline markup, while Preview renders the existing basic inline formatting.
+- `MarkdownPreviewBlock` records UTF-16 source offsets for heading blocks. `AppModel.extractHeadings` now uses that same parser, so Contents and Preview agree on heading syntax and exclude fenced code. Repeated titles have distinct location-based IDs, avoiding the previous duplicate slug IDs. IDs update naturally after source edits. Offset calculation accounts for Unicode before headings. Other Markdown block parsing and table/image safety remain unchanged.
+- Rendered headings carry the internal `fileViewerHeadingLocation` attributed-string key. `MarkdownHeadingNavigation.previewRange` resolves the exact destination even when bold/italic markers are removed from Preview, without searching ambiguous title text. `navigateToMarkdownHeading` revalidates the heading against current content and checks each text view's tab ownership and window attachment before scrolling. Source additionally requires its native string to match the current document. The model retains only weak references to the native views. Per-tab reading state continues through existing viewport observers.
+- Preview view updates refresh their owning view reference. Unchanged render inputs no longer repeatedly force-scroll an active search result, allowing Contents navigation to remain visible while search highlighting is present. New search inputs still render/highlight/scroll through the existing behavior. Native selection-signature suppression and per-view callback handling remain intact, preventing the earlier Split update loop.
+- Validation: incremental `swift build` passed; focused `swift test --jobs 1 --filter MarkdownHeadingNavigationTests` passed two tests; full `swift test --jobs 1` passed 67 tests. Coverage checks Unicode and duplicate destinations, fenced-code exclusion, rendered offsets, both pane routes, unchanged selection/document, and inactive-tab isolation. Final Debug packaging compiled the full-row click-target adjustment; strict codesign, metadata 0.21/21, and diff checks passed. Native checks with disposable `build/Heading Navigation Sample.md` verified separate repeated destinations in both Split panes, center-of-row Source navigation, Preview-only navigation, and no dirty indicator. No personal documents were edited.
+- Delivered/launched Debug `build/FileViewer 0.21.app`; use the stable commands in README. This milestone is committed/pushed on its feature branch, with main unmerged. Next: user-managed Markdown/PDF templates. Optional task-list interaction, syntax coloring, and full Markdown conformance remain future work. Preserve the PDF, Library, local-image, per-window/per-tab, save/conflict, and remote-AI protections documented below and in AGENTS.md.
+
+## Previous native-table update (2026-10-04)
 
 - Markdown tables now render using native TextKit `NSTextTable`/`NSTextTableBlock` cells instead of space-padded monospaced lines. They have equal-width columns, subtle borders and padding, shaded semibold headers, top-aligned wrapped text, and per-column left/center/right alignment from delimiter colons. Existing basic inline bold/italic/code/underline rendering applies within cells. Text remains in the selectable/searchable NSTextView, rather than a raster image or separate web view. Table viewing never changes the source or dirty state.
 - `MarkdownTable.swift` supplies the parser and alignment model. Header and separator cell counts must agree, and each separator must contain at least three hyphens with optional boundary colons; the previous parser incorrectly accepted empty separator cells. Optional outer pipes, escaped pipes, empty cells, and pipe-delimited single-column tables are supported. Matched inline code spans keep their literal pipes in this renderer. Body rows normalize to the header width: missing cells become empty, excess cells are ignored. Blank lines, common block starts, and non-pipe lines terminate tables. Table syntax inside fenced code remains literal.
@@ -122,7 +131,7 @@ The repo still contains an older React/Vite prototype (`src/`, `dist/`, `package
 - Packaged development app path:
 
 ```text
-/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.20.app
+/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.21.app
 ```
 
 Build commands:
@@ -136,7 +145,7 @@ bash scripts/package_app.sh debug
 `scripts/package_app.sh`:
 
 1. builds the requested native configuration (`debug` by default; `release` is accepted)
-2. creates `build/FileViewer 0.20.app`
+2. creates `build/FileViewer 0.21.app`
 3. generates `AppIcon.icns` from `Resources/fileviewer-light-marker-lines.webp` using Python/Pillow
 4. writes `Info.plist`
 5. ad-hoc signs the app with `codesign --force --deep --sign -`

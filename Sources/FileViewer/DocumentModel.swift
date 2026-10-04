@@ -139,6 +139,7 @@ struct MarkdownHeading: Identifiable, Equatable {
     let id: String
     let level: Int
     let title: String
+    let sourceLocation: Int
 }
 
 struct PDFOutlineEntry: Identifiable, Equatable {
@@ -642,6 +643,8 @@ final class AppModel: ObservableObject {
         pdfAnnotationColor = .yellow
         statusMessage = "PDF annotation color reset to yellow."
     }
+    private var sourceTextViewTabID: UUID?
+    private var previewTextViewTabID: UUID?
     private weak var lastActiveMarkdownPreviewTextView: NSTextView?
     private var lastActiveMarkdownSelectionKind: MarkdownSelectionKind = .source
     private var lastActiveMarkdownSelectionTabID: DocumentTab.ID?
@@ -2459,6 +2462,7 @@ final class AppModel: ObservableObject {
     }
 
     func rememberMarkdownTextView(_ textView: NSTextView) {
+        sourceTextViewTabID = selectedTabID
         lastActiveMarkdownTextView = textView
         lastActiveMarkdownSelectionKind = .source
         lastActiveMarkdownSelectionTabID = selectedTabID
@@ -2466,6 +2470,7 @@ final class AppModel: ObservableObject {
     }
 
     func rememberMarkdownPreviewTextView(_ textView: NSTextView) {
+        previewTextViewTabID = selectedTabID
         lastActiveMarkdownPreviewTextView = textView
         lastActiveMarkdownSelectionKind = .preview
         lastActiveMarkdownSelectionTabID = selectedTabID
@@ -3542,17 +3547,24 @@ final class AppModel: ObservableObject {
     }
 
     static func extractHeadings(from text: String) -> [MarkdownHeading] {
-        text
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .compactMap { line -> MarkdownHeading? in
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                guard trimmed.hasPrefix("#") else { return nil }
-                let level = trimmed.prefix { $0 == "#" }.count
-                guard (1...6).contains(level) else { return nil }
-                let title = trimmed.dropFirst(level).trimmingCharacters(in: .whitespaces)
-                guard !title.isEmpty else { return nil }
-                return MarkdownHeading(id: title.slugID, level: level, title: title)
-            }
+        MarkdownPreviewBlock.parse(text).compactMap { block in
+            guard case .heading(let level, let title) = block.kind else { return nil }
+            return MarkdownHeading(id: String(block.sourceLocation), level: level, title: title, sourceLocation: block.sourceLocation)
+        }
+    }
+
+    func navigateToMarkdownHeading(_ heading: MarkdownHeading) {
+        guard case .markdown(let document) = document,
+              markdownHeadings.contains(heading) else { return }
+        if sourceTextViewTabID == selectedTabID, let view = lastActiveMarkdownTextView,
+           view.window != nil, view.string == document.text {
+            view.scrollRangeToVisible(NSRange(location: heading.sourceLocation, length: 1))
+        }
+        if previewTextViewTabID == selectedTabID, let view = lastActiveMarkdownPreviewTextView,
+           view.window != nil, let storage = view.textStorage,
+           let range = MarkdownHeadingNavigation.previewRange(for: heading.sourceLocation, in: storage) {
+            view.scrollRangeToVisible(range)
+        }
     }
 
     static func extractPDFOutline(from document: PDFDocument) -> [PDFOutlineEntry] {

@@ -320,9 +320,17 @@ struct SidebarView: View {
             switch model.document {
             case .markdown:
                 List(model.markdownHeadings) { heading in
-                    Text(heading.title)
-                        .lineLimit(1)
-                        .padding(.leading, CGFloat(max(heading.level - 1, 0)) * 12)
+                    Button {
+                        model.navigateToMarkdownHeading(heading)
+                    } label: {
+                        Text(heading.title)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.leading, CGFloat(max(heading.level - 1, 0)) * 12)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Go to heading: " + heading.title)
                 }
                 .overlay {
                     if model.markdownHeadings.isEmpty {
