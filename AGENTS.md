@@ -10,7 +10,7 @@
 
 - Use Swift tools 6.2 on macOS 26+. From the repository root, use `swift build` for an incremental compile and `swift test --jobs 1` for the full suite. Focused suites include `--filter DocumentSafetyTests` and `--filter AIAssistantTests`.
 - Tests are in `Tests/FileViewerTests`; they avoid live AI providers. PDFKit rendering/forms, native dialogs, window behavior, menu composition, toolbar layout, and About/icon presentation require manual checks when changed.
-- Package only when a bundle is needed: `bash scripts/package_app.sh` (Debug default) or `bash scripts/package_app.sh release`. The current app version is set in `scripts/package_app.sh`; it creates and ad-hoc signs `build/FileViewer 0.18.app`. Python 3 with Pillow is required.
+- Package only when a bundle is needed: `bash scripts/package_app.sh` (Debug default) or `bash scripts/package_app.sh release`. The current app version is set in `scripts/package_app.sh`; it creates and ad-hoc signs `build/FileViewer 0.19.app`. Python 3 with Pillow is required.
 - Before handoff, run the relevant tests/build, `git diff --check`, and package/signature checks when packaging changed. Record concise results in `HANDOFF.md`.
 
 ## Safety constraints
@@ -23,5 +23,6 @@
 - Keep temporary PDF view rotation out of serialized saves, persist permanent page rotation/edits, and guard PDFKit indexes before arithmetic or access (including annotation undo/redo). Keep annotation undo chronological.
 - PDF page tools use detached copies and the shared chronological undo stack; keep at least one page, invalidate per-tab AI context after structural edits, and never overwrite open PDFs during extraction or existing files during split/image export. Regression coverage is in `PDFPageToolsTests`.
 - Presentation windows use detached read-only snapshots, never another writable file owner. Scope keyboard monitors to their window and remove monitors/observers, sharing access, and retained content on close. Reading layout changes must not dirty the PDF; restore older saved state without a layout field.
+- Markdown images must remain local and confined to the document folder. Keep descriptor-relative no-symlink reads, raster-only decoding, byte/pixel/image-count limits, and no remote URL loading.
 - Preserve native Markdown `NSTextView` selection, undo, UTF-16 ranges, scroll state, and non-dirty search highlighting.
 - Remote AI transfer requires explicit provider opt-in; accept only HTTP(S) endpoints without embedded credentials, query strings, or fragments. Keep credentials in Keychain, never logs/UserDefaults; treat excerpts as untrusted; provide no file-mutation tools; isolate context per tab and clear conversations on tab close.

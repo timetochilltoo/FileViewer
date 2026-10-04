@@ -157,6 +157,7 @@ struct MarkdownWorkspace: View {
     private var preview: some View {
         MarkdownPreviewTextView(
             markdown: document.text,
+            documentURL: document.url,
             searchText: model.searchText,
             searchMatchIndex: model.searchMatchIndex,
             initialScrollY: model.markdownPreviewScrollY,
@@ -186,6 +187,8 @@ struct MarkdownWorkspace: View {
                 .padding(.top, level == 1 ? 10 : 6)
         case .paragraph(let text):
             Text(inlineAttributed(text))
+        case .image(let reference):
+            Text(reference.alt)
         case .bullet(let text):
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("•")
@@ -302,6 +305,7 @@ struct MarkdownPreviewBlock: Identifiable {
         case blank
         case heading(level: Int, text: String)
         case paragraph(String)
+        case image(MarkdownLocalImage)
         case bullet(String)
         case numbered(number: Int, text: String)
         case task(checked: Bool, text: String)
@@ -348,6 +352,9 @@ struct MarkdownPreviewBlock: Identifiable {
                 lineIndex = table.nextIndex
             } else if trimmed.isEmpty {
                 blocks.append(.init(kind: .blank))
+                lineIndex += 1
+            } else if let image = MarkdownLocalImage.parse(rawLine) {
+                blocks.append(.init(kind: .image(image)))
                 lineIndex += 1
             } else if let heading = heading(from: trimmed) {
                 blocks.append(.init(kind: .heading(level: heading.level, text: heading.text)))
@@ -451,6 +458,7 @@ struct MarkdownPreviewBlock: Identifiable {
 
 struct MarkdownPreviewTextView: NSViewRepresentable {
     let markdown: String
+    let documentURL: URL?
     let searchText: String
     let searchMatchIndex: Int
     let initialScrollY: Double
@@ -493,11 +501,12 @@ struct MarkdownPreviewTextView: NSViewRepresentable {
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
         textView.autoresizingMask = [.width]
-        _ = context.coordinator.shouldRender(markdown: markdown, searchText: searchText, searchMatchIndex: searchMatchIndex)
+        _ = context.coordinator.shouldRender(markdown: markdown, searchText: searchText, searchMatchIndex: searchMatchIndex, documentURL: documentURL)
         textView.textStorage?.setAttributedString(Self.attributedPreview(
             markdown: markdown,
             searchText: searchText,
-            searchMatchIndex: searchMatchIndex
+            searchMatchIndex: searchMatchIndex,
+            documentURL: documentURL
         ))
 
         scrollView.documentView = textView
@@ -520,13 +529,14 @@ struct MarkdownPreviewTextView: NSViewRepresentable {
         guard let textView = scrollView.documentView as? NSTextView else { return }
         context.coordinator.onTextViewReady = onTextViewReady
         context.coordinator.onViewportChanged = onViewportChanged
-        if context.coordinator.shouldRender(markdown: markdown, searchText: searchText, searchMatchIndex: searchMatchIndex) {
+        if context.coordinator.shouldRender(markdown: markdown, searchText: searchText, searchMatchIndex: searchMatchIndex, documentURL: documentURL) {
             let selectedRange = textView.selectedRange()
             context.coordinator.isRendering = true
             textView.textStorage?.setAttributedString(Self.attributedPreview(
                 markdown: markdown,
                 searchText: searchText,
-                searchMatchIndex: searchMatchIndex
+                searchMatchIndex: searchMatchIndex,
+                documentURL: documentURL
             ))
             let textLength = (textView.string as NSString).length
             let safeLocation = min(selectedRange.location, textLength)
@@ -558,12 +568,14 @@ struct MarkdownPreviewTextView: NSViewRepresentable {
         private var renderedMarkdown: String?
         private var renderedSearch = ""
         private var renderedMatch = 0
+        private var renderedDocumentURL: URL?
 
-        func shouldRender(markdown: String, searchText: String, searchMatchIndex: Int) -> Bool {
-            guard renderedMarkdown != markdown || renderedSearch != searchText || renderedMatch != searchMatchIndex else { return false }
+        func shouldRender(markdown: String, searchText: String, searchMatchIndex: Int, documentURL: URL? = nil) -> Bool {
+            guard renderedMarkdown != markdown || renderedSearch != searchText || renderedMatch != searchMatchIndex || renderedDocumentURL != documentURL else { return false }
             renderedMarkdown = markdown
             renderedSearch = searchText
             renderedMatch = searchMatchIndex
+            renderedDocumentURL = documentURL
             return true
         }
 
@@ -735,7 +747,8 @@ struct MarkdownPreviewTextView: NSViewRepresentable {
     static func attributedPreview(
         markdown: String,
         searchText: String,
-        searchMatchIndex: Int
+        searchMatchIndex: Int,
+        documentURL: URL? = nil
     ) -> NSAttributedString {
         let output = NSMutableAttributedString()
         let paragraphStyle = NSMutableParagraphStyle()
@@ -745,6 +758,8 @@ struct MarkdownPreviewTextView: NSViewRepresentable {
 
         let bodyFont = NSFont.systemFont(ofSize: NSFont.systemFontSize + 2)
         let secondaryColor = NSColor.secondaryLabelColor
+        var imageBudget = 40 * 1024 * 1024
+        var imageCount = 0
 
         for block in MarkdownPreviewBlock.parse(markdown) {
             switch block.kind {
@@ -768,6 +783,22 @@ struct MarkdownPreviewTextView: NSViewRepresentable {
                     paragraphStyle: paragraphStyle
                 )
                 output.append(NSAttributedString(string: "\n\n"))
+            case .image(let reference):
+                imageCount += 1
+                if imageCount <= 20, let image = MarkdownImageLoader.load(reference, documentURL: documentURL, remainingBytes: &imageBudget) {
+                    let attachment = NSTextAttachment()
+                    attachment.attachmentCell = MarkdownImageCell(imageCell: image)
+                    output.append(NSAttributedString(attachment: attachment))
+                    output.append(NSAttributedString(string: "\n"))
+                    if !reference.alt.isEmpty {
+                        output.append(NSAttributedString(string: reference.alt + "\n", attributes: baseAttributes(font: .systemFont(ofSize: 12), color: secondaryColor, paragraphStyle: paragraphStyle)))
+                    }
+                } else {
+                    let explanation = documentURL == nil ? "Save this Markdown file to load local images" : "Image unavailable or blocked"
+                    let label = reference.alt.isEmpty ? "Image" : reference.alt
+                    output.append(NSAttributedString(string: "[\(label) — \(explanation)]\n", attributes: baseAttributes(font: bodyFont, color: secondaryColor, paragraphStyle: paragraphStyle)))
+                }
+                output.append(NSAttributedString(string: "\n"))
             case .bullet(let text):
                 output.append(NSAttributedString(
                     string: "• ",

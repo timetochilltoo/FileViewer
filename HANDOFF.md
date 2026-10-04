@@ -3,12 +3,20 @@
 Last updated: 2026-10-04
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
-Current branch at time of writing: `codex/markdown-code-preview`
-Git is authoritative for the current commit. This session implements the code-block part of Markdown fidelity, based on the completed reading/presentation branch.
+Current branch at time of writing: `codex/markdown-local-images`
+Git is authoritative for the current commit. This session implements local Markdown images, based on the completed code-preview branch.
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
-## Resume summary (2026-10-04)
+## Resume summary (2026-10-04, local images)
+
+- Local raster images render in the native Markdown Preview/Split workspace. Standalone `![Alt](images/picture.png)` lines produce a selectable text attachment with a readable alt-text caption. Relative paths resolve from the saved document folder; angle-bracket destinations support spaces, percent-encoded paths and balanced parentheses work, and optional titles are accepted. Images fit the pane width with preserved aspect ratio, capped at 640 points wide/480 points tall. Missing/blocked images show placeholders; unsaved Markdown prompts saving before loading images. Image syntax inside fenced code remains literal.
+- `MarkdownLocalImage.swift` contains parsing, confined URL resolution, bounded raster decoding, and a resizing TextKit attachment cell. Remote/data/network URLs, embedded credentials, query strings, fragments, paths outside the document folder, and symlinks are rejected. Descriptor-relative `openat` walks with `O_NOFOLLOW` prevent traversal through symlink directories or files; `fstat` requires regular files, and nonblocking open avoids waiting on special files. No remote request or NSImage URL loader is used. PNG/JPEG/GIF/TIFF/HEIC/WebP/BMP data is allowed, first frame only; SVG/HTML and PDF are excluded.
+- Input limits are 20 MiB per file, 40 million source pixels, 1200-pixel decoded thumbnails, and 20 images/40 MiB input per render. `MarkdownWorkspace.swift` passes each tab's document URL to the renderer and includes that URL in render invalidation, so Save As/newly saved documents use their new folder. Source text, native Undo, selection, scroll state, search, and existing code Copy actions keep their established behavior. No durable image cache or AI image upload was introduced.
+- `MarkdownLocalImageTests` adds four tests for syntax/path confinement (including encoded traversal), valid raster decoding, byte budgets and oversized files, file/directory symlinks, missing/non-image files, bounded attachment count, captions/search, code literals, unsaved placeholders, URL-sensitive invalidation, and narrow-container sizing. `swift test --jobs 1` passed 61 tests. Debug packaging/incremental build, strict signature, version/build 0.19/19, and diff checks passed. Native checks on disposable `build/Image Preview Sample/Image Sample.md` confirmed actual image/caption rendering, downscaling in Split, readable missing/remote placeholders, and literal code. No personal documents were changed.
+- Delivered and launched Debug `build/FileViewer 0.19.app`; stable build instructions are in README. This milestone is committed/pushed on its own feature branch; main is not merged. Markdown fidelity/templates remains in progress: richer tables/task lists, heading-to-source navigation, then templates are next. Inline images within paragraphs, reference definitions, HTML/SVG, animated playback, external-image file watching, and complete CommonMark parsing remain deferred. Reload external image changes by switching view modes/reopening. Preserve the previous Split-loop correction and all PDF/Library/AI safety constraints.
+
+## Previous Markdown code-preview update (2026-10-04)
 
 - The first Markdown fidelity slice is implemented: native Preview/Split code blocks show a plain language label (or Code when absent) and a visible Copy Code link. Clicking it copies only that block's content, preserving indentation, tabs, blank lines, and Unicode, without its label or surrounding fences. The source remains unchanged, and code is never executed. Native text selection, formatting, and search still use the existing NSTextView bridge. No remote services or new dependencies are involved.
 - `MarkdownCodeFence.swift` handles backtick and tilde fences of at least three matching markers, up to three leading spaces, optional info strings, and closing markers at least as long as the opener with only trailing whitespace. Shorter/different markers and apparent closing fences with trailing text remain literal code. Unclosed blocks render through end of document. The label is the first info token, rendered as plain text; syntax coloring is not implemented. Content preserves interior line breaks; the separator line break before a closing fence is omitted from copied code.
@@ -106,7 +114,7 @@ The repo still contains an older React/Vite prototype (`src/`, `dist/`, `package
 - Packaged development app path:
 
 ```text
-/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.17.app
+/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.19.app
 ```
 
 Build commands:
@@ -120,7 +128,7 @@ bash scripts/package_app.sh debug
 `scripts/package_app.sh`:
 
 1. builds the requested native configuration (`debug` by default; `release` is accepted)
-2. creates `build/FileViewer 0.17.app`
+2. creates `build/FileViewer 0.19.app`
 3. generates `AppIcon.icns` from `Resources/fileviewer-light-marker-lines.webp` using Python/Pillow
 4. writes `Info.plist`
 5. ad-hoc signs the app with `codesign --force --deep --sign -`
