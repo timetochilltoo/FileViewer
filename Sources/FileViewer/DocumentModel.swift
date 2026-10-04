@@ -2111,6 +2111,27 @@ final class AppModel: ObservableObject {
         }
     }
 
+    func exportMarkdown(_ format: MarkdownExportFormat) {
+        guard case .markdown(let markdown) = document else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [format == .pdf ? .pdf : .html]
+        panel.nameFieldStringValue = (markdown.name as NSString).deletingPathExtension + "." + format.rawValue
+        panel.message = "Export current Markdown content. Choose a new filename; existing files will not be overwritten."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            guard !FileViewerWindowRegistry.shared.hasOpenDocument(at: url), !containsOpenDocument(url: url) else { throw MarkdownExportError.destinationExists }
+            let data = try MarkdownExport.data(markdown: markdown.text, title: markdown.name, documentURL: markdown.url, format: format)
+            try MarkdownExport.write(data, format: format, to: url)
+            statusMessage = "Exported " + url.lastPathComponent
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Markdown Export Failed"
+            alert.informativeText = error.localizedDescription
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+    }
+
     func printDocument() {
         switch document {
         case .pdf(let pdf):

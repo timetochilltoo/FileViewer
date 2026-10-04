@@ -362,7 +362,7 @@ The original viewer MVP and later PDF annotation/form and AI milestones are impl
 - Markdown preview: local raster images, bordered/aligned tables with escaped-pipe handling, language labels, Copy Code, and backtick/tilde fence handling are implemented. Contents navigation to headings in Source/Preview is implemented; syntax coloring remains optional.
 - PDF workflow: fullscreen presentation with keyboard navigation and a laser pointer, selectable single-page/two-page reading layouts, and page duplicate/delete/reorder/extract/split/merge/insert are implemented. Extended presentation features such as a presenter display and automatic timing remain future work.
 - PDF annotations: author and timestamp metadata.
-- Export: Markdown-to-PDF/HTML and advanced PDF operations remain future work. Selected-page PDF extraction, individual-page splitting, and PNG export are implemented.
+- Export: Markdown-to-PDF/HTML, selected-page PDF extraction, individual-page splitting, and PNG export are implemented. Advanced PDF conversion remains future work.
 - Advanced Markdown: Mermaid and math rendering.
 - AI: richer retrieval/embedding search, complete-document hierarchical summaries, conversation persistence, clickable citations, and broader cache invalidation. Selection actions and the PDF per-tab extraction/index cache are implemented.
 - Verification: focused UI/sample-file tests for PDF outline/search/annotation/forms, multi-window restoration, and live AI streaming/error states.
@@ -375,7 +375,7 @@ The active build plan deliberately targets local, single-user Mac workflows. Clo
 2. **PDF page tools — implemented** — thumbnail multi-selection, reorder through a destination-page dialog/end action, duplicate, confirmed delete, extract/split, insert/merge PDFs, and PNG export. Structural edits share chronological Undo/Redo with annotations and use the existing atomic-save and external-change protections. Drag reordering and blank-page templates remain possible follow-ups.
 3. **Reading and presentation — implemented** — native fullscreen read-only presentation with page controls, arrow/Space/Page Up/Down/Home/End navigation, Escape exit, and a temporary laser pointer. Continuous, single-page, and two-page reading layouts are tab-local and remembered per file. The presentation snapshot preserves unsaved edits and never changes the writable document or its reading position. Presenter displays, auto-advance timing, and book-style cover-page pairing remain possible follow-ups.
 4. **Markdown fidelity and templates — core implemented** — local raster images, bordered/aligned tables, code language labels, Copy Code, and robust fenced blocks are implemented. Heading navigation is implemented. User-managed Markdown/PDF templates are implemented through File > New from Template… (import, snapshot current content, create independent copies, and Trash). Interactive task-list polish and syntax coloring remain optional.
-5. **Export workflow** — selected/current PDF page extraction/splitting and PNG export are implemented; Markdown as PDF/HTML remains future work.
+5. **Export workflow — implemented core** — Markdown to searchable A4 PDF/self-contained HTML, selected/current PDF page extraction/splitting, and PNG export. Exports preserve source state and refuse existing/open destinations; PDF/HTML verification precedes final placement.
 
 ### Phase B — medium-effort features with optional hardware
 

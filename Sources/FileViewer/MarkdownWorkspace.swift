@@ -725,7 +725,8 @@ struct MarkdownPreviewTextView: NSViewRepresentable {
         markdown: String,
         searchText: String,
         searchMatchIndex: Int,
-        documentURL: URL? = nil
+        documentURL: URL? = nil,
+        forExport: Bool = false
     ) -> NSAttributedString {
         let output = NSMutableAttributedString()
         let paragraphStyle = NSMutableParagraphStyle()
@@ -837,12 +838,12 @@ struct MarkdownPreviewTextView: NSViewRepresentable {
                     string: (code.language.isEmpty ? "Code" : code.language) + "    ",
                     attributes: baseAttributes(font: .systemFont(ofSize: 12, weight: .semibold), color: secondaryColor, paragraphStyle: headerStyle)
                 ))
-                output.append(NSAttributedString(string: "Copy Code", attributes: [
+                if !forExport { output.append(NSAttributedString(string: "Copy Code", attributes: [
                     .font: NSFont.systemFont(ofSize: 12, weight: .medium),
                     .link: URL(string: "fileviewer-copy-code://block")!,
                     .fileViewerCodeContent: code.text,
                     .paragraphStyle: headerStyle
-                ]))
+                ])) }
                 output.append(NSAttributedString(string: "\n"))
                 let codeStyle = paragraphStyle.mutableCopy() as! NSMutableParagraphStyle
                 codeStyle.lineSpacing = 2

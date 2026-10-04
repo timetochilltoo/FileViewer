@@ -201,8 +201,9 @@ Recommended:
 - Further GitHub-Flavored Markdown compatibility. The native lightweight parser now renders tables using TextKit table blocks and task lists using checkbox glyphs.
 - Fenced code blocks support backtick and tilde markers (three or more), matching closing markers at least as long as the opening fence, and an optional language label. Shorter/different markers inside a block remain literal code.
 - Copy Code in each preview block copies only its content, preserving indentation, blank lines, and Unicode; it does not edit the source or execute the code. The renderer-generated action is handled locally, not opened as an external URL. Language labels are plain text, without syntax coloring.
-- Export Markdown to PDF.
-- Export Markdown to HTML.
+- File > Export Markdown > Export as PDF… produces searchable A4 pages with 36-point margins using detached native Preview text, including current edits, images and tables. Breaks align to text lines where possible; tall table rows may span pages. Export omits app-only Copy Code controls and search highlighting. Source text, selection, undo, dirty state and reading position stay unchanged.
+- Export as HTML… produces self-contained UTF-8 HTML with headings, lists/tasks, quotes, code, aligned tables and basic inline formatting. Raw document HTML is escaped; links allow only HTTP(S)/mailto. A restrictive Content Security Policy blocks scripts and external resource loads. Allowed local images are bounded raster PNG embeds using existing no-symlink confinement; unavailable/remote images show placeholders. No scripts, external styles/fonts, web view or network request are used for export.
+- Export supports Markdown up to 5 MiB and native PDFs up to 1000 pages. Choose a new local destination with the appropriate extension; existing/open files are refused, including write-time collisions. Temporary output is verified before final placement and cleaned on cancellation/failure. Native PDF printing has a temporary render artifact that is also removed. Export uses the current lightweight parser; full CommonMark/GFM, Mermaid and math rendering remain deferred.
 - Mermaid diagram rendering.
 - Math rendering using KaTeX or MathJax.
 - Front matter display or hiding.
@@ -423,7 +424,7 @@ The MVP should not include:
 
 ### Version 0.5: Export and Advanced Markdown
 
-- Markdown to PDF/HTML export, Mermaid diagrams, and math rendering remain deferred.
+- Markdown to PDF/HTML export is implemented. Mermaid diagrams and math rendering remain deferred.
 
 ### Version 0.6+: Mac-first post-MVP workspace
 

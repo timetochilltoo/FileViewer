@@ -96,6 +96,14 @@ struct FileViewerCommands: Commands {
             .disabled(activeModel?.isMarkdownDocument != true && activeModel?.isPDFDocument != true)
         }
 
+        CommandGroup(after: .saveItem) {
+            Menu("Export Markdown") {
+                Button("Export as PDF…") { activeModel?.exportMarkdown(.pdf) }
+                Button("Export as HTML…") { activeModel?.exportMarkdown(.html) }
+            }
+            .disabled(activeModel?.isMarkdownDocument != true)
+        }
+
         CommandGroup(replacing: .printItem) {
             Button("Print...") {
                 activeModel?.printDocument()

@@ -23,6 +23,7 @@ Current MVP build includes:
 - Choose the default Markdown Preview, Source, or Split view from **FileViewer > Settings…**.
 - Markdown editing.
 - Markdown save and save-as.
+- **File > Export Markdown > Export as PDF… / Export as HTML…** exports current content including edits to a new local file. PDF uses searchable native A4 pages; HTML is self-contained with embedded permitted local images. Existing/open destinations are refused; the source and view state stay unchanged.
 - Unsaved Markdown close confirmation for tabs and windows.
 - Markdown search current/total count, previous/next navigation, and highlighting in both Preview and Source modes. Source mode highlights raw Markdown text without changing the document.
 - Beginner-friendly Markdown formatting controls through a visible Format dropdown, icon buttons, source-editor right-click actions, and menu commands for common syntax:
@@ -142,12 +143,12 @@ The suite verifies Markdown dirty-state behavior, file-version change detection,
 The current development app bundle is here:
 
 ```text
-build/FileViewer 0.22.app
+build/FileViewer 0.23.app
 ```
 
 It is built from the Swift executable and signed locally with an ad-hoc development signature. The package script defaults to a native Debug build; pass `release` when a Release bundle is needed.
 
-The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.22` and `By Patrick Shi`.
+The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.23` and `By Patrick Shi`.
 
 To rebuild the app bundle:
 

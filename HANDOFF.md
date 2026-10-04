@@ -1,14 +1,23 @@
 # FileViewer Handoff
 
-Last updated: 2026-10-04
+Last updated: 2026-10-05
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
-Current branch at time of writing: `codex/document-templates`
-Git is authoritative for the current commit. This session implements reusable local document templates, based on the completed heading-navigation branch.
+Current branch at time of writing: `codex/markdown-export`
+Git is authoritative for the current commit. This session implements Markdown PDF/HTML export, based on the completed template branch.
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
-## Resume summary (2026-10-04, templates)
+## Resume summary (2026-10-05, Markdown export)
+
+- **File > Export Markdown > Export as PDF… / Export as HTML…** is available for the active Markdown document. The actions capture current content, including edits, and ask for a new local destination. Export does not replace the source tab, change its save baseline, selection, undo, view mode, or reading position. Cancel keeps the current document open. Existing/open destinations are refused; failed generation/write shows an alert. New output remains a separate file and is not automatically opened or added to the Library.
+- `MarkdownExport.swift` implements both formats without new dependencies or network services. Native PDF export uses detached Preview attributed text, with search disabled and app-only Copy Code controls omitted through the new `forExport` renderer option. It lays out text/images/tables at 523 points wide and prints A4 pages (595×842 points) with 36-point margins. A read-only print view supplies explicit page rectangles aligned to line starts where possible. AppKit's normal print-to-PDF save operation honors the page range; the direct PDF drawing operation was rejected during testing because it emitted one oversized page. Temporary render output is removed after success/failure, and PDFKit verifies the expected page count.
+- HTML export generates semantic headings, paragraphs, lists/tasks, quotes, fenced code, aligned tables, and basic bold/italic/code/underline/link formatting from the lightweight parser. Raw document HTML, title, labels, and attributes are escaped. Links allow only HTTP(S)/mailto; no relative/file/javascript links are emitted. A restrictive CSP blocks scripts, external resources, base URLs, and form actions. CSS is bundled inline. Permitted local images use the existing confined no-symlink/bounded raster loader and are embedded as PNG data; blocked/missing images show placeholders. This produces a self-contained file without copying resource folders or fetching remote images.
+- Input is capped at 5 MiB and native PDF at 1000 pages. The writer refuses existing filenames (including placement-time collisions), stages output in the destination folder, verifies PDF page counts or exact UTF-8 HTML bytes, and moves it into place without overwriting. Temporary files are cleaned. Existing per-window/tab ownership, unsaved/conflict prompts, PDF chronological undo, Library cache opt-in, and AI provider/context protections remain unchanged. Export follows the current lightweight Markdown parser rather than full CommonMark/GFM. Long table rows can span pages; complex table pagination, header repetition, nested formatting, Mermaid, and math remain future work.
+- Validation: incremental build and full `swift test --jobs 1` passed 75 tests. Focused `--filter MarkdownExportTests` passed four tests again after strengthening pagination coverage: all 160 sample paragraphs occur exactly once, first/final text survives, pages are A4, app controls are absent, untrusted HTML/links are escaped/filtered, local images embed while outside paths block, and existing-file/failure cleanup protections hold. Debug packaging, strict codesign, metadata 0.23/23, and diff checks passed. Native checks with disposable `build/Export Demo.md` confirmed menu/dialog actions, both exported filenames/status, unchanged source, and PDF typography/table wrapping/alignment/code content. Browser security policy prohibits local file pages, so HTML browser rendering was not manually checked; no workaround was attempted.
+- Delivered/launched Debug `build/FileViewer 0.23.app`, with the disposable source/exported PDF visible. See README for stable build/run guidance. This milestone is committed/pushed on its feature branch; main remains unmerged. Core Phase A export is implemented. Recommended next: on-device scanned-PDF OCR (useful without pen/tablet hardware), while keeping extracted text local and preserving source pages. Pointer/tablet enhancements, audio notes, focused AI study helpers, filesystem watching, and optional Markdown polish remain future work.
+
+## Previous template update (2026-10-04)
 
 - **File > New from Template…** opens a native template-manager sheet; the empty screen also offers the button beside Open File/New Markdown. The manager can import one local Markdown/PDF file, save current content under a chosen name, create a fresh document, and confirm moving a template to macOS Trash. Duplicate names get numbered suffixes. Imported/saved templates are independent snapshots; later edits to an original or created document do not alter the template. No network, cloud service, or new dependency is involved.
 - `DocumentTemplates.swift` stores reusable files in `~/Library/Application Support/FileViewer/Templates`, enforcing folder 0700 and new file 0600 permissions. Hidden staging files are moved into unused names without overwriting existing templates. Lists use bounded metadata enumeration (up to 5000 entries); contents are revalidated on import/use, rather than bulk-parsing PDFs while listing. Local bounded descriptor reads reject symlink files, non-regular files, and non-file URLs; UTF-8 Markdown is limited to 5 MiB, PDFs to 100 MiB and at least one unlocked page. Invalid content produces an error; a regular corrupted template can still be moved to Trash. The in-process shared observable store updates manager lists across windows.
@@ -140,7 +149,7 @@ The repo still contains an older React/Vite prototype (`src/`, `dist/`, `package
 - Packaged development app path:
 
 ```text
-/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.22.app
+/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.23.app
 ```
 
 Build commands:
@@ -154,7 +163,7 @@ bash scripts/package_app.sh debug
 `scripts/package_app.sh`:
 
 1. builds the requested native configuration (`debug` by default; `release` is accepted)
-2. creates `build/FileViewer 0.22.app`
+2. creates `build/FileViewer 0.23.app`
 3. generates `AppIcon.icns` from `Resources/fileviewer-light-marker-lines.webp` using Python/Pillow
 4. writes `Info.plist`
 5. ad-hoc signs the app with `codesign --force --deep --sign -`
