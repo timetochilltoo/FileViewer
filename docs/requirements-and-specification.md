@@ -294,6 +294,15 @@ Implemented:
 - Extract selected pages into one PDF, split selected pages into individual PDFs, and export selected pages as PNG images with a maximum 1600-pixel dimension. Split/image exports refuse existing filenames; an export failure keeps completed outputs and reports the stopping page.
 - Page edits remain in memory until Save and share chronological Undo/Redo with annotations. Safe saving and external-file conflict checks apply. Selection belongs to each tab; structural changes cancel active AI generation and invalidate the PDF retrieval cache. Saved/exported PDFs exclude temporary view rotation.
 
+### Local scanned-PDF text recognition
+
+- **PDF > Recognize Text** offers selected pages (falling back to the current page) or all pages. The Pages sidebar/toolbar Page Tools menu also provides selected-page recognition.
+- Apple Vision runs locally on a worker using a detached snapshot of current PDF content, excluding temporary reading rotation. No source pages, annotations, save baseline, or reading state change.
+- A progress sheet supports cancellation and review before **Open as Markdown** creates a clean temporary tab. Save As explicitly persists it; saved Markdown can be added to the Library for existing indexing/search. Closing an unchanged temporary result discards it without a save prompt, matching AI response tabs.
+- Recognition is capped at 100 pages/job, a 100 MiB PDF snapshot, 2,400 pixels per rendered page, and 5 MiB output. Cancel/close discards results; a current synchronous Vision page may finish before cancellation takes effect. No partial result is opened after failure/cancel.
+- Results contain original page-number headings and literal fenced text. Language detection uses Vision automatically; accuracy and column/table reading order depend on the scan. Text may need correction before reuse. OCR invokes no AI provider; explicit AI actions in the resulting Markdown follow existing transfer approvals.
+- No searchable PDF layer, automatic OCR Library index, retained page-to-PDF links, captured-ink conversion, or handwriting guarantees in this slice.
+
 Still deferred: drag reordering, blank-page insertion, and PDF compression/watermarks.
 
 Recommended:

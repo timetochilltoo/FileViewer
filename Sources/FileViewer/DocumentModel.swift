@@ -588,6 +588,7 @@ final class AppModel: ObservableObject {
     @Published var pdfAnnotationStrokeWidth: PDFAnnotationStrokeWidth = .medium
     @Published var pdfAnnotationFilter: PDFAnnotationFilter = .all
     @Published var templatesPresented = false
+    @Published var pdfOCRJob: PDFOCRJob?
     @Published var markdownEditorFocusRequest = UUID()
     @Published var aiPanelVisible = false
     @Published var aiPanelWidth: CGFloat = 380
@@ -1034,6 +1035,24 @@ final class AppModel: ObservableObject {
         statusMessage = "Opened AI response in Markdown."
     }
 
+    func recognizePDFText(allPages: Bool) {
+        guard pdfOCRJob == nil, let tab = selectedTab, case .pdf(let pdf) = tab.document else { return }
+        let pages = allPages ? Array(0..<pdf.document.pageCount) : selectedPDFPages.sorted()
+        do {
+            guard !pages.isEmpty, !pdf.document.isLocked else { throw PDFOCRError.invalidInput }
+            guard pages.count <= PDFOCR.maximumPages else { throw PDFOCRError.tooLarge }
+            guard let snapshot = pdf.document.fileViewerPersistedCopy(removingViewRotation: tab.pdfViewRotation),
+                  let data = snapshot.dataRepresentation() else { throw PDFOCRError.invalidInput }
+            guard data.count <= PDFOCR.maximumBytes else { throw PDFOCRError.tooLarge }
+            pdfOCRJob = PDFOCRJob(tabID: tab.id, name: pdf.url.lastPathComponent, data: data, pages: pages)
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Text recognition could not start"
+            alert.informativeText = error.localizedDescription
+            alert.runModal()
+        }
+    }
+
     func openWithPanel() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = Self.supportedOpenContentTypes
@@ -1193,6 +1212,7 @@ final class AppModel: ObservableObject {
         savePDFStateIfNeeded(for: tabs[index])
         saveMarkdownStateIfNeeded(for: tabs[index])
         let id = tabs[index].id
+        if pdfOCRJob?.tabID == id { pdfOCRJob = nil }
         pdfAnnotationActionUndoStacks[id] = nil
         pdfAnnotationActionRedoStacks[id] = nil
         pendingAISelections[id] = nil
@@ -1617,6 +1637,7 @@ final class AppModel: ObservableObject {
     private func installPageEdit(_ document: PDFDocument, selection: Set<Int>, page: Int,
                                  viewRotation: Int, at index: Int) {
         guard tabs.indices.contains(index), case .pdf(let previous) = tabs[index].document else { return }
+        if pdfOCRJob?.tabID == tabs[index].id { pdfOCRJob = nil }
         tabs[index].pdfPage = min(max(1, page), max(1, document.pageCount))
         tabs[index].pdfPageCount = document.pageCount
         tabs[index].pdfPageSelection = selection.filter { (0..<document.pageCount).contains($0) }

@@ -7,6 +7,7 @@ struct PDFPageActions: View {
     var body: some View {
         Button("Show Pages Sidebar") { model.showPDFPages() }
         Button("Select All Pages") { model.selectedPDFPages = Set(0..<model.pdfPageCount) }
+        Button("Recognize Selected Pages as Markdown…") { model.recognizePDFText(allPages: false) }
         Divider()
         Button("Duplicate Selected Pages") { model.editPDFPages(.duplicate) }
         Button("Delete Selected Pages…") { model.deleteSelectedPDFPages() }

@@ -275,6 +275,12 @@ struct FileViewerCommands: Commands {
         }
 
         CommandMenu("PDF") {
+            Menu("Recognize Text") {
+                Button("Selected Pages as Markdown…") { activeModel?.recognizePDFText(allPages: false) }
+                Button("All Pages as Markdown…") { activeModel?.recognizePDFText(allPages: true) }
+            }
+            .disabled(activeModel?.isPDFDocument != true || activeModel?.pdfOCRJob != nil)
+            Divider()
             Menu("Page Tools") {
                 if let activeModel { PDFPageActions(model: activeModel) }
             }

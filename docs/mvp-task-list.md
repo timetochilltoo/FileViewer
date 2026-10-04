@@ -380,7 +380,7 @@ The active build plan deliberately targets local, single-user Mac workflows. Clo
 ### Phase B — medium-effort features with optional hardware
 
 1. **Pointer and tablet annotation** — stroke smoothing, lasso/eraser/object selection, and optional AppKit pressure/tilt input for external tablets; keep mouse/trackpad as a usable baseline.
-2. **On-device OCR** — recognize scanned PDF text and captured ink locally, index results, and offer handwriting-to-text while preserving original strokes.
+2. **On-device OCR (scanned-text slice implemented)** — selected/all PDF pages recognize locally with Apple Vision into temporary Markdown, preserving original pages. Saved Markdown can use existing Library indexing/search and explicit AI actions. Automatic scanned-PDF indexing, a searchable PDF layer, captured-ink recognition, and handwriting-to-text remain deferred.
 3. **Audio notes** — local recording, page/selection timestamps, playback, and optional on-device transcription.
 4. **AI study helpers** — generate Markdown/CSV flashcards, summaries with stable source links, and Mermaid mind-map drafts from selected document context.
 5. **Focused UI/sample tests** — exercise the new flows with real PDFs and Markdown fixtures.

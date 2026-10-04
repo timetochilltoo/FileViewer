@@ -299,6 +299,7 @@ final class FileViewerWindowRegistry {
             .compactMap(\.value)
             .first { registeredWindows[ObjectIdentifier($0)]?.value === window }
         if let model {
+            model.pdfOCRJob = nil
             registeredModels.removeAll { $0.value === model }
             registeredWindows.removeValue(forKey: ObjectIdentifier(model))
         }

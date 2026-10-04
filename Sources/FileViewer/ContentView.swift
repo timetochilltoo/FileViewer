@@ -90,6 +90,9 @@ struct ContentView: View {
         .sheet(isPresented: $model.templatesPresented) {
             DocumentTemplatesView(model: model)
         }
+        .sheet(item: $model.pdfOCRJob) { job in
+            PDFOCRView(model: model, job: job)
+        }
         .focusedSceneValue(\.fileViewerModel, model)
         .focusedSceneObject(model)
         .background(WindowRegistrationView(model: model))
