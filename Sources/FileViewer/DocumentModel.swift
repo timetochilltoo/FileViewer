@@ -587,6 +587,7 @@ final class AppModel: ObservableObject {
     @Published var pdfAnnotationColor = Color.yellow
     @Published var pdfAnnotationStrokeWidth: PDFAnnotationStrokeWidth = .medium
     @Published var pdfAnnotationFilter: PDFAnnotationFilter = .all
+    @Published var templatesPresented = false
     @Published var markdownEditorFocusRequest = UUID()
     @Published var aiPanelVisible = false
     @Published var aiPanelWidth: CGFloat = 380
@@ -960,6 +961,44 @@ final class AppModel: ObservableObject {
             object: object,
             userInfo: [PDFNotificationUserInfo.tabID: selectedTabID]
         )
+    }
+
+    func currentTemplateSnapshot() throws -> (data: Data, kind: DocumentTemplate.Kind, name: String) {
+        guard let tab = selectedTab else { throw TemplateError.invalidFile }
+        let data: Data
+        let kind: DocumentTemplate.Kind
+        switch tab.document {
+        case .markdown(let markdown):
+            data = Data(markdown.text.utf8)
+            kind = .markdown
+        case .pdf(let pdf):
+            guard !pdf.document.isLocked,
+                  let snapshot = pdf.document.fileViewerPersistedCopy(removingViewRotation: tab.pdfViewRotation)?.dataRepresentation() else { throw TemplateError.invalidFile }
+            data = snapshot
+            kind = .pdf
+        }
+        try DocumentTemplateStore.validate(data, kind: kind)
+        return (data, kind, tab.document.name)
+    }
+
+    func createMarkdownFromTemplate(data: Data, name: String) throws {
+        try DocumentTemplateStore.validate(data, kind: .markdown)
+        guard let text = String(data: data, encoding: .utf8) else { throw TemplateError.invalidFile }
+        appendTab(.markdown(MarkdownDocument(url: nil, untitledName: uniqueMarkdownName(name + ".md"), text: text, savedText: "")))
+        markdownMode = MarkdownPreferences.defaultMode()
+        sidebarMode = .contents
+        markdownEditorFocusRequest = UUID()
+        statusMessage = "Created Markdown from template. Save to keep this document."
+    }
+
+    func createPDFFromTemplate(data: Data, destination: URL) throws {
+        try DocumentTemplateStore.validate(data, kind: .pdf)
+        guard destination.isFileURL, destination.pathExtension.lowercased() == "pdf",
+              !FileViewerWindowRegistry.shared.hasOpenDocument(at: destination),
+              !containsOpenDocument(url: destination),
+              !FileManager.default.fileExists(atPath: destination.path) else { throw TemplateError.destinationExists }
+        guard let pdf = PDFDocument(data: data), writePDFAtomically(pdf, to: destination, allowOverwrite: false) else { throw TemplateError.unavailable }
+        open(url: destination)
     }
 
     func newMarkdownDocument() {

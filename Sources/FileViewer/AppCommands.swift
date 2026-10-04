@@ -35,6 +35,11 @@ struct FileViewerCommands: Commands {
             }
             .keyboardShortcut("n", modifiers: .command)
 
+            Button("New from Template…") {
+                activeModel?.templatesPresented = true
+            }
+            .disabled(activeModel == nil)
+
             Button("Open...") {
                 activeModel?.openWithPanel()
             }

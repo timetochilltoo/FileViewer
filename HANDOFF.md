@@ -3,12 +3,21 @@
 Last updated: 2026-10-04
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
-Current branch at time of writing: `codex/markdown-heading-navigation`
-Git is authoritative for the current commit. This session implements Markdown Contents navigation, based on the completed native-table branch.
+Current branch at time of writing: `codex/document-templates`
+Git is authoritative for the current commit. This session implements reusable local document templates, based on the completed heading-navigation branch.
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
-## Resume summary (2026-10-04, heading navigation)
+## Resume summary (2026-10-04, templates)
+
+- **File > New from Template…** opens a native template-manager sheet; the empty screen also offers the button beside Open File/New Markdown. The manager can import one local Markdown/PDF file, save current content under a chosen name, create a fresh document, and confirm moving a template to macOS Trash. Duplicate names get numbered suffixes. Imported/saved templates are independent snapshots; later edits to an original or created document do not alter the template. No network, cloud service, or new dependency is involved.
+- `DocumentTemplates.swift` stores reusable files in `~/Library/Application Support/FileViewer/Templates`, enforcing folder 0700 and new file 0600 permissions. Hidden staging files are moved into unused names without overwriting existing templates. Lists use bounded metadata enumeration (up to 5000 entries); contents are revalidated on import/use, rather than bulk-parsing PDFs while listing. Local bounded descriptor reads reject symlink files, non-regular files, and non-file URLs; UTF-8 Markdown is limited to 5 MiB, PDFs to 100 MiB and at least one unlocked page. Invalid content produces an error; a regular corrupted template can still be moved to Trash. The in-process shared observable store updates manager lists across windows.
+- `DocumentTemplatesView.swift` implements native import/save/name dialogs, list selection, errors, and confirmed recoverable removal. Current content is captured before the naming dialog, including unsaved edits. Markdown templates contain text only; image assets are not bundled, and images resolve using the new saved document folder. No rename editor is included: save/import under a new name and Trash the old copy. Generated ruled/blank-page designs, template asset bundles, sharing, and a marketplace remain outside scope.
+- `DocumentModel.swift` creates Markdown as a new untitled tab using the preferred view mode and an empty save baseline; nonempty templates prompt on unsaved close. PDF snapshots use detached persisted copies, retain edits/permanent rotation, and strip temporary view rotation. PDF creation asks for a new destination, rejects existing/open files, uses the verified atomic-save helper with overwrite disabled, then opens its independent writable copy. Cancel/error retains existing tabs and templates. Existing file ownership, prompts, conflict handling, chronological PDF Undo, and AI/Library/image protections remain in place.
+- Validation: incremental build passed; full `swift test --jobs 1` passed 71 tests including four template tests. Focused template tests passed again after the final private-folder/recoverable-removal adjustment. Tests cover persistence, numbered collisions, private file permissions, bounded/invalid inputs, symlink rejection, source snapshot independence, unsaved Markdown tabs, PDF rotation/annotations, and existing-destination protection. Final Debug packaging/incremental compile, strict codesign, metadata 0.22/22, and diff checks passed. Native checks used only disposable build samples: empty/populated manager layout, Markdown/PDF import, current-content save/collision naming, unsaved Markdown creation and close prompt, new PDF creation, and three confirmed Trash removals. Test templates were removed; source fixtures and the generated PDF copy remain under ignored build/. No personal documents were edited.
+- Delivered/launched Debug `build/FileViewer 0.22.app`, left on the empty screen. Stable commands are in README. This milestone is committed/pushed on its feature branch; main remains unmerged. The core Markdown fidelity/templates roadmap slice is implemented. Next recommended build slice: Markdown PDF/HTML export; task-list interaction/syntax coloring, filesystem watching, generated blank-page templates, and full CommonMark conformance remain optional future work.
+
+## Previous heading-navigation update (2026-10-04)
 
 - The Markdown Contents sidebar now has clickable full-width heading rows. Clicking a heading scrolls Source or Preview, and both visible panes in Split. Navigation preserves text, the current text selection, undo history, and dirty state. It does not switch view modes or move the editing caret. The current parser supports ATX headings; Setext headings and complete CommonMark parsing remain deferred. Sidebar titles retain their source inline markup, while Preview renders the existing basic inline formatting.
 - `MarkdownPreviewBlock` records UTF-16 source offsets for heading blocks. `AppModel.extractHeadings` now uses that same parser, so Contents and Preview agree on heading syntax and exclude fenced code. Repeated titles have distinct location-based IDs, avoiding the previous duplicate slug IDs. IDs update naturally after source edits. Offset calculation accounts for Unicode before headings. Other Markdown block parsing and table/image safety remain unchanged.
@@ -131,7 +140,7 @@ The repo still contains an older React/Vite prototype (`src/`, `dist/`, `package
 - Packaged development app path:
 
 ```text
-/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.21.app
+/Users/patrickshi/Documents/Codex/FileViewer/build/FileViewer 0.22.app
 ```
 
 Build commands:
@@ -145,7 +154,7 @@ bash scripts/package_app.sh debug
 `scripts/package_app.sh`:
 
 1. builds the requested native configuration (`debug` by default; `release` is accepted)
-2. creates `build/FileViewer 0.21.app`
+2. creates `build/FileViewer 0.22.app`
 3. generates `AppIcon.icns` from `Resources/fileviewer-light-marker-lines.webp` using Python/Pillow
 4. writes `Info.plist`
 5. ad-hoc signs the app with `codesign --force --deep --sign -`

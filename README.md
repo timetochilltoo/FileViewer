@@ -39,6 +39,7 @@ Current MVP build includes:
   - task list insertion/conversion
 - Help menu Markdown syntax guide.
 - Compact New Markdown button between the sidebar toggle and Open button, with the same action also available from **FileViewer > New Markdown Document** / Command-N.
+- **File > New from Template…** (also on the empty screen) opens the local template manager. Import Markdown/PDF files, save the current document including unsaved edits, or move templates to Trash. Markdown creates an unsaved tab; PDF creates a new saved copy and refuses existing destinations. Templates are stored privately under `~/Library/Application Support/FileViewer/Templates`; Markdown stores text only, without copying image assets.
 - PDF rendering.
 - PDF page navigation.
 - PDF reading layouts under **Display > PDF Reading Layout** (also in the toolbar Page Tools menu): Continuous Pages, Single Page, and Two-Page Spread, remembered per file. **Start Fullscreen Presentation…** opens a read-only snapshot at the current page with Previous/Next controls. Use arrows, Page Up/Down, Space (Shift-Space for previous), Home/End, P for the laser pointer, and Escape to exit. Presentation does not change the source document, reading position, or unsaved state.
@@ -141,12 +142,12 @@ The suite verifies Markdown dirty-state behavior, file-version change detection,
 The current development app bundle is here:
 
 ```text
-build/FileViewer 0.21.app
+build/FileViewer 0.22.app
 ```
 
 It is built from the Swift executable and signed locally with an ad-hoc development signature. The package script defaults to a native Debug build; pass `release` when a Release bundle is needed.
 
-The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.21` and `By Patrick Shi`.
+The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.22` and `By Patrick Shi`.
 
 To rebuild the app bundle:
 

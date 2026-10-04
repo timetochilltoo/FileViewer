@@ -87,6 +87,9 @@ struct ContentView: View {
             }
             return true
         }
+        .sheet(isPresented: $model.templatesPresented) {
+            DocumentTemplatesView(model: model)
+        }
         .focusedSceneValue(\.fileViewerModel, model)
         .focusedSceneObject(model)
         .background(WindowRegistrationView(model: model))
@@ -416,6 +419,8 @@ struct ContentView: View {
                 model.openWithPanel()
             } newMarkdown: {
                 model.newMarkdownDocument()
+            } templates: {
+                model.templatesPresented = true
             }
         }
     }
@@ -651,6 +656,7 @@ struct PDFToolbar: View {
 struct EmptyDocumentView: View {
     let open: () -> Void
     let newMarkdown: () -> Void
+    let templates: () -> Void
 
     var body: some View {
         VStack(spacing: 14) {
@@ -671,6 +677,9 @@ struct EmptyDocumentView: View {
                     Label("New Markdown", systemImage: "doc.badge.plus")
                 }
                 .buttonStyle(.bordered)
+
+                Button("New from Template…", action: templates)
+                    .buttonStyle(.bordered)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

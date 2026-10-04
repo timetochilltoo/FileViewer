@@ -175,6 +175,9 @@ Required:
 - Save Markdown changes.
 - Save Markdown as a new file.
 - Create a new unsaved Markdown document from the toolbar or File menu.
+- File > New from Template… opens a local template manager, also available on the empty screen. Import a local UTF-8 Markdown/PDF file, save the current content including edits under a chosen name, create a document, or confirm moving a template to Trash. Stored copies are independent of the original files. Duplicate names get numbered suffixes.
+- Templates live in `~/Library/Application Support/FileViewer/Templates` (new folder 0700, files 0600); import/use revalidates bounded regular files and rejects symlink files, non-file URLs, invalid UTF-8, locked/empty PDFs, Markdown over 5 MiB, and PDFs over 100 MiB. The manager lists at most 5000 local templates. Markdown templates contain text only, with local images resolved from the newly saved document folder.
+- Markdown creation opens an unsaved tab with normal Save/close prompts. PDF creation asks for a new `.pdf` destination, refuses existing/open files, verifies an atomic temporary save, and opens the independent writable copy. PDF snapshot templates preserve edits/permanent rotation and remove temporary view rotation. Cancel/failure retains the template and current tabs. Rename is currently handled by saving/importing under a new name and removing the old template.
 - Switch between preview, source, and split view.
 - Update preview while editing.
 - Show saved and unsaved state.
