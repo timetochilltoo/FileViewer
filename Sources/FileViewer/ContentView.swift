@@ -171,6 +171,7 @@ struct ContentView: View {
                     Text("Markdown View")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: true, vertical: false)
                     Picker("Markdown View", selection: Binding(
                         get: { model.markdownMode },
                         set: { model.setMarkdownMode($0) }
@@ -182,7 +183,8 @@ struct ContentView: View {
                     .labelsHidden()
                     .pickerStyle(.segmented)
                 }
-                .frame(minWidth: 250, idealWidth: 300, maxWidth: 340)
+                .frame(minWidth: 340, idealWidth: 360, maxWidth: 400)
+                .layoutPriority(1)
             }
 
             if case .pdf = model.document {

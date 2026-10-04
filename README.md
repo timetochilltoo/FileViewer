@@ -17,7 +17,7 @@ Current MVP build includes:
 - Markdown source view.
 - Markdown rendered preview.
 - Select text in Markdown preview and use formatting buttons to update the Markdown source.
-- Structured Markdown preview for headings, lists, quotes, code blocks, basic tables, task lists, and underline convenience.
+- Structured Markdown preview for headings, lists, quotes, code blocks, basic tables, task lists, and underline convenience. Fenced code blocks show a language label and Copy Code action; backtick/tilde fences and nested shorter fences are supported. Copying preserves the code indentation and Unicode without the label or surrounding fences.
 - Markdown split view.
 - Choose the default Markdown Preview, Source, or Split view from **FileViewer > Settings…**.
 - Markdown editing.
@@ -140,12 +140,12 @@ The suite verifies Markdown dirty-state behavior, file-version change detection,
 The current development app bundle is here:
 
 ```text
-build/FileViewer 0.17.app
+build/FileViewer 0.18.app
 ```
 
 It is built from the Swift executable and signed locally with an ad-hoc development signature. The package script defaults to a native Debug build; pass `release` when a Release bundle is needed.
 
-The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.17` and `By Patrick Shi`.
+The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.18` and `By Patrick Shi`.
 
 To rebuild the app bundle:
 

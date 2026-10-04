@@ -191,7 +191,8 @@ Recommended:
 
 - A richer text-editor bridge that can preserve cursor/selection state more predictably across SwiftUI refreshes.
 - A richer Markdown renderer for polished tables, local images, and more GitHub-Flavored-Markdown-compatible output. Native `AttributedString(markdown:)` parses many constructs but flattens tables/task lists, so the app currently uses its own lightweight parser for basic table and task-list preview support.
-- Copy code block contents.
+- Fenced code blocks support backtick and tilde markers (three or more), matching closing markers at least as long as the opening fence, and an optional language label. Shorter/different markers inside a block remain literal code.
+- Copy Code in each preview block copies only its content, preserving indentation, blank lines, and Unicode; it does not edit the source or execute the code. The renderer-generated action is handled locally, not opened as an external URL. Language labels are plain text, without syntax coloring.
 - Export Markdown to PDF.
 - Export Markdown to HTML.
 - Mermaid diagram rendering.

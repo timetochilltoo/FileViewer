@@ -212,8 +212,8 @@ struct MarkdownWorkspace: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.vertical, 2)
-        case .code(let text):
-            Text(text)
+        case .code(let code):
+            Text(code.text)
                 .font(.system(.body, design: .monospaced))
                 .textSelection(.enabled)
                 .padding(10)
@@ -293,7 +293,11 @@ struct MarkdownWorkspace: View {
     }
 }
 
-private struct MarkdownPreviewBlock: Identifiable {
+struct MarkdownPreviewBlock: Identifiable {
+    struct Code: Equatable {
+        let text: String
+        let language: String
+    }
     enum Kind {
         case blank
         case heading(level: Int, text: String)
@@ -302,7 +306,7 @@ private struct MarkdownPreviewBlock: Identifiable {
         case numbered(number: Int, text: String)
         case task(checked: Bool, text: String)
         case quote(String)
-        case code(String)
+        case code(Code)
         case table(rows: [[String]])
     }
 
@@ -311,7 +315,7 @@ private struct MarkdownPreviewBlock: Identifiable {
 
     static func parse(_ markdown: String) -> [MarkdownPreviewBlock] {
         var blocks: [MarkdownPreviewBlock] = []
-        var inCodeBlock = false
+        var fence: MarkdownCodeFence?
         var codeLines: [String] = []
 
         let lines = markdown.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
@@ -321,20 +325,20 @@ private struct MarkdownPreviewBlock: Identifiable {
             let rawLine = lines[lineIndex]
             let trimmed = rawLine.trimmingCharacters(in: .whitespaces)
 
-            if trimmed.hasPrefix("```") {
-                if inCodeBlock {
-                    blocks.append(.init(kind: .code(codeLines.joined(separator: "\n"))))
+            if let activeFence = fence {
+                if activeFence.closes(rawLine) {
+                    blocks.append(.init(kind: .code(Code(text: codeLines.joined(separator: "\n"), language: activeFence.language))))
                     codeLines = []
-                    inCodeBlock = false
+                    fence = nil
                 } else {
-                    inCodeBlock = true
+                    codeLines.append(rawLine)
                 }
                 lineIndex += 1
                 continue
             }
 
-            if inCodeBlock {
-                codeLines.append(rawLine)
+            if let openingFence = MarkdownCodeFence(opening: rawLine) {
+                fence = openingFence
                 lineIndex += 1
                 continue
             }
@@ -367,8 +371,8 @@ private struct MarkdownPreviewBlock: Identifiable {
             }
         }
 
-        if inCodeBlock {
-            blocks.append(.init(kind: .code(codeLines.joined(separator: "\n"))))
+        if let fence {
+            blocks.append(.init(kind: .code(Code(text: codeLines.joined(separator: "\n"), language: fence.language))))
         }
 
         return blocks.isEmpty ? [.init(kind: .blank)] : blocks
@@ -445,7 +449,7 @@ private struct MarkdownPreviewBlock: Identifiable {
     }
 }
 
-private struct MarkdownPreviewTextView: NSViewRepresentable {
+struct MarkdownPreviewTextView: NSViewRepresentable {
     let markdown: String
     let searchText: String
     let searchMatchIndex: Int
@@ -489,6 +493,7 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
         textView.autoresizingMask = [.width]
+        _ = context.coordinator.shouldRender(markdown: markdown, searchText: searchText, searchMatchIndex: searchMatchIndex)
         textView.textStorage?.setAttributedString(Self.attributedPreview(
             markdown: markdown,
             searchText: searchText,
@@ -515,16 +520,20 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
         guard let textView = scrollView.documentView as? NSTextView else { return }
         context.coordinator.onTextViewReady = onTextViewReady
         context.coordinator.onViewportChanged = onViewportChanged
-        let selectedRange = textView.selectedRange()
-        textView.textStorage?.setAttributedString(Self.attributedPreview(
-            markdown: markdown,
-            searchText: searchText,
-            searchMatchIndex: searchMatchIndex
-        ))
-        let textLength = (textView.string as NSString).length
-        let safeLocation = min(selectedRange.location, textLength)
-        let safeLength = min(selectedRange.length, max(0, textLength - safeLocation))
-        textView.setSelectedRange(NSRange(location: safeLocation, length: safeLength))
+        if context.coordinator.shouldRender(markdown: markdown, searchText: searchText, searchMatchIndex: searchMatchIndex) {
+            let selectedRange = textView.selectedRange()
+            context.coordinator.isRendering = true
+            textView.textStorage?.setAttributedString(Self.attributedPreview(
+                markdown: markdown,
+                searchText: searchText,
+                searchMatchIndex: searchMatchIndex
+            ))
+            let textLength = (textView.string as NSString).length
+            let safeLocation = min(selectedRange.location, textLength)
+            let safeLength = min(selectedRange.length, max(0, textLength - safeLocation))
+            textView.setSelectedRange(NSRange(location: safeLocation, length: safeLength))
+            context.coordinator.isRendering = false
+        }
         DispatchQueue.main.async {
             if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 context.coordinator.restoreInitialScrollIfNeeded()
@@ -545,6 +554,18 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
         private var didRestoreInitialScroll = false
         private var restoreAttempts = 0
         private var isObservingScroll = false
+        var isRendering = false
+        private var renderedMarkdown: String?
+        private var renderedSearch = ""
+        private var renderedMatch = 0
+
+        func shouldRender(markdown: String, searchText: String, searchMatchIndex: Int) -> Bool {
+            guard renderedMarkdown != markdown || renderedSearch != searchText || renderedMatch != searchMatchIndex else { return false }
+            renderedMarkdown = markdown
+            renderedSearch = searchText
+            renderedMatch = searchMatchIndex
+            return true
+        }
 
         init(
             initialScrollY: Double,
@@ -567,6 +588,18 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
 
         deinit {
             NotificationCenter.default.removeObserver(self)
+        }
+
+        func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
+            // Only an attributed action generated by this renderer can copy code.
+            // A document-supplied URL with the same scheme must not launch externally.
+            let url = (link as? URL) ?? (link as? String).flatMap(URL.init(string:))
+            guard url?.scheme == "fileviewer-copy-code" else { return false }
+            guard let storage = textView.textStorage, charIndex >= 0, charIndex < storage.length,
+                  let code = storage.attribute(.fileViewerCodeContent, at: charIndex, effectiveRange: nil) as? String else { return true }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(code, forType: .string)
+            return true
         }
 
         func startObservingScroll() {
@@ -626,6 +659,7 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
+            guard !isRendering else { return }
             if let textView = notification.object as? NSTextView {
                 onTextViewReady(textView)
             }
@@ -698,7 +732,7 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
         }
     }
 
-    private static func attributedPreview(
+    static func attributedPreview(
         markdown: String,
         searchText: String,
         searchMatchIndex: Int
@@ -786,14 +820,29 @@ private struct MarkdownPreviewTextView: NSViewRepresentable {
                     paragraphStyle: paragraphStyle
                 )
                 output.append(NSAttributedString(string: "\n\n"))
-            case .code(let text):
+            case .code(let code):
+                let headerStyle = paragraphStyle.mutableCopy() as! NSMutableParagraphStyle
+                headerStyle.paragraphSpacing = 4
                 output.append(NSAttributedString(
-                    string: text + "\n\n",
+                    string: (code.language.isEmpty ? "Code" : code.language) + "    ",
+                    attributes: baseAttributes(font: .systemFont(ofSize: 12, weight: .semibold), color: secondaryColor, paragraphStyle: headerStyle)
+                ))
+                output.append(NSAttributedString(string: "Copy Code", attributes: [
+                    .font: NSFont.systemFont(ofSize: 12, weight: .medium),
+                    .link: URL(string: "fileviewer-copy-code://block")!,
+                    .fileViewerCodeContent: code.text,
+                    .paragraphStyle: headerStyle
+                ]))
+                output.append(NSAttributedString(string: "\n"))
+                let codeStyle = paragraphStyle.mutableCopy() as! NSMutableParagraphStyle
+                codeStyle.lineSpacing = 2
+                output.append(NSAttributedString(
+                    string: code.text + "\n\n",
                     attributes: [
                         .font: NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular),
                         .foregroundColor: NSColor.labelColor,
                         .backgroundColor: NSColor.textBackgroundColor,
-                        .paragraphStyle: paragraphStyle
+                        .paragraphStyle: codeStyle
                     ]
                 ))
             case .table(let rows):

@@ -603,7 +603,8 @@ final class AppModel: ObservableObject {
     private weak var lastActiveMarkdownTextView: NSTextView?
     private var pdfAnnotationActionUndoStacks: [DocumentTab.ID: [PDFAnnotationUndoAction]] = [:]
     private var pdfAnnotationActionRedoStacks: [DocumentTab.ID: [PDFAnnotationUndoAction]] = [:]
-    private var lastMarkdownSelectionSignature: String?
+    private var lastMarkdownSourceSelectionSignature: String?
+    private var lastMarkdownPreviewSelectionSignature: String?
     private var pendingAISelections: [DocumentTab.ID: String] = [:]
     private var libraryEntries: [LibraryIndexEntry] = []
     private var libraryTagsByPath: [String: [String]] = [:]
@@ -2461,21 +2462,23 @@ final class AppModel: ObservableObject {
         lastActiveMarkdownTextView = textView
         lastActiveMarkdownSelectionKind = .source
         lastActiveMarkdownSelectionTabID = selectedTabID
-        publishMarkdownSelectionIfNeeded(from: textView)
+        publishMarkdownSelectionIfNeeded(from: textView, preview: false)
     }
 
     func rememberMarkdownPreviewTextView(_ textView: NSTextView) {
         lastActiveMarkdownPreviewTextView = textView
         lastActiveMarkdownSelectionKind = .preview
         lastActiveMarkdownSelectionTabID = selectedTabID
-        publishMarkdownSelectionIfNeeded(from: textView)
+        publishMarkdownSelectionIfNeeded(from: textView, preview: true)
     }
 
-    private func publishMarkdownSelectionIfNeeded(from textView: NSTextView) {
+    private func publishMarkdownSelectionIfNeeded(from textView: NSTextView, preview: Bool) {
         let range = textView.selectedRange()
         let signature = "\(selectedTabID?.uuidString ?? "none"):\(ObjectIdentifier(textView)):\(range.location):\(range.length)"
-        guard lastMarkdownSelectionSignature != signature else { return }
-        lastMarkdownSelectionSignature = signature
+        let previous = preview ? lastMarkdownPreviewSelectionSignature : lastMarkdownSourceSelectionSignature
+        guard previous != signature else { return }
+        if preview { lastMarkdownPreviewSelectionSignature = signature }
+        else { lastMarkdownSourceSelectionSignature = signature }
         selectionChangeToken &+= 1
     }
 
