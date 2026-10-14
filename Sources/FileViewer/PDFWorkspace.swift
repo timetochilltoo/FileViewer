@@ -6,8 +6,9 @@ struct PDFWorkspace: View {
     let viewerDocument: PDFViewerDocument
 
     var body: some View {
-        PDFKitView(
-            tabID: model.selectedTabID ?? UUID(),
+        let selectedTabID = model.selectedTabID
+        return PDFKitView(
+            tabID: selectedTabID ?? UUID(),
             documentURL: viewerDocument.url,
             document: viewerDocument.document,
             readingLayout: model.pdfReadingLayout,
@@ -23,7 +24,10 @@ struct PDFWorkspace: View {
             ),
             scale: Binding(
                 get: { model.pdfScale },
-                set: { model.pdfScale = $0 }
+                set: {
+                    guard model.selectedTabID == selectedTabID else { return }
+                    model.pdfScale = $0
+                }
             ),
             searchMatchIndex: Binding(
                 get: { model.searchMatchIndex },
@@ -172,6 +176,7 @@ struct PDFKitView: NSViewRepresentable {
     }
 
     func updateNSView(_ view: PDFView, context: Context) {
+        let isSwitchingTab = context.coordinator.parent.tabID != tabID
         context.coordinator.parent = self
         if view.displayMode != readingLayout.displayMode {
             view.displayMode = readingLayout.displayMode
@@ -183,7 +188,7 @@ struct PDFKitView: NSViewRepresentable {
             let previousPage = context.coordinator.currentVisiblePage()
             let preserveOrigin = view.document?.pageCount == document.pageCount && previousPage == page
             let requestedPage = max(1, min(page, max(document.pageCount, 1)))
-            let requestedScale = max(0.1, view.scaleFactor)
+            let requestedScale = max(0.1, isSwitchingTab ? scale : view.scaleFactor)
             let visibleOrigin = preserveOrigin ? context.coordinator.currentVisibleOrigin() : nil
             context.coordinator.isReplacingDocument = true
             view.setCurrentSelection(nil, animate: false)
@@ -273,6 +278,7 @@ struct PDFKitView: NSViewRepresentable {
             NotificationCenter.default.addObserver(self, selector: #selector(possibleFormFieldChanged(_:)), name: NSControl.textDidEndEditingNotification, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(possibleFormFieldChanged(_:)), name: NSComboBox.selectionDidChangeNotification, object: nil)
             NotificationCenter.default.addObserver(self, selector: #selector(pageChanged), name: Notification.Name.PDFViewPageChanged, object: pdfView)
+            NotificationCenter.default.addObserver(self, selector: #selector(scaleChanged), name: Notification.Name.PDFViewScaleChanged, object: pdfView)
             NotificationCenter.default.addObserver(self, selector: #selector(selectionChanged), name: Notification.Name.PDFViewSelectionChanged, object: pdfView)
         }
 
@@ -389,6 +395,17 @@ struct PDFKitView: NSViewRepresentable {
 
         @MainActor @objc private func pageChanged() {
             syncPage()
+        }
+
+        @MainActor @objc private func scaleChanged() {
+            // PDFKit also changes scale for gestures and automatic fitting.
+            // Defer binding updates out of SwiftUI's native-view update cycle.
+            let tabID = parent.tabID
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.parent.tabID == tabID, !self.isReplacingDocument,
+                      self.pdfView?.document === self.parent.document else { return }
+                self.syncScale()
+            }
         }
 
         @MainActor @objc private func selectionChanged() {

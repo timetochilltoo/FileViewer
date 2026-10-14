@@ -1,14 +1,22 @@
 # FileViewer Handoff
 
-Last updated: 2026-10-05
+Last updated: 2026-10-14
 Active repo: `/Users/patrickshi/Documents/Codex/FileViewer`  
 GitHub remote: `https://github.com/timetochilltoo/FileViewer.git`  
-Current branch at time of writing: `codex/pdf-ocr`
-Git is authoritative for the current commit. This session implements local scanned-PDF OCR, based on the completed Markdown export branch.
+Current branch at time of writing: `codex/pdf-zoom-percentage`
+Git is authoritative for the current commit. This session adds the PDF zoom percentage and corrects per-tab scale restoration, based on the completed local OCR branch.
 
 > Historical debugging and commit notes below are preserved because they explain prior regressions. Where an older note conflicts with the **Current implementation** sections, the current sections win.
 
-## Resume summary (2026-10-05, local scanned-PDF OCR)
+## Resume summary (2026-10-14, PDF zoom percentage)
+
+- The PDF toolbar now displays the current zoom percentage between Zoom Out and Zoom In. `ContentView.swift` formats the existing per-tab `pdfScale` as a whole-number percentage, with a compact fixed-width monospaced label, a Current PDF zoom tooltip, and a PDF zoom accessibility label/value. It is a readout; users continue to adjust scale through the existing zoom/fit controls. No new setting, document edit, network request, or persistence format is introduced.
+- `PDFWorkspace.swift` observes PDFKit's `PDFViewScaleChanged` notifications so changes beyond explicit toolbar commands can update the readout, including automatic fit recalculation. Binding updates are deferred to the main queue to avoid publishing during SwiftUI native-view updates. The callback holds the coordinator weakly and rejects changed tab identities, document mismatches, and document-replacement phases. The existing coordinator cleanup removes the observer. Scale bindings also reject writes from an inactive tab.
+- Native validation found that replacing the represented PDF on a tab switch used the previous native view's scale rather than the destination tab's saved scale. The replacement path now identifies a tab switch before replacing its coordinator parent and uses the destination binding's scale in that case. Same-tab structural replacements retain their existing view-scale handling. This preserves independent PDF zoom values without altering save safety, annotation undo, OCR snapshots, or per-window ownership.
+- Validation: incremental `swift build` succeeded, and `swift test --jobs 1` passed all 81 existing tests. Debug packaging, strict codesign verification, bundle metadata 0.25/25, and `git diff --check` passed. Native checks on the disposable OCR demo verified Zoom In 141% → 168%, Zoom Out → 141%, Fit Width → 236%, and Fit Page → 239%. Visual inspection confirmed toolbar spacing. Switching between PDF tabs then restored their independent 141%/239% scales. The disposable tab was closed after checks. Trackpad gestures and every window size were not manually exercised; notification wiring covers PDFKit scale changes.
+- Delivered/launched Debug `build/FileViewer 0.25.app`. Stable build guidance is in README. This fix is committed/pushed on its feature branch; main remains unmerged. No roadmap feature was added beyond this requested zoom display. Local OCR remains available; its deferred indexing/searchable-layer and handwriting work, audio notes, pointer/tablet enhancements, and focused AI study helpers remain future work. Retain the current safety rules in AGENTS.md and the implementation notes below.
+
+## Previous local OCR update (2026-10-05)
 
 - **PDF > Recognize Text > Selected Pages as Markdown… / All Pages as Markdown…** runs Apple Vision text recognition locally. Selected Pages uses Pages thumbnail selection, falling back to the current page; the toolbar/sidebar Page Tools menu also exposes it. A modal sheet shows progress, Cancel, errors, and **Open as Markdown** on completion. Nothing is sent to an AI provider. The result is a clean temporary Markdown tab with original page-number headings and a recognition-error notice. Save As persists it explicitly; editing uses the existing Markdown editor. Search and explicit AI actions work on that tab. Saved results can be added to the Library for existing indexing; the original PDF does not acquire a searchable text layer.
 - `PDFOCR.swift` renders an independent PDF snapshot and runs accurate Vision recognition with automatic language detection on a detached worker. Live PDFKit objects never cross actors. Each job accepts up to 100 distinct valid pages and a 100 MiB serialized snapshot; each page raster is at most 2,400 pixels per dimension, and output is capped at 5 MiB. The snapshot includes current unsaved content but removes temporary reading rotation without changing the live source. PDF save baseline, chronological undo, annotations, page order, selection, and reading position stay intact.

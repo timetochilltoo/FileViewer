@@ -464,6 +464,14 @@ struct PDFToolbar: View {
                 model.postPDFCommand(.pdfZoomOut)
             }
 
+            Text(model.pdfScale, format: .percent.precision(.fractionLength(0)))
+                .font(.system(.caption, design: .monospaced))
+                .frame(width: 54)
+                .lineLimit(1)
+                .help("Current PDF zoom")
+                .accessibilityLabel("PDF zoom")
+                .accessibilityValue(Text(model.pdfScale, format: .percent.precision(.fractionLength(0))))
+
             toolbarButton("plus.magnifyingglass", help: "Zoom In") {
                 model.postPDFCommand(.pdfZoomIn)
             }

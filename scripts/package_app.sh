@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="FileViewer"
-APP_VERSION="0.24"
-APP_BUILD="24"
+APP_VERSION="0.25"
+APP_BUILD="25"
 CONFIGURATION="${1:-debug}"
 case "$CONFIGURATION" in debug|release) ;; *) echo "Usage: $0 [debug|release]" >&2; exit 2 ;; esac
 APP_BUNDLE="$ROOT_DIR/build/$APP_NAME $APP_VERSION.app"

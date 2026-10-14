@@ -114,7 +114,7 @@ Expected behavior:
 
 - Pages render clearly.
 - The user can go to next page, previous page, first page, last page, or a specific page number.
-- The user can zoom in, zoom out, fit page, and fit width.
+- The user can zoom in, zoom out, fit page, and fit width. A live whole-number zoom percentage appears between the toolbar Zoom Out and Zoom In buttons. Each PDF tab restores its own scale; automatic fitting and PDFKit scale notifications update the readout.
 - The user can search text within the PDF.
 - PDF search reports current/total match count and supports previous/next result navigation.
 - The user can use thumbnails to jump between pages.

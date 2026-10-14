@@ -46,7 +46,7 @@ Current MVP build includes:
 - PDF page navigation.
 - PDF reading layouts under **Display > PDF Reading Layout** (also in the toolbar Page Tools menu): Continuous Pages, Single Page, and Two-Page Spread, remembered per file. **Start Fullscreen Presentation…** opens a read-only snapshot at the current page with Previous/Next controls. Use arrows, Page Up/Down, Space (Shift-Space for previous), Home/End, P for the laser pointer, and Escape to exit. Presentation does not change the source document, reading position, or unsaved state.
 - PDF first/last page controls.
-- PDF zoom controls.
+- PDF zoom controls with a live percentage between Zoom Out and Zoom In, also updated by Fit Width/Fit Page and PDFKit scale changes.
 - PDF thumbnails.
 - PDF page tools from **PDF > Page Tools**, the toolbar's stacked-pages menu, or **Pages > Page Tools**: ⌘/Shift-click thumbnail selection, duplicate, delete, move to a page number/end, insert or merge PDFs, extract selected pages, split into individual PDFs, and PNG export. Page edits share chronological Undo/Redo with annotations and change the source file only on Save. At least one page must remain; temporary view rotation is excluded from saved/exported PDFs.
 - PDF outline/table-of-contents sidebar when the PDF provides one.
@@ -144,12 +144,12 @@ The suite verifies Markdown dirty-state behavior, file-version change detection,
 The current development app bundle is here:
 
 ```text
-build/FileViewer 0.24.app
+build/FileViewer 0.25.app
 ```
 
 It is built from the Swift executable and signed locally with an ad-hoc development signature. The package script defaults to a native Debug build; pass `release` when a Release bundle is needed.
 
-The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.24` and `By Patrick Shi`.
+The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.25` and `By Patrick Shi`.
 
 To rebuild the app bundle:
 
