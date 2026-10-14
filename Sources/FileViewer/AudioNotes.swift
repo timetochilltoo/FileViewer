@@ -6,11 +6,13 @@ struct AudioPageMarker: Codable, Equatable, Identifiable {
     let id: UUID
     let seconds: Double
     let page: Int
+    let markdownAnchor: AudioMarkdownAnchor?
 
-    init(seconds: Double, page: Int) {
+    init(seconds: Double, page: Int, markdownAnchor: AudioMarkdownAnchor? = nil) {
         id = UUID()
         self.seconds = seconds
         self.page = page
+        self.markdownAnchor = markdownAnchor
     }
 }
 
@@ -46,6 +48,8 @@ final class AudioNoteStore {
     static let maximumBytes = 100 * 1024 * 1024
     static let maximumDuration: Double = 3600
     static let extensions: Set<String> = ["m4a", "wav", "aiff", "aif", "caf", "mp3"]
+    static func isMarkdown(_ url: URL) -> Bool { ["md", "markdown"].contains(url.pathExtension.lowercased()) }
+    static func supportsDocument(_ url: URL) -> Bool { url.isFileURL && (url.pathExtension.lowercased() == "pdf" || isMarkdown(url)) }
     let root: URL
 
     init(root: URL? = nil) {
@@ -82,11 +86,12 @@ final class AudioNoteStore {
     }
 
     static func validate(_ note: AudioNote) throws {
-        guard note.documentURL.isFileURL, note.documentURL.pathExtension.lowercased() == "pdf",
+        guard supportsDocument(note.documentURL),
               extensions.contains(note.audioExtension), note.title.count <= 120, !note.title.isEmpty,
               note.duration.isFinite, (0...maximumDuration + 1).contains(note.duration),
               note.markers.count <= 500,
               note.markers.allSatisfy({ $0.page > 0 && $0.seconds.isFinite && (0...maximumDuration).contains($0.seconds) }),
+              note.markers.allSatisfy({ isMarkdown(note.documentURL) ? $0.markdownAnchor?.isValid == true : $0.markdownAnchor == nil }),
               Set(note.markers.map(\.id)).count == note.markers.count else { throw AudioNoteError.invalidMetadata }
     }
 
@@ -138,14 +143,14 @@ final class AudioNoteStore {
         return min(player.duration, maximumDuration)
     }
 
-    func importAudio(_ source: URL, documentURL: URL, page: Int) throws -> AudioNote {
+    func importAudio(_ source: URL, documentURL: URL, page: Int, markdownAnchor: AudioMarkdownAnchor? = nil) throws -> AudioNote {
         guard Self.extensions.contains(source.pathExtension.lowercased()) else { throw AudioNoteError.invalidFile }
         let data = try Self.read(source, limit: Self.maximumBytes)
         let duration = try Self.duration(of: data)
         let note = AudioNote(id: UUID(), documentURL: documentURL.standardizedFileURL,
                              title: String(source.deletingPathExtension().lastPathComponent.prefix(120)), created: Date(),
                              audioExtension: source.pathExtension.lowercased(), duration: duration,
-                             markers: [AudioPageMarker(seconds: 0, page: page)], incomplete: false)
+                             markers: [AudioPageMarker(seconds: 0, page: page, markdownAnchor: Self.isMarkdown(documentURL) ? (markdownAnchor ?? .documentStart) : nil)], incomplete: false)
         try checkCapacity()
         let destination = try audioURL(for: note)
         try data.write(to: destination, options: .withoutOverwriting)
@@ -207,10 +212,11 @@ final class AudioNotesController: NSObject, ObservableObject, AVAudioRecorderDel
 
     var isBusy: Bool { recordingNote != nil || pendingTabID != nil }
 
-    func start(documentURL: URL, tabID: UUID, page: Int, title: String) async {
+    func start(documentURL: URL, tabID: UUID, page: Int, title: String, markdownAnchor: AudioMarkdownAnchor? = nil) async {
         guard !isBusy else { return }
         errorMessage = nil
-        guard documentURL.isFileURL, documentURL.pathExtension.lowercased() == "pdf", page > 0 else {
+        guard AudioNoteStore.supportsDocument(documentURL), page > 0,
+              markdownAnchor?.isValid != false else {
             errorMessage = AudioNoteError.invalidMetadata.localizedDescription
             return
         }
@@ -227,7 +233,7 @@ final class AudioNotesController: NSObject, ObservableObject, AVAudioRecorderDel
         let note = AudioNote(id: UUID(), documentURL: documentURL.standardizedFileURL,
                              title: trimmed.isEmpty ? "Audio Note" : String(trimmed.prefix(120)), created: Date(),
                              audioExtension: "m4a", duration: 0,
-                             markers: [AudioPageMarker(seconds: 0, page: page)], incomplete: true)
+                             markers: [AudioPageMarker(seconds: 0, page: page, markdownAnchor: AudioNoteStore.isMarkdown(documentURL) ? (markdownAnchor ?? .documentStart) : nil)], incomplete: true)
         do {
             try store.checkCapacity()
             let url = try store.audioURL(for: note)
@@ -259,10 +265,11 @@ final class AudioNotesController: NSObject, ObservableObject, AVAudioRecorderDel
         }
     }
 
-    func addMarker(page: Int, documentURL: URL) {
+    func addMarker(page: Int, documentURL: URL, markdownAnchor: AudioMarkdownAnchor? = nil) {
         guard var note = recordingNote, note.documentURL == documentURL.standardizedFileURL,
               note.markers.count < 500, page > 0 else { return }
-        let marker = AudioPageMarker(seconds: min(AudioNoteStore.maximumDuration, recorder?.currentTime ?? recordingSeconds), page: page)
+        let marker = AudioPageMarker(seconds: min(AudioNoteStore.maximumDuration, recorder?.currentTime ?? recordingSeconds), page: page,
+                                     markdownAnchor: AudioNoteStore.isMarkdown(documentURL) ? (markdownAnchor ?? .documentStart) : nil)
         note.markers.append(marker)
         do { try store.save(note); recordingNote = note; refresh() }
         catch { errorMessage = error.localizedDescription }
@@ -338,16 +345,17 @@ final class AudioNotesController: NSObject, ObservableObject, AVAudioRecorderDel
         playbackSeconds = player.currentTime
     }
 
-    func addPlaybackMarker(page: Int, documentURL: URL) {
+    func addPlaybackMarker(page: Int, documentURL: URL, markdownAnchor: AudioMarkdownAnchor? = nil) {
         guard let playingID, var note = notes.first(where: { $0.id == playingID }),
               note.documentURL == documentURL.standardizedFileURL, page > 0, note.markers.count < 500 else { return }
-        note.markers.append(AudioPageMarker(seconds: playbackSeconds, page: page))
+        note.markers.append(AudioPageMarker(seconds: playbackSeconds, page: page,
+                                           markdownAnchor: AudioNoteStore.isMarkdown(documentURL) ? (markdownAnchor ?? .documentStart) : nil))
         do { try store.save(note); refresh() } catch { errorMessage = error.localizedDescription }
     }
 
-    func importAudio(_ url: URL, documentURL: URL, page: Int) {
+    func importAudio(_ url: URL, documentURL: URL, page: Int, markdownAnchor: AudioMarkdownAnchor? = nil) {
         errorMessage = nil
-        do { _ = try store.importAudio(url, documentURL: documentURL, page: page); refresh() }
+        do { _ = try store.importAudio(url, documentURL: documentURL, page: page, markdownAnchor: markdownAnchor); refresh() }
         catch { errorMessage = error.localizedDescription }
     }
 

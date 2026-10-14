@@ -3650,6 +3650,24 @@ final class AppModel: ObservableObject {
         }
     }
 
+    @discardableResult
+    func navigateToAudioMarkdownAnchor(_ anchor: AudioMarkdownAnchor) -> Bool {
+        guard case .markdown(let markdown) = document, anchor.isValid else { return false }
+        if anchor.isDocumentStart {
+            if sourceTextViewTabID == selectedTabID, let view = lastActiveMarkdownTextView,
+               view.window != nil, view.string == markdown.text {
+                view.scrollRangeToVisible(NSRange(location: 0, length: min(1, (view.string as NSString).length)))
+            }
+            if previewTextViewTabID == selectedTabID, let view = lastActiveMarkdownPreviewTextView, view.window != nil {
+                view.scrollRangeToVisible(NSRange(location: 0, length: min(1, (view.string as NSString).length)))
+            }
+            return true
+        }
+        guard let heading = anchor.resolve(in: markdownHeadings) else { return false }
+        navigateToMarkdownHeading(heading)
+        return true
+    }
+
     static func extractPDFOutline(from document: PDFDocument) -> [PDFOutlineEntry] {
         guard let root = document.outlineRoot else { return [] }
         var entries: [PDFOutlineEntry] = []

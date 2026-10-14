@@ -160,6 +160,76 @@ final class AudioNotesTests: XCTestCase {
         XCTAssertNil(controller.playingID)
         XCTAssertFalse(controller.isPlaying)
     }
+
+    @MainActor
+    func testMarkdownAudioImportPersistsHeadingAndPreservesOriginals() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let document = root.appendingPathComponent("Notes.md")
+        let text = "# Introduction\n\nNotes\n\n## Results 🎧\n\nMore text"
+        try Data(text.utf8).write(to: document)
+        let audio = try fixture(in: root)
+        let originalAudio = try Data(contentsOf: audio)
+        let store = AudioNoteStore(root: root.appendingPathComponent("Audio"))
+        let anchor = try XCTUnwrap(AudioMarkdownAnchor.options(for: AppModel.extractHeadings(from: text)).last)
+        let note = try store.importAudio(audio, documentURL: document, page: 1, markdownAnchor: anchor)
+        XCTAssertEqual(try store.list().first?.markers.first?.markdownAnchor, anchor)
+        XCTAssertEqual(try store.data(for: note), originalAudio)
+        XCTAssertEqual(try String(contentsOf: document, encoding: .utf8), text)
+        XCTAssertEqual(try Data(contentsOf: audio), originalAudio)
+        let startNote = try store.importAudio(audio, documentURL: document, page: 1)
+        XCTAssertEqual(startNote.markers.first?.markdownAnchor, .documentStart)
+        var invalid = note
+        invalid.markers = [AudioPageMarker(seconds: 0, page: 1)]
+        XCTAssertThrowsError(try AudioNoteStore.validate(invalid))
+    }
+
+    @MainActor
+    func testHeadingAnchorSurvivesOffsetsButRejectsRenamesAndAmbiguousDuplicates() throws {
+        let text = "# Intro\n\n## Results 🎧\n\nText"
+        let headings = AppModel.extractHeadings(from: text)
+        let anchor = try XCTUnwrap(AudioMarkdownAnchor.options(for: headings).last)
+        let edited = AppModel.extractHeadings(from: "Inserted 😀 text\n\n" + text)
+        XCTAssertEqual(anchor.resolve(in: edited)?.title, "Results 🎧")
+        XCTAssertNotEqual(anchor.resolve(in: edited)?.sourceLocation, headings.last?.sourceLocation)
+        XCTAssertNil(anchor.resolve(in: AppModel.extractHeadings(from: "## Renamed\n")))
+        XCTAssertNil(anchor.resolve(in: AppModel.extractHeadings(from: "## Results 🎧\n\n## Results 🎧")))
+        let duplicates = AppModel.extractHeadings(from: "## Same\n\nText\n\n## Same\n")
+        let second = try XCTUnwrap(AudioMarkdownAnchor.options(for: duplicates).last)
+        XCTAssertEqual(second.occurrence, 1)
+        XCTAssertEqual(second.resolve(in: duplicates), duplicates.last)
+        XCTAssertNil(second.resolve(in: AppModel.extractHeadings(from: "## Same")))
+        let fenced = AppModel.extractHeadings(from: "```\n# Not a heading\n```\n# Real")
+        XCTAssertEqual(AudioMarkdownAnchor.options(for: fenced).map(\.title), ["Real"])
+    }
+
+    @MainActor
+    func testLegacyPDFMetadataAndReadOnlyMarkdownNavigation() throws {
+        let pdfNote = AudioNote(id: UUID(), documentURL: URL(fileURLWithPath: "/tmp/old.pdf"), title: "Old", created: Date(),
+                                audioExtension: "wav", duration: 1, markers: [AudioPageMarker(seconds: 0, page: 3)], incomplete: false)
+        let data = try JSONEncoder().encode(pdfNote)
+        XCTAssertFalse(String(decoding: data, as: UTF8.self).contains("markdownAnchor"))
+        let legacy = try JSONDecoder().decode(AudioNote.self, from: data)
+        XCTAssertEqual(legacy, pdfNote)
+        XCTAssertNoThrow(try AudioNoteStore.validate(legacy))
+        let model = AppModel(opening: [])
+        let text = "# Intro\n\n## Next\n\nBody"
+        let tab = DocumentTab(document: .markdown(MarkdownDocument(url: URL(fileURLWithPath: "/tmp/notes.md"), untitledName: "Notes.md", text: text, savedText: text)))
+        model.tabs = [tab]
+        model.selectedTabID = tab.id
+        let anchor = try XCTUnwrap(AudioMarkdownAnchor.options(for: model.markdownHeadings).last)
+        XCTAssertTrue(model.navigateToAudioMarkdownAnchor(anchor))
+        XCTAssertTrue(model.navigateToAudioMarkdownAnchor(.documentStart))
+        guard case .markdown(let document) = model.document else { return XCTFail("Missing Markdown") }
+        XCTAssertEqual(document.text, text)
+        XCTAssertFalse(document.hasUnsavedChanges)
+        model.updateMarkdown("# Intro\n\n## Changed\n\nBody")
+        XCTAssertFalse(model.navigateToAudioMarkdownAnchor(anchor))
+        guard case .markdown(let edited) = model.document else { return XCTFail("Missing Markdown") }
+        XCTAssertTrue(edited.hasUnsavedChanges)
+        XCTAssertEqual(edited.savedText, text)
+    }
 }
 
 private actor PermissionGate {

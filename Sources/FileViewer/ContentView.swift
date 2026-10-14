@@ -49,7 +49,7 @@ struct ContentView: View {
                     statusBar
                     Divider()
                     documentBody
-                    if (model.audioNotesVisible && model.isPDFDocument) || audio.isBusy || audio.playingID != nil {
+                    if (model.audioNotesVisible && model.document != nil) || audio.isBusy || audio.playingID != nil {
                         Divider()
                         AudioNotesView(model: model)
                     }
@@ -216,7 +216,7 @@ struct ContentView: View {
                 }
                 model.audioNotesVisible.toggle()
             } label: { Image(systemName: "waveform") }
-            .disabled(!model.isPDFDocument)
+            .disabled(model.document == nil)
             .help(model.audioNotesVisible ? "Stop audio and hide Audio Notes" : "Show Audio Notes")
 
             Button {

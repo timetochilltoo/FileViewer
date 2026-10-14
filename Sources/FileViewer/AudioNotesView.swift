@@ -5,9 +5,13 @@ struct AudioNotesView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var audio = AudioNotesController.shared
     @State private var title = "Audio Note"
+    @State private var markdownAnchor = AudioMarkdownAnchor.documentStart
+    @State private var headingOptions: [AudioMarkdownAnchor] = []
 
-    private var documentURL: URL? { model.isPDFDocument ? model.document?.url?.standardizedFileURL : nil }
+    private var documentURL: URL? { model.document?.url?.standardizedFileURL }
     private var notes: [AudioNote] { audio.notes.filter { $0.documentURL == documentURL && $0.id != audio.recordingNote?.id } }
+    private var selectedAnchor: AudioMarkdownAnchor? { model.isMarkdownDocument ? markdownAnchor : nil }
+    private var markdownText: String { if case .markdown(let document) = model.document { document.text } else { "" } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -21,6 +25,21 @@ struct AudioNotesView: View {
                     model.audioNotesVisible = false
                 } label: { Image(systemName: "xmark") }.help("Stop audio and close Audio Notes")
             }
+            if model.isMarkdownDocument {
+                if documentURL == nil {
+                    HStack {
+                        Text("Save this Markdown file first to attach audio notes.").font(.caption)
+                        Button("Save…") { model.saveMarkdownAs() }
+                    }
+                } else {
+                    Picker("Link to", selection: $markdownAnchor) {
+                        Text("Document Start").tag(AudioMarkdownAnchor.documentStart)
+                        ForEach(headingOptions) { anchor in
+                            Text(String(repeating: "#", count: anchor.level) + " " + anchor.label).tag(anchor)
+                        }
+                    }.frame(maxWidth: 420)
+                }
+            }
             if let note = audio.recordingNote {
                 HStack {
                     Image(systemName: "record.circle.fill").foregroundStyle(.red)
@@ -31,8 +50,8 @@ struct AudioNotesView: View {
                 HStack {
                     Text(note.documentURL.lastPathComponent).lineLimit(1).truncationMode(.middle)
                     Spacer()
-                    Button("Add Page Marker") {
-                        if let documentURL { audio.addMarker(page: model.pdfPage, documentURL: documentURL) }
+                    Button(model.isMarkdownDocument ? "Add Section Marker" : "Add Page Marker") {
+                        if let documentURL { audio.addMarker(page: model.pdfPage, documentURL: documentURL, markdownAnchor: selectedAnchor) }
                     }.disabled(documentURL != note.documentURL || note.markers.count >= 500)
                 }
             } else if audio.pendingTabID != nil {
@@ -48,9 +67,10 @@ struct AudioNotesView: View {
                     Button("Record", systemImage: "mic.fill") {
                         guard let documentURL, let tabID = model.selectedTabID else { return }
                         let page = model.pdfPage
+                        let anchor = selectedAnchor
                         Task {
                             guard model.tabs.contains(where: { $0.id == tabID && $0.document.url?.standardizedFileURL == documentURL }) else { return }
-                            await audio.start(documentURL: documentURL, tabID: tabID, page: page, title: title)
+                            await audio.start(documentURL: documentURL, tabID: tabID, page: page, title: title, markdownAnchor: anchor)
                         }
                     }.disabled(documentURL == nil)
                 }
@@ -69,8 +89,8 @@ struct AudioNotesView: View {
                     Slider(value: Binding(get: { audio.playbackSeconds }, set: { audio.seek(to: $0) }), in: 0...max(0.1, note.duration))
                         .accessibilityLabel("Audio playback position")
                     Button(audio.isPlaying ? "Pause" : "Resume") { audio.togglePlayback() }
-                    Button("Mark Current Page") {
-                        if let documentURL { audio.addPlaybackMarker(page: model.pdfPage, documentURL: documentURL) }
+                    Button(model.isMarkdownDocument ? "Mark Section" : "Mark Current Page") {
+                        if let documentURL { audio.addPlaybackMarker(page: model.pdfPage, documentURL: documentURL, markdownAnchor: selectedAnchor) }
                     }.disabled(documentURL != note.documentURL || note.markers.count >= 500)
                 }
             }
@@ -83,7 +103,9 @@ struct AudioNotesView: View {
             }
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 10) {
-                    if notes.isEmpty { Text("Record or import audio for this PDF. Page markers play from their timestamp and jump to that page; page edits can shift these links.").font(.caption).foregroundStyle(.secondary) }
+                    if notes.isEmpty { Text(model.isMarkdownDocument
+                        ? "Record or import audio for this file. Choose a heading or Document Start for each marker. Renaming/removing a heading can break its link."
+                        : "Record or import audio for this PDF. Page markers play from their timestamp and jump to that page; page edits can shift these links.").font(.caption).foregroundStyle(.secondary) }
                     ForEach(notes) { note in
                         VStack(alignment: .leading, spacing: 5) {
                             HStack {
@@ -102,14 +124,20 @@ struct AudioNotesView: View {
                             ScrollView(.horizontal) {
                                 HStack {
                                     ForEach(note.markers.sorted { $0.seconds < $1.seconds }) { marker in
-                                        Button("Page \(marker.page) · \(AudioNotesController.timeLabel(marker.seconds))") {
-                                            guard marker.page <= model.pdfPageCount else {
+                                        Button((marker.markdownAnchor?.label ?? "Page \(marker.page)") + " · " + AudioNotesController.timeLabel(marker.seconds)) {
+                                            if let anchor = marker.markdownAnchor {
+                                                guard model.navigateToAudioMarkdownAnchor(anchor) else {
+                                                    audio.errorMessage = "This heading was renamed, removed, or became ambiguous. The recording is still available."
+                                                    return
+                                                }
+                                            } else if model.isPDFDocument && marker.page <= model.pdfPageCount {
+                                                model.postPDFCommand(.pdfGoToPage, object: marker.page)
+                                            } else {
                                                 audio.errorMessage = "This page no longer exists in the PDF. The recording is still available."
                                                 return
                                             }
-                                            model.postPDFCommand(.pdfGoToPage, object: marker.page)
                                             audio.play(note, at: marker.seconds, tabID: model.selectedTabID)
-                                        }.disabled(audio.isBusy)
+                                        }.lineLimit(1).frame(maxWidth: 240).disabled(audio.isBusy)
                                     }
                                 }
                             }
@@ -120,27 +148,35 @@ struct AudioNotesView: View {
             }
         }
         .padding(12)
-        .frame(height: 260)
-        .onAppear { audio.refresh() }
+        .frame(height: model.isMarkdownDocument ? 290 : 260)
+        .onAppear { audio.refresh(); refreshHeadings() }
+        .onChange(of: markdownText) { _, _ in refreshHeadings() }
+        .onChange(of: model.selectedTabID) { _, _ in markdownAnchor = .documentStart; refreshHeadings() }
     }
 
     private func importAudio() {
         guard let documentURL else { return }
         let page = model.pdfPage
+        let anchor = selectedAnchor
         let panel = NSOpenPanel()
         panel.allowedContentTypes = AudioNoteStore.extensions.compactMap { UTType(filenameExtension: $0) }
         panel.canChooseDirectories = false
         if panel.runModal() == .OK, let url = panel.url {
-            audio.importAudio(url, documentURL: documentURL, page: page)
+            audio.importAudio(url, documentURL: documentURL, page: page, markdownAnchor: anchor)
         }
     }
 
     private func trash(_ note: AudioNote) {
         let alert = NSAlert()
         alert.messageText = "Move this audio note to Trash?"
-        alert.informativeText = "The local recording and its page-marker metadata will be moved to macOS Trash. The PDF is unchanged."
+        alert.informativeText = "The local recording and its marker metadata will be moved to macOS Trash. The document is unchanged."
         alert.addButton(withTitle: "Move to Trash")
         alert.addButton(withTitle: "Cancel")
         if alert.runModal() == .alertFirstButtonReturn { audio.trash(note) }
+    }
+
+    private func refreshHeadings() {
+        headingOptions = AudioMarkdownAnchor.options(for: model.markdownHeadings)
+        if !markdownAnchor.isDocumentStart && !headingOptions.contains(markdownAnchor) { markdownAnchor = .documentStart }
     }
 }
