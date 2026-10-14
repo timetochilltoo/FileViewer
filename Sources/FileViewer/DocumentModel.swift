@@ -589,6 +589,7 @@ final class AppModel: ObservableObject {
     @Published var pdfAnnotationFilter: PDFAnnotationFilter = .all
     @Published var templatesPresented = false
     @Published var pdfOCRJob: PDFOCRJob?
+    @Published var audioNotesVisible = false
     @Published var markdownEditorFocusRequest = UUID()
     @Published var aiPanelVisible = false
     @Published var aiPanelWidth: CGFloat = 380
@@ -1212,6 +1213,7 @@ final class AppModel: ObservableObject {
         savePDFStateIfNeeded(for: tabs[index])
         saveMarkdownStateIfNeeded(for: tabs[index])
         let id = tabs[index].id
+        AudioNotesController.shared.sourceClosed(tabID: id, documentURL: tabs[index].document.url)
         if pdfOCRJob?.tabID == id { pdfOCRJob = nil }
         pdfAnnotationActionUndoStacks[id] = nil
         pdfAnnotationActionRedoStacks[id] = nil

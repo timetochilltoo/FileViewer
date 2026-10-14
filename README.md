@@ -42,6 +42,7 @@ Current MVP build includes:
 - Compact New Markdown button between the sidebar toggle and Open button, with the same action also available from **FileViewer > New Markdown Document** / Command-N.
 - **File > New from Template…** (also on the empty screen) opens the local template manager. Import Markdown/PDF files, save the current document including unsaved edits, or move templates to Trash. Markdown creates an unsaved tab; PDF creates a new saved copy and refuses existing destinations. Templates are stored privately under `~/Library/Application Support/FileViewer/Templates`; Markdown stores text only, without copying image assets.
 - **PDF > Recognize Text > Selected Pages / All Pages as Markdown…** uses on-device Apple Vision OCR for scanned PDFs. Select thumbnails in Pages (or use the current page); review the result and open it in a temporary Markdown tab. Save that tab to keep/search/index it in the Library or use its text with the existing AI assistant. The original PDF stays unchanged. Jobs are capped at 100 pages, a 100 MiB snapshot, and 2,400 pixels per rendered page; recognition/reading order can be imperfect. Cancel discards results after the current page finishes. OCR does not add a searchable layer to the PDF or automatically index scanned PDFs.
+- **Display > Show Audio Notes** (or the waveform toolbar button) opens local audio notes below the PDF. Press Record to request microphone permission, then navigate and Add Page Marker; Stop & Save retains the recording locally. Import M4A/WAV/AIFF/CAF/MP3 files, play/pause/seek, add markers during playback, or click a marker to jump to its PDF page and audio timestamp. Closing the source, window, panel, or app stops recording/playback. Notes stay separate from the PDF under `~/Library/Application Support/FileViewer/Audio Notes` and are linked to its file path. Recordings are limited to one hour/100 MiB, 500 markers, and 1,000 notes. Page edits can shift page links; moved/renamed PDFs do not automatically migrate audio notes. Use the packaged app for microphone recording. Transcription and Markdown anchors are deferred.
 - PDF rendering.
 - PDF page navigation.
 - PDF reading layouts under **Display > PDF Reading Layout** (also in the toolbar Page Tools menu): Continuous Pages, Single Page, and Two-Page Spread, remembered per file. **Start Fullscreen Presentation…** opens a read-only snapshot at the current page with Previous/Next controls. Use arrows, Page Up/Down, Space (Shift-Space for previous), Home/End, P for the laser pointer, and Escape to exit. Presentation does not change the source document, reading position, or unsaved state.
@@ -144,12 +145,12 @@ The suite verifies Markdown dirty-state behavior, file-version change detection,
 The current development app bundle is here:
 
 ```text
-build/FileViewer 0.25.app
+build/FileViewer 0.26.app
 ```
 
 It is built from the Swift executable and signed locally with an ad-hoc development signature. The package script defaults to a native Debug build; pass `release` when a Release bundle is needed.
 
-The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.25` and `By Patrick Shi`.
+The supplied marker-lines artwork is used for the packaged app icon and the custom About FileViewer panel. The app menu displays `FileViewer`; About shows `Version 0.26` and `By Patrick Shi`.
 
 To rebuild the app bundle:
 

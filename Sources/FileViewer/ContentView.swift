@@ -7,6 +7,7 @@ struct ContentView: View {
     @StateObject private var model: AppModel
     @State private var sidebarVisible = SidebarPreferences.initialVisibility()
     @State private var aiPanelDragStartWidth: CGFloat?
+    @ObservedObject private var audio = AudioNotesController.shared
     private let sidebarWidth: CGFloat = 320
     private let dividerWidth: CGFloat = 1
 
@@ -48,6 +49,10 @@ struct ContentView: View {
                     statusBar
                     Divider()
                     documentBody
+                    if (model.audioNotesVisible && model.isPDFDocument) || audio.isBusy || audio.playingID != nil {
+                        Divider()
+                        AudioNotesView(model: model)
+                    }
                 }
                 .frame(width: documentWidth, height: proxy.size.height)
                 .clipped()
@@ -203,6 +208,16 @@ struct ContentView: View {
 
             Spacer()
                 .frame(minWidth: 0)
+
+            Button {
+                if model.audioNotesVisible {
+                    audio.stopRecording()
+                    audio.stopPlayback()
+                }
+                model.audioNotesVisible.toggle()
+            } label: { Image(systemName: "waveform") }
+            .disabled(!model.isPDFDocument)
+            .help(model.audioNotesVisible ? "Stop audio and hide Audio Notes" : "Show Audio Notes")
 
             Button {
                 model.aiPanelVisible.toggle()

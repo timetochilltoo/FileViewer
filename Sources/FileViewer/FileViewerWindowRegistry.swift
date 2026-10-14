@@ -122,6 +122,8 @@ final class FileViewerWindowRegistry {
     /// final pass also covers Command-Q paths where AppKit tears down windows
     /// without delivering every delegate callback before termination.
     func prepareForTermination() {
+        AudioNotesController.shared.stopRecording()
+        AudioNotesController.shared.stopPlayback()
         for window in registeredWindows.values.compactMap(\.value) {
             retireWindowForSharing(window)
         }
@@ -299,6 +301,9 @@ final class FileViewerWindowRegistry {
             .compactMap(\.value)
             .first { registeredWindows[ObjectIdentifier($0)]?.value === window }
         if let model {
+            for tab in model.tabs {
+                AudioNotesController.shared.sourceClosed(tabID: tab.id, documentURL: tab.document.url)
+            }
             model.pdfOCRJob = nil
             registeredModels.removeAll { $0.value === model }
             registeredWindows.removeValue(forKey: ObjectIdentifier(model))

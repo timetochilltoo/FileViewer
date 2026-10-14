@@ -116,6 +116,9 @@ struct FileViewerCommands: Commands {
         FileViewerRemovedCommands()
 
         CommandMenu("Display") {
+            Button("Show Audio Notes") { activeModel?.audioNotesVisible = true }
+                .disabled(activeModel?.isPDFDocument != true)
+            Divider()
             Menu("PDF Reading Layout") {
                 if let activeModel { PDFReadingActions(model: activeModel) }
             }
